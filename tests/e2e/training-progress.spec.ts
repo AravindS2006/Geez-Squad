@@ -153,6 +153,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     });
     expect(saved[0].qualityScore).toBeGreaterThan(0);
     expect(saved[0].trackedMs).toBeGreaterThan(0);
+    await trainee.getByText('Measurement details', { exact: true }).click();
     await expect(
       trainee.locator('.progress-metric').filter({ hasText: 'Reported load volume' }),
     ).toContainText('5 kg·reps');

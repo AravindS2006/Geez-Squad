@@ -405,6 +405,146 @@ try {
   assert.equal(JSON.stringify(personal).includes('Private training note'), false);
   checks += 4;
   checks++;
+  // Scheduling, shared profiles, and removal must keep ownership and history intact.
+  const beforeEdit = await check('/api/workspace', undefined, coach);
+  const editable = beforeEdit.classes.find((session) => session.id === allClass.id);
+  const update = {
+    action: 'updateClass',
+    id: allClass.id,
+    expectedVersion: editable.editVersion,
+    title: 'Rescheduled foundations',
+    startsAt: new Date(Date.now() + 7200000).toISOString(),
+    duration: 60,
+    capacity: 30,
+    planId: plan.id,
+    participantIds: [trainee.id],
+  };
+  await check('/api/command', update, trainee, 403);
+  await check('/api/command', update, other, 404);
+  await check('/api/command', { ...update, participantIds: [other.id] }, coach, 403);
+  await check('/api/command', { ...update, participantIds: [trainee.id, trainee.id] }, coach, 400);
+  await check('/api/command', { ...update, capacity: 101 }, coach, 400);
+  await check(
+    '/api/command',
+    { ...update, startsAt: new Date(Date.now() - 3600000).toISOString() },
+    coach,
+    400,
+  );
+  await check('/api/command', update, coach);
+  await check('/api/command', update, coach, 409);
+  const edited = (await check('/api/workspace', undefined, coach)).classes.find(
+    (session) => session.id === allClass.id,
+  );
+  assert.deepEqual(
+    [edited.title, edited.startsAt, edited.duration, edited.capacity, edited.planId],
+    [update.title, update.startsAt, 60, 30, plan.id],
+  );
+  const traineeEdited = (await check('/api/workspace', undefined, trainee)).classes.find(
+    (session) => session.id === allClass.id,
+  );
+  assert.equal(traineeEdited.startsAt, update.startsAt);
+  assert.equal(traineeEdited.editVersion, undefined);
+  checks += 3;
+  await check(
+    '/api/command',
+    { ...update, expectedVersion: edited.editVersion, participantIds: [] },
+    coach,
+  );
+  await check(`/api/classes/${allClass.id}`, undefined, trainee, 404);
+  const without = (await check('/api/workspace', undefined, coach)).classes.find(
+    (session) => session.id === allClass.id,
+  );
+  await check('/api/command', { ...update, expectedVersion: without.editVersion }, coach);
+  const concurrent = (await check('/api/workspace', undefined, coach)).classes.find(
+    (session) => session.id === allClass.id,
+  );
+  const concurrentResults = await Promise.all(
+    ['First editor', 'Second editor'].map((title) =>
+      request('/api/command', { ...update, title, expectedVersion: concurrent.editVersion }, coach),
+    ),
+  );
+  assert.deepEqual(concurrentResults.map((result) => result.status).sort(), [200, 409]);
+  checks++;
+  const profile = (await check('/api/workspace', undefined, coach)).clients.find(
+    (person) => person.id === trainee.id,
+  );
+  const editProfile = {
+    action: 'clientProfile',
+    userId: trainee.id,
+    name: 'Updated Trainee',
+    goal: 'Build a consistent strength routine',
+    expectedName: profile.name,
+    expectedGoal: profile.goal,
+  };
+  await check('/api/command', editProfile, other, 404);
+  await check('/api/command', editProfile, trainee, 403);
+  await check('/api/command', { ...editProfile, email: 'changed@example.test' }, coach, 400);
+  await check('/api/command', editProfile, coach);
+  await check('/api/command', editProfile, coach, 409);
+  const shared = await check('/api/workspace', undefined, trainee);
+  assert.equal(shared.user.name, editProfile.name);
+  assert.equal(shared.user.goal, editProfile.goal);
+  assert.equal(shared.user.email, trainee.email);
+  const coachSummary = (await check('/api/workspace', undefined, coach)).clients.find(
+    (person) => person.id === trainee.id,
+  );
+  assert.equal(coachSummary.latestCheckIn.note, 'Ready to train');
+  assert.equal(coachSummary.completedSetsThisWeek, 2);
+  checks += 5;
+  await check('/api/command', { action: 'removeClient', userId: trainee.id }, other, 404);
+  await check('/api/command', { action: 'removeClient', userId: trainee.id }, trainee, 403);
+  await check('/api/command', { action: 'classControl', id: allClass.id, control: 'start' }, coach);
+  const liveEdit = (await check('/api/workspace', undefined, coach)).classes.find(
+    (session) => session.id === allClass.id,
+  );
+  await check('/api/command', { ...update, expectedVersion: liveEdit.editVersion }, coach, 409);
+  await check('/api/command', { action: 'removeClient', userId: trainee.id }, coach, 409);
+  await check('/api/command', { action: 'classControl', id: allClass.id, control: 'end' }, coach);
+  const future = await check(
+    '/api/command',
+    {
+      action: 'createClass',
+      title: 'Future removed enrollment',
+      startsAt: start,
+      duration: 30,
+      capacity: 30,
+      participantIds: [trainee.id],
+    },
+    coach,
+  );
+  const pending = await check('/api/command', { action: 'invite', email: trainee.email }, coach);
+  const historyCount = await db.workoutSet.count({ where: { userId: trainee.id } });
+  const futureSnapshot = (await check('/api/workspace', undefined, coach)).classes.find(
+    (session) => session.id === future.id,
+  );
+  await check('/api/command', { action: 'removeClient', userId: trainee.id }, coach);
+  await check(
+    '/api/command',
+    { ...update, id: future.id, participantIds: [], expectedVersion: futureSnapshot.editVersion },
+    coach,
+    409,
+  );
+  await check('/api/command', { action: 'acceptInvite', code: pending.code }, trainee, 400);
+  await check(`/api/classes/${future.id}`, undefined, trainee, 404);
+  const removed = await check('/api/workspace', undefined, coach);
+  const independent = await check('/api/workspace', undefined, trainee);
+  assert.equal(removed.clients.length, 0);
+  assert.equal(removed.assignments.length, 0);
+  assert.equal(removed.workoutSets.filter((set) => set.userId === trainee.id).length, 0);
+  assert.equal(independent.studio, null);
+  assert.equal(independent.workoutSets.length, historyCount);
+  assert.equal(
+    independent.classes.some((session) => session.id === item.id && session.status === 'completed'),
+    true,
+  );
+  assert.equal(await db.enrollment.count({ where: { classId: item.id, userId: trainee.id } }), 1);
+  checks += 7;
+  await check(
+    '/api/command',
+    { action: 'coachNote', userId: trainee.id, note: 'Access revoked' },
+    coach,
+    404,
+  );
   const health = await check('/api/health');
   assert.equal(health.status, 'ok');
   checks++;

@@ -25,7 +25,13 @@ export type MetricView = {
   rejectedReps?: number;
   updatedAt: string;
 };
-export type ClientView = Person & { joinedAt: string; coachNote?: string };
+export type ClientView = Person & {
+  joinedAt: string;
+  coachNote?: string;
+  latestCheckIn?: CheckInView | null;
+  lastTrainingAt?: string | null;
+  completedSetsThisWeek?: number;
+};
 export type WorkoutSetRecord = {
   clientId: string;
   classId: string | null;
@@ -70,6 +76,7 @@ export type CheckInView = {
 export type AssignmentView = { userId: string; planId: string; assignedAt: string };
 export type ClassView = {
   id: string;
+  editVersion?: string;
   title: string;
   startsAt: string;
   duration: number;

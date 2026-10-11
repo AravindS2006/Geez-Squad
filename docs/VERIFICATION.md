@@ -2,6 +2,12 @@
 
 Updated 9 October 2026. Geez Squad is deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app). This report records automated evidence and its limits; the GitHub workflow and Vercel deployment identify the exact released commit.
 
+## Coaching workspace and studio management
+
+The [studio management release](STUDIO_MANAGEMENT.md) replaces mixed-person form averages with actionable coach follow-ups and personal trainee progress. It adds guarded scheduled-session editing, roster changes, shared profile editing, direct progress navigation, and deliberate membership removal with history preservation. Existing pose and video behavior remains covered by the regression suite. No schema migration or new dependency is required.
+
+Local acceptance passed: 266 unit cases, 168 real authentication/API checks (including simultaneous meeting edits), 38 Edge browser cases, 20 accessibility scans, both deferred-email auth modes (9 closed-signup checks and 28 testing-signup checks), optimized build, TypeScript, formatting, and a production-dependency audit with zero known vulnerabilities. Browser management tests exercise the UI, API, database, reload, and both trainees' calendars. Release staging checks production build and database health; final canonical acceptance uses temporary synthetic accounts and removes their related records.
+
 ## Geez Squad accuracy and coaching release
 
 The [current release](GEEZ_SQUAD_RELEASE.md) adds synchronized camera/landmark rendering, the Heavy model with device recovery, guided range calibration, noise-tolerant form validation, full-roster scheduling and a consistent conference layout. Durable set history, measured progress, assignments, private notes, check-ins and account-scoped retries remain available. Twelve exercise profiles use version `profile-v4`; historical scores retain their original version. Domain-based email and paid billing stay deferred as requested.

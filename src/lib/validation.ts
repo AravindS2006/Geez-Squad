@@ -60,6 +60,29 @@ export const commandSchema = z.discriminatedUnion('action', [
     includeAllClients: z.boolean().default(false),
   }),
   z.object({
+    action: z.literal('updateClass'),
+    id: identifier,
+    expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
+    title: z.string().trim().min(2).max(80),
+    startsAt: z.iso.datetime(),
+    duration: z.number().int().min(10).max(120),
+    capacity: z.number().int().min(1).max(MAX_CLASS_CLIENTS),
+    planId: identifier.nullable(),
+    participantIds: z.array(identifier).max(MAX_CLASS_CLIENTS),
+    includeAllClients: z.boolean().default(false),
+  }),
+  z
+    .object({
+      action: z.literal('clientProfile'),
+      userId: identifier,
+      name: z.string().trim().min(2).max(80),
+      goal: z.string().trim().min(2).max(160),
+      expectedName: z.string().max(80),
+      expectedGoal: z.string().max(160),
+    })
+    .strict(),
+  z.object({ action: z.literal('removeClient'), userId: identifier }).strict(),
+  z.object({
     action: z.literal('classControl'),
     id: identifier,
     control: z.enum(['start', 'pause', 'resume', 'end', 'cancel', 'exercise']),

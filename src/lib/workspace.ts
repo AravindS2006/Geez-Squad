@@ -2,6 +2,7 @@ import 'server-only';
 import { db } from './db';
 import { ApiError } from './security';
 import type { WorkspaceData, Block, ClassView, ExerciseId } from './types';
+import { sessionEditVersion } from './session-management';
 export async function workspaceData(userId: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
@@ -16,7 +17,28 @@ export async function workspaceData(userId: string): Promise<WorkspaceData> {
     studio && user.role === 'coach'
       ? db.membership.findMany({
           where: { studioId: studio.id },
-          include: { user: true },
+          include: {
+            user: {
+              include: {
+                checkIns: { orderBy: { createdAt: 'desc' }, take: 1 },
+                workoutSets: {
+                  where: { OR: [{ reps: { gt: 0 } }, { holdMs: { gt: 0 } }] },
+                  orderBy: { endedAt: 'desc' },
+                  take: 1,
+                },
+                _count: {
+                  select: {
+                    workoutSets: {
+                      where: {
+                        completed: true,
+                        endedAt: { gte: new Date(Date.now() - 7 * 86400000) },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           orderBy: { createdAt: 'desc' },
         })
       : [],
@@ -58,6 +80,7 @@ export async function workspaceData(userId: string): Promise<WorkspaceData> {
   ]);
   const classViews: ClassView[] = classes.map((c) => ({
     id: c.id,
+    ...(user.role === 'coach' ? { editVersion: sessionEditVersion(c) } : {}),
     title: c.title,
     startsAt: c.startsAt.toISOString(),
     duration: c.duration,
@@ -118,6 +141,15 @@ export async function workspaceData(userId: string): Promise<WorkspaceData> {
       goal: m.user.goal,
       joinedAt: m.createdAt.toISOString(),
       coachNote: m.coachNote,
+      latestCheckIn: m.user.checkIns[0]
+        ? {
+            ...m.user.checkIns[0],
+            userName: m.user.name,
+            createdAt: m.user.checkIns[0].createdAt.toISOString(),
+          }
+        : null,
+      lastTrainingAt: m.user.workoutSets[0]?.endedAt.toISOString() ?? null,
+      completedSetsThisWeek: m.user._count.workoutSets,
     })),
     plans: plans.map((p) => ({
       id: p.id,

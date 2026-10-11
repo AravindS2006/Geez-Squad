@@ -4,6 +4,7 @@ import { Activity, Download, CheckCircle2, Timer, CalendarDays } from 'lucide-re
 import type { WorkspaceData, WorkoutSetView, ClientView } from '@/lib/types';
 import { exercises, exerciseName } from '@/lib/catalog';
 import { summarizeWorkouts, workoutCsv } from '@/lib/progress-metrics';
+import { traineeInsight } from '@/lib/coaching-insights';
 import { useTimeFormat } from './time-provider';
 import { EmptyState, SectionTitle } from './ui';
 
@@ -29,29 +30,40 @@ function Metric({
 export function TrainingProgress({
   data,
   onPractice,
+  initialClient = 'all',
 }: {
   data: WorkspaceData;
   onPractice: () => void;
+  initialClient?: string;
 }) {
   const [days, setDays] = useState(30),
-    [client, setClient] = useState('all'),
+    [client, setClient] = useState(initialClient),
     [exercise, setExercise] = useState('all'),
     [source, setSource] = useState('all');
   const { dateLabel, timeLabel, timeZone } = useTimeFormat();
+  const coach = data.user.role === 'coach';
+  const cohort = coach && client === 'all';
   const sets = data.workoutSets.filter(
     (set) =>
       Date.parse(set.endedAt) >= Date.now() - days * 86400000 &&
-      (client === 'all' || set.userId === client) &&
+      (cohort
+        ? data.clients.some((person) => person.id === set.userId)
+        : client === 'all'
+          ? set.userId === data.user.id
+          : set.userId === client) &&
       (exercise === 'all' || set.exercise === exercise) &&
       (source === 'all' || (source === 'live' ? !!set.classId : !set.classId)),
   );
   const totals = summarizeWorkouts(sets, timeZone);
-  const coach = data.user.role === 'coach';
   const checkIns = data.checkIns
     .filter(
       (entry) =>
         Date.parse(entry.createdAt) >= Date.now() - days * 86400000 &&
-        (client === 'all' || entry.userId === client),
+        (cohort
+          ? data.clients.some((person) => person.id === entry.userId)
+          : client === 'all'
+            ? entry.userId === data.user.id
+            : entry.userId === client),
     )
     .slice(0, 10);
   const legacy = data.classes
@@ -116,7 +128,7 @@ export function TrainingProgress({
           <label>
             Client
             <select value={client} onChange={(event) => setClient(event.target.value)}>
-              <option value="all">Everyone</option>
+              <option value="all">All studio trainees</option>
               <option value={data.user.id}>My practice</option>
               {data.clients.map((person) => (
                 <option value={person.id} key={person.id}>
@@ -148,15 +160,20 @@ export function TrainingProgress({
       </div>
       <div className="progress-metrics-grid">
         <Metric
+          label={cohort ? 'Trainees with saved activity' : 'Training days'}
+          value={
+            cohort
+              ? new Set(
+                  sets.filter((set) => set.reps > 0 || set.holdMs > 0).map((set) => set.userId),
+                ).size
+              : totals.trainingDays
+          }
+          detail={`Within the selected ${days} days`}
+        />
+        <Metric
           label="Completed sets"
           value={totals.completedSets}
-          detail={`${totals.sets} recorded · ${totals.sets ? Math.round((totals.completedSets / totals.sets) * 100) : 0}% targets reached`}
-        />
-        <Metric label="Tracked reps" value={totals.reps} detail="Completed movement cycles" />
-        <Metric
-          label="Aligned holds"
-          value={`${Math.round(totals.holdMs / 1000)}s`}
-          detail="Observed plank / side-plank time"
+          detail={`${totals.sets} saved workout sets`}
         />
         <Metric
           label="Active training"
@@ -164,105 +181,155 @@ export function TrainingProgress({
           detail="Observed intervals; pauses excluded"
         />
         <Metric
-          label="Rep quality"
-          value={number(totals.quality, ' /100')}
-          detail="Completed reps, weighted by rep count"
-        />
-        <Metric
-          label="Tracking coverage"
-          value={number(totals.coverage, '%')}
-          detail="Reliable tracked / observed active time"
-        />
-        <Metric
-          label="Training days"
-          value={totals.trainingDays}
-          detail={`Within the selected ${days} days`}
-        />
-        <Metric
-          label="Reported load volume"
-          value={totals.loadedSets ? `${number(totals.loadVolume)} kg·reps` : '—'}
-          detail="Entered external load × counted reps"
+          label="Targets reached"
+          value={totals.sets ? `${Math.round((totals.completedSets / totals.sets) * 100)}%` : '—'}
+          detail="Sets that reached their rep or hold target"
         />
       </div>
+      {!cohort && (
+        <details className="panel measurement-details">
+          <summary>Measurement details</summary>
+          <p className="microcopy">
+            Compare movement quality within the same exercise and rule version below.
+          </p>
+          <div className="progress-metrics-grid">
+            <Metric label="Tracked reps" value={totals.reps} detail="Completed movement cycles" />
+            <Metric
+              label="Aligned holds"
+              value={`${Math.round(totals.holdMs / 1000)}s`}
+              detail="Observed plank / side-plank time"
+            />
+            <Metric
+              label="Tracking coverage"
+              value={number(totals.coverage, '%')}
+              detail="Reliable tracked / observed active time"
+            />
+            <Metric
+              label="Reported load volume"
+              value={totals.loadedSets ? `${number(totals.loadVolume)} kg·reps` : '—'}
+              detail="Entered external load × counted reps"
+            />
+          </div>
+        </details>
+      )}
+      {cohort && (
+        <section className="panel">
+          <SectionTitle
+            title="Trainee training progress"
+            detail="Select a trainee to review their exercises and saved sets"
+          />
+          <div className="trainee-progress-list">
+            {data.clients.map((person) => {
+              const summary = summarizeWorkouts(
+                sets.filter((set) => set.userId === person.id),
+                timeZone,
+              );
+              return (
+                <button
+                  className="trainee-progress-row"
+                  key={person.id}
+                  onClick={() => setClient(person.id)}
+                >
+                  <strong>{person.name}</strong>
+                  <span>{summary.completedSets} completed sets</span>
+                  <span>{summary.trainingDays} training days</span>
+                  <span className="text-link">View progress</span>
+                </button>
+              );
+            })}
+            {!data.clients.length && <p>Invite trainees to begin tracking their progress.</p>}
+          </div>
+        </section>
+      )}
       {!sets.length ? (
         <EmptyState
-          title="Your next set starts your progress."
-          text="Saved workout details appear here after training. Enable saved history in practice, or join a live class with consent."
+          title={cohort ? 'No trainee sets in this period.' : 'Your next set starts your progress.'}
+          text={
+            cohort
+              ? 'Saved trainee workouts appear here after training. Select another period or review an individual trainee.'
+              : 'Saved workout details appear here after training. Enable saved history in practice, or join a live class with consent.'
+          }
           action={
-            <button className="button lime" onClick={onPractice}>
-              Open camera practice
-            </button>
+            !cohort ? (
+              <button className="button lime" onClick={onPractice}>
+                Open camera practice
+              </button>
+            ) : undefined
           }
         />
       ) : (
         <>
-          <section className="panel">
-            <SectionTitle
-              title="Exercise breakdown"
-              detail="Compare the same movement and rule version with your coach"
-            />
-            <div className="exercise-progress-grid">
-              {exercises
-                .filter((item) => sets.some((set) => set.exercise === item.id))
-                .flatMap((item) =>
-                  [
-                    ...new Set(
-                      sets.filter((set) => set.exercise === item.id).map((set) => set.ruleVersion),
-                    ),
-                  ].map((version) => {
-                    const records = sets.filter(
-                        (set) => set.exercise === item.id && set.ruleVersion === version,
+          {!cohort && (
+            <section className="panel">
+              <SectionTitle
+                title="Exercise breakdown"
+                detail="Compare the same movement and rule version with your coach"
+              />
+              <div className="exercise-progress-grid">
+                {exercises
+                  .filter((item) => sets.some((set) => set.exercise === item.id))
+                  .flatMap((item) =>
+                    [
+                      ...new Set(
+                        sets
+                          .filter((set) => set.exercise === item.id)
+                          .map((set) => set.ruleVersion),
                       ),
-                      summary = summarizeWorkouts(records, timeZone);
-                    const recentQuality = records
-                      .filter((set) => set.qualityScore !== null)
-                      .slice(0, 5)
-                      .reverse()
-                      .map((set) => Math.round(set.qualityScore!));
-                    return (
-                      <article key={`${item.id}-${version}`} className="exercise-progress-card">
-                        <h3>{item.name}</h3>
-                        <div className="exercise-progress-values">
-                          <span>
-                            <strong>
-                              {summary.reps || `${Math.round(summary.holdMs / 1000)}s`}
-                            </strong>
-                            {summary.reps ? ' reps' : ' held'}
-                          </span>
-                          <span>{number(summary.quality, ' /100')} quality</span>
-                        </div>
-                        <dl>
-                          <div>
-                            <dt>Range</dt>
-                            <dd>{number(summary.range, '°')}</dd>
+                    ].map((version) => {
+                      const records = sets.filter(
+                          (set) => set.exercise === item.id && set.ruleVersion === version,
+                        ),
+                        summary = summarizeWorkouts(records, timeZone);
+                      const recentQuality = records
+                        .filter((set) => set.qualityScore !== null)
+                        .slice(0, 5)
+                        .reverse()
+                        .map((set) => Math.round(set.qualityScore!));
+                      return (
+                        <article key={`${item.id}-${version}`} className="exercise-progress-card">
+                          <h3>{item.name}</h3>
+                          <div className="exercise-progress-values">
+                            <span>
+                              <strong>
+                                {summary.reps || `${Math.round(summary.holdMs / 1000)}s`}
+                              </strong>
+                              {summary.reps ? ' reps' : ' held'}
+                            </span>
+                            <span>{number(summary.quality, ' /100')} quality</span>
                           </div>
-                          <div>
-                            <dt>Rep tempo</dt>
-                            <dd>{number(summary.tempo, 's')}</dd>
-                          </div>
-                          <div>
-                            <dt>Form</dt>
-                            <dd>{number(summary.form, ' /100')}</dd>
-                          </div>
-                          <div>
-                            <dt>Rejected cycles</dt>
-                            <dd>{summary.rejectedReps}</dd>
-                          </div>
-                        </dl>
-                        <small>
-                          {summary.completedSets}/{summary.sets} targets reached · {version}
-                        </small>
-                        {!!recentQuality.length && (
-                          <p className="microcopy">
-                            Recent set quality: {recentQuality.join(' → ')}
-                          </p>
-                        )}
-                      </article>
-                    );
-                  }),
-                )}
-            </div>
-          </section>
+                          <dl>
+                            <div>
+                              <dt>Range</dt>
+                              <dd>{number(summary.range, '°')}</dd>
+                            </div>
+                            <div>
+                              <dt>Rep tempo</dt>
+                              <dd>{number(summary.tempo, 's')}</dd>
+                            </div>
+                            <div>
+                              <dt>Form</dt>
+                              <dd>{number(summary.form, ' /100')}</dd>
+                            </div>
+                            <div>
+                              <dt>Rejected cycles</dt>
+                              <dd>{summary.rejectedReps}</dd>
+                            </div>
+                          </dl>
+                          <small>
+                            {summary.completedSets}/{summary.sets} targets reached · {version}
+                          </small>
+                          {!!recentQuality.length && (
+                            <p className="microcopy">
+                              Recent set quality: {recentQuality.join(' → ')}
+                            </p>
+                          )}
+                        </article>
+                      );
+                    }),
+                  )}
+              </div>
+            </section>
+          )}
           <section className="panel">
             <SectionTitle title="Recent workout sets" detail="Last 50 records in this view" />
             <div className="workout-record-list">
@@ -460,33 +527,48 @@ export function ClientCoaching({
   data,
   onSave,
   busy,
+  onProgress,
 }: {
   client: ClientView;
   data: WorkspaceData;
   onSave: (data: Record<string, unknown>) => Promise<unknown>;
   busy: boolean;
+  onProgress: () => void;
 }) {
   const { dateLabel } = useTimeFormat();
   const assignment = data.assignments.find((item) => item.userId === client.id),
-    entries = data.checkIns.filter((item) => item.userId === client.id).slice(0, 5),
-    totals = summarizeWorkouts(data.workoutSets.filter((set) => set.userId === client.id));
+    entries = [
+      ...new Map(
+        [
+          ...(client.latestCheckIn ? [client.latestCheckIn] : []),
+          ...data.checkIns.filter((item) => item.userId === client.id),
+        ].map((entry) => [entry.id, entry]),
+      ).values(),
+    ].slice(0, 5);
+  const insight = traineeInsight(data, client);
   const [message, setMessage] = useState('');
   return (
     <div className="client-coaching">
       <div className="client-training-summary">
         <span>
           <CheckCircle2 size={16} />
-          {totals.completedSets} completed sets
+          {insight.completedSetsThisWeek} completed sets in 7 days
         </span>
         <span>
           <Timer size={16} />
-          {number(totals.activeMs / 60000)} active min
+          Last activity:{' '}
+          {insight.lastTrainingAt ? dateLabel(insight.lastTrainingAt) : 'No saved sets'}
         </span>
         <span>
           <Activity size={16} />
-          {number(totals.quality, ' /100')} quality
+          {insight.recentCheckIn
+            ? `Energy ${insight.recentCheckIn.energy}/5 · Soreness ${insight.recentCheckIn.soreness}/5`
+            : 'No check-in in 24 hours'}
         </span>
       </div>
+      <button className="button outline" onClick={onProgress}>
+        View training progress
+      </button>
       <form
         className="form-stack"
         onSubmit={async (event) => {

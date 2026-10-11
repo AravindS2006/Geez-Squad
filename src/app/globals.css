@@ -5905,6 +5905,120 @@ small {
   gap: 20px;
   margin: 20px 0;
 }
+.coaching-focus-panel {
+  min-width: 0;
+}
+.coaching-focus-panel .section-title .text-action {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.session-client-actions > label {
+  flex-direction: row;
+  align-items: center;
+}
+.coaching-focus-panel > p,
+.membership-management > p {
+  color: var(--muted);
+  line-height: 1.6;
+  font-size: 13px;
+}
+.follow-up-list {
+  display: grid;
+  gap: 8px;
+}
+.follow-up-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.client-card .client-action-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: normal;
+}
+.follow-up-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  color: var(--ink);
+}
+.follow-up-row > span:nth-child(2) {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.follow-up-row strong {
+  font-size: 13px;
+}
+.follow-up-row small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.follow-up-row .text-link {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.client-management {
+  display: grid;
+  gap: 22px;
+  margin: 20px 0;
+  text-align: left;
+}
+.membership-management {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.membership-management summary,
+.measurement-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+.measurement-details > .progress-metrics-grid {
+  margin-top: 16px;
+}
+.danger-button {
+  background: #a83225;
+  color: white;
+}
+.trainee-progress-list {
+  display: grid;
+}
+.trainee-progress-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr auto;
+  gap: 16px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.trainee-progress-row > span {
+  color: var(--muted);
+}
+@media (max-width: 760px) {
+  .trainee-progress-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .session-row > .button {
+    margin-left: 0;
+  }
+}
 .client-check-in {
   display: flex;
   flex-direction: column;

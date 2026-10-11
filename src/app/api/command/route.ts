@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { commandSchema } from '@/lib/validation';
 import { MAX_CLASS_CLIENTS } from '@/lib/class-policy';
+import { sessionEditVersion } from '@/lib/session-management';
+import { writeMetrics as writeTransaction } from '@/lib/metrics-write';
 import { newVideoRoomName, existingVideoRoomName } from '@/lib/room-identity';
 import {
   ApiError,
@@ -252,6 +254,178 @@ export async function POST(request: Request) {
         result.id = item.id;
         break;
       }
+      case 'updateClass': {
+        const owned = requireCoach();
+        if (Date.parse(data.startsAt) < Date.now() - 60000)
+          throw new ApiError(400, 'Choose a future start time.');
+        await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                const item = await tx.classSession.findFirst({
+                  where: { id: data.id, studioId: owned.id },
+                  include: { enrollments: true },
+                });
+                if (!item) throw new ApiError(404, 'Session not found.');
+                if (item.status !== 'scheduled')
+                  throw new ApiError(409, 'Only scheduled sessions can be edited.');
+                if (sessionEditVersion(item) !== data.expectedVersion)
+                  throw new ApiError(
+                    409,
+                    'This session changed while you were editing. Refresh and reopen it.',
+                  );
+                const members = await tx.membership.findMany({
+                  where: { studioId: owned.id },
+                  select: { userId: true },
+                });
+                const allowed = new Set(members.map((member) => member.userId));
+                const ids = data.includeAllClients
+                  ? [...allowed]
+                  : [...new Set(data.participantIds)];
+                if (
+                  (!data.includeAllClients && ids.length !== data.participantIds.length) ||
+                  ids.length > MAX_CLASS_CLIENTS ||
+                  ids.length > data.capacity
+                )
+                  throw new ApiError(400, 'Check the session capacity and participant list.');
+                if (ids.some((id) => !allowed.has(id)))
+                  throw new ApiError(403, 'Select trainees from your own studio.');
+                if (
+                  data.planId &&
+                  !(await tx.workoutPlan.findFirst({
+                    where: { id: data.planId, studioId: owned.id },
+                    select: { id: true },
+                  }))
+                )
+                  throw new ApiError(404, 'Plan not found.');
+                const updated = await tx.classSession.updateMany({
+                  where: {
+                    id: item.id,
+                    status: 'scheduled',
+                    revision: item.revision,
+                  },
+                  data: {
+                    title: data.title,
+                    startsAt: new Date(data.startsAt),
+                    duration: data.duration,
+                    capacity: data.capacity,
+                    planId: data.planId,
+                    revision: { increment: 1 },
+                  },
+                });
+                if (!updated.count)
+                  throw new ApiError(409, 'This session changed. Refresh and reopen it.');
+                await tx.enrollment.deleteMany({
+                  where: { classId: item.id, userId: { notIn: ids } },
+                });
+                const enrolled = new Set(item.enrollments.map((entry) => entry.userId));
+                for (const userId of ids.filter((id) => !enrolled.has(id)))
+                  await tx.enrollment.create({ data: { classId: item.id, userId } });
+                await tx.auditEvent.create({
+                  data: { actorId: user.id, action: 'updateClass', targetId: item.id },
+                });
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
+        result.id = data.id;
+        break;
+      }
+      case 'clientProfile': {
+        const owned = requireCoach();
+        const updated = await db.user.updateMany({
+          where: {
+            id: data.userId,
+            role: 'trainee',
+            name: data.expectedName,
+            goal: data.expectedGoal,
+            memberships: { some: { studioId: owned.id } },
+          },
+          data: { name: data.name, goal: data.goal },
+        });
+        if (!updated.count) {
+          const member = await db.membership.findUnique({
+            where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+          });
+          if (!member) throw new ApiError(404, 'Choose a trainee from your own studio.');
+          throw new ApiError(409, 'This profile changed. Refresh and reopen it before saving.');
+        }
+        await db.auditEvent.create({
+          data: { actorId: user.id, action: 'clientProfile', targetId: data.userId },
+        });
+        break;
+      }
+      case 'removeClient': {
+        const owned = requireCoach();
+        await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                const member = await tx.membership.findUnique({
+                  where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+                  include: { user: { select: { email: true } } },
+                });
+                if (!member) throw new ApiError(404, 'Choose a trainee from your own studio.');
+                if (
+                  await tx.enrollment.findFirst({
+                    where: {
+                      userId: data.userId,
+                      class: { studioId: owned.id, status: 'live' },
+                    },
+                  })
+                )
+                  throw new ApiError(
+                    409,
+                    'End this trainee’s live session before removing studio access.',
+                  );
+                const scheduled = await tx.enrollment.findMany({
+                  where: {
+                    userId: data.userId,
+                    class: { studioId: owned.id, status: 'scheduled' },
+                  },
+                  select: { classId: true },
+                });
+                // Invalidate open editors and a concurrent start before changing the roster.
+                const locked = await tx.classSession.updateMany({
+                  where: {
+                    id: { in: scheduled.map((entry) => entry.classId) },
+                    status: 'scheduled',
+                  },
+                  data: { revision: { increment: 1 } },
+                });
+                if (locked.count !== scheduled.length)
+                  throw new ApiError(
+                    409,
+                    'A session started during this change. Refresh and retry.',
+                  );
+                await tx.enrollment.deleteMany({
+                  where: {
+                    userId: data.userId,
+                    class: { studioId: owned.id, status: 'scheduled' },
+                  },
+                });
+                await tx.planAssignment.deleteMany({
+                  where: { studioId: owned.id, userId: data.userId },
+                });
+                await tx.invitation.deleteMany({
+                  where: {
+                    studioId: owned.id,
+                    email: member.user.email.toLowerCase(),
+                    consumedAt: null,
+                  },
+                });
+                await tx.membership.delete({ where: { id: member.id } });
+                await tx.auditEvent.create({
+                  data: { actorId: user.id, action: 'removeClient', targetId: data.userId },
+                });
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
+        break;
+      }
       case 'classControl': {
         requireCoach();
         const item = await requireClass(data.id, user.id);
@@ -270,7 +444,7 @@ export async function POST(request: Request) {
           throw new ApiError(409, 'The session state has changed. Refresh and retry.');
         if (data.control === 'exercise' && !data.exercise)
           throw new ApiError(400, 'Choose an exercise.');
-        if (data.control === 'start') await createRoom(item.id, item.capacity + 1);
+        if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 1);
         const change =
           data.control === 'start'
             ? {

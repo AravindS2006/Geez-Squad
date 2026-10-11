@@ -25,7 +25,7 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   await page.getByRole('dialog').getByRole('checkbox', { name: 'Include all clients' }).check();
   await expect(
     page.getByRole('dialog').getByRole('checkbox', { name: /Ava Thompson/ }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await page.getByRole('dialog').getByRole('button', { name: 'Schedule session' }).click();
   await expect(page.getByText('Mindful movement', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Overview' }).click();

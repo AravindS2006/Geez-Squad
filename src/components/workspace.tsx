@@ -1,6 +1,5 @@
 'use client';
 import { isHoldExercise } from '@/lib/exercise-profiles';
-import { MAX_CLASS_CLIENTS } from '@/lib/class-policy';
 import { useState, useEffect, useRef, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -20,8 +19,6 @@ import {
   Plus,
   Video,
   Clock3,
-  Flame,
-  TrendingUp,
   Activity,
   Check,
   LogOut,
@@ -54,6 +51,10 @@ import { apiCommand, fetchJson } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
 import { useTimeFormat } from './time-provider';
 import { TrainingProgress, CheckInForm, ClientCoaching } from './training-progress';
+import { ScheduleForm } from './session-form';
+import { ClientManagement } from './client-management';
+import { CoachingFollowUps } from './coaching-follow-ups';
+import { coachingOverview } from '@/lib/coaching-insights';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
@@ -170,13 +171,17 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     };
   }, [initial.demo, view]);
   const [selectedClient, setSelectedClient] = useState<ClientView | null>(null),
+    [followUpOnly, setFollowUpOnly] = useState(false),
+    [selectedSession, setSelectedSession] = useState<ClassView | null>(null),
     [selectedPlan, setSelectedPlan] = useState<Plan | null>(null),
     [activeClass, setActiveClass] = useState<ClassView | null>(null),
     [inviteResult, setInviteResult] = useState(''),
     [filter, setFilter] = useState('upcoming'),
-    [range, setRange] = useState(30);
+    [progressClient, setProgressClient] = useState('all');
   const base = data.demo ? '/demo' : '/app',
     coach = data.user.role === 'coach';
+  const currentClient = data.clients.find((person) => person.id === selectedClient?.id);
+  const overview = coachingOverview(data, timeZone);
   const activeView = [
     'dashboard',
     'clients',
@@ -194,17 +199,10 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     .filter((c) => c.status === 'scheduled' || c.status === 'live')
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const history = data.classes.filter(
-    (c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - range * 86400000,
+    (c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - 30 * 86400000,
   );
-  const summaries = history
-    .flatMap((c) => c.participants.map((p) => p.summary))
-    .filter((s) => s !== null);
-  const samples = summaries.reduce((n, s) => n + s.trackedSamples, 0),
-    average = samples
-      ? Math.round(summaries.reduce((n, s) => n + s.scoreTotal, 0) / samples)
-      : null;
-  const reps = summaries.reduce((n, s) => n + s.totalReps, 0);
   function go(next: string) {
+    if (next === 'analytics') setProgressClient('all');
     setMobileMenu(false);
     setSearch('');
     router.push(`${base}?view=${next}`);
@@ -214,10 +212,15 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     setTimeout(() => setToast(''), 5000);
   }
   function show(name: string) {
+    if (name === 'schedule') setSelectedSession(null);
     setMobileMenu(false);
     setError('');
     setInviteResult('');
     setModal(name);
+  }
+  function editSession(session: ClassView) {
+    show('schedule');
+    setSelectedSession(session);
   }
   async function refresh() {
     if (!data.demo) setData(await fetchJson<WorkspaceData>('/api/workspace'));
@@ -237,6 +240,72 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
       if (payload.action === 'invite')
         return { url: 'Sample preview — create an account to generate a real invitation.' };
       setData((current) => {
+        if (payload.action === 'clientProfile')
+          return {
+            ...current,
+            clients: current.clients.map((person) =>
+              person.id === payload.userId
+                ? { ...person, name: payload.name as string, goal: payload.goal as string }
+                : person,
+            ),
+            classes: current.classes.map((item) => ({
+              ...item,
+              participants: item.participants.map((person) =>
+                person.id === payload.userId ? { ...person, name: payload.name as string } : person,
+              ),
+            })),
+          };
+        if (payload.action === 'removeClient')
+          return {
+            ...current,
+            clients: current.clients.filter((person) => person.id !== payload.userId),
+            assignments: current.assignments.filter((item) => item.userId !== payload.userId),
+            classes: current.classes.map((item) =>
+              item.status === 'scheduled'
+                ? {
+                    ...item,
+                    participants: item.participants.filter(
+                      (person) => person.id !== payload.userId,
+                    ),
+                  }
+                : item,
+            ),
+            workoutSets: current.workoutSets.filter((set) => set.userId !== payload.userId),
+            checkIns: current.checkIns.filter((entry) => entry.userId !== payload.userId),
+          };
+        if (payload.action === 'updateClass')
+          return {
+            ...current,
+            classes: current.classes.map((item) =>
+              item.id === payload.id
+                ? {
+                    ...item,
+                    title: payload.title as string,
+                    startsAt: payload.startsAt as string,
+                    duration: payload.duration as number,
+                    capacity: payload.capacity as number,
+                    planId: payload.planId as string | null,
+                    revision: item.revision + 1,
+                    participants: current.clients
+                      .filter(
+                        (person) =>
+                          payload.includeAllClients ||
+                          (payload.participantIds as string[]).includes(person.id),
+                      )
+                      .map(
+                        (person) =>
+                          item.participants.find((p) => p.id === person.id) ?? {
+                            id: person.id,
+                            name: person.name,
+                            helpRequested: false,
+                            metric: null,
+                            summary: null,
+                          },
+                      ),
+                  }
+                : item,
+            ),
+          };
         if (payload.action === 'savePlan') {
           const plan = {
             id: (payload.id as string) || id,
@@ -385,7 +454,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
   }
   const searchClients = data.clients.filter(
     (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) || c.email.includes(search.toLowerCase()),
+      (c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.includes(search.toLowerCase())) &&
+      (activeView !== 'clients' ||
+        !followUpOnly ||
+        overview.followUps.some((item) => item.person.id === c.id)),
   );
   const searchPlans = data.plans.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
   return (
@@ -634,34 +707,24 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 </section>
               )}
               <div className="stats-grid">
-                <Stat
-                  label={coach ? 'Active clients' : 'Upcoming sessions'}
-                  value={coach ? data.clients.length : upcoming.length}
-                  detail={coach ? 'People in your studio' : 'On your calendar'}
-                  icon={<Users size={19} />}
-                  color="lime"
-                />
-                <Stat
-                  label="Sessions completed"
-                  value={history.length}
-                  detail={`In the last ${range} days`}
-                  icon={<Video size={19} />}
-                  color="lavender"
-                />
-                <Stat
-                  label="Average form estimate"
-                  value={average === null ? '—' : `${average}%`}
-                  detail={samples ? `${samples} tracked summaries` : 'Complete a tracked session'}
-                  icon={<Activity size={19} />}
-                  color="peach"
-                />
-                <Stat
-                  label="Reps completed"
-                  value={reps}
-                  detail="Across tracked sessions"
-                  icon={<Flame size={19} />}
-                  color="sky"
-                />
+                {overview.cards.map((card, index) => (
+                  <Stat
+                    key={card.label}
+                    {...card}
+                    icon={
+                      index === 0 ? (
+                        <Users size={19} />
+                      ) : index === 1 ? (
+                        <CalendarDays size={19} />
+                      ) : index === 2 ? (
+                        <CheckCircle2 size={19} />
+                      ) : (
+                        <Activity size={19} />
+                      )
+                    }
+                    color={['lime', 'lavender', 'peach', 'sky'][index]}
+                  />
+                ))}
               </div>
               <div className="dashboard-middle">
                 <section className="session-hero">
@@ -710,36 +773,18 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   <MotionArt />
                   <span className="hero-decoration">MOVE BETTER. TOGETHER.</span>
                 </section>
-                <section className="panel insight-card">
-                  <SectionTitle
-                    title="Progress, in perspective"
-                    action={<span className="pill">{data.demo ? 'Sample' : `${range} days`}</span>}
-                  />
-                  <div className="insight-number">
-                    <strong>
-                      {average ?? '—'}
-                      <small>{average !== null ? '%' : ''}</small>
-                    </strong>
-                    <span>
-                      average form
-                      <br />
-                      estimate
-                    </span>
-                  </div>
-                  <ProgressChart classes={history} />
-                  <div className="insight-foot">
-                    <span>
-                      <span className="chart-dot" /> Movement consistency
-                    </span>
-                    <button
-                      className="icon-button"
-                      aria-label="See insights"
-                      onClick={() => go('analytics')}
-                    >
-                      <ArrowUpRight size={18} />
-                    </button>
-                  </div>
-                </section>
+                <CoachingFollowUps
+                  data={data}
+                  onClient={(person) => {
+                    setSelectedClient(person);
+                    show('client');
+                  }}
+                  onCheckIn={() => show('checkIn')}
+                  onReviewAll={() => {
+                    go('clients');
+                    setFollowUpOnly(true);
+                  }}
+                />
               </div>
               <div className="dashboard-bottom">
                 <section className="panel">
@@ -756,19 +801,14 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                       <div className="client-table">
                         <div className="table-head">
                           <span>CLIENT</span>
-                          <span>LAST SESSION</span>
-                          <span>FORM ESTIMATE</span>
+                          <span>ASSIGNED PLAN</span>
+                          <span>LAST CHECK-IN</span>
                           <span />
                         </div>
                         {data.clients.slice(0, 4).map((c, i) => {
-                          const last = data.classes.find(
-                            (s) =>
-                              s.status === 'completed' && s.participants.some((p) => p.id === c.id),
-                          );
-                          const result = last?.participants.find((p) => p.id === c.id)?.summary;
-                          const score = result?.trackedSamples
-                            ? Math.round(result.scoreTotal / result.trackedSamples)
-                            : null;
+                          const insight = overview.trainees.find(
+                            (item) => item.person.id === c.id,
+                          )!;
                           return (
                             <button
                               className="client-row"
@@ -785,15 +825,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                                   <small>{c.goal}</small>
                                 </span>
                               </span>
-                              <span>{last ? dateLabel(last.startsAt) : 'Getting started'}</span>
+                              <span>{insight.plan?.name ?? 'No assigned plan'}</span>
                               <span>
-                                {score !== null ? (
-                                  <span className="score-pill">
-                                    {score}% <TrendingUp size={13} />
-                                  </span>
-                                ) : (
-                                  '—'
-                                )}
+                                {insight.checkIn
+                                  ? dateLabel(insight.checkIn.createdAt)
+                                  : 'No check-in'}
                               </span>
                               <ArrowUpRight size={16} />
                             </button>
@@ -869,6 +905,14 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 <span className="pill">
                   <Users size={14} /> Active members
                 </span>
+                <label className="follow-up-filter">
+                  <input
+                    type="checkbox"
+                    checked={followUpOnly}
+                    onChange={(event) => setFollowUpOnly(event.target.checked)}
+                  />{' '}
+                  Follow-ups only
+                </label>
               </div>
               <div className="client-card-grid">
                 {searchClients.map((c, i) => (
@@ -887,19 +931,29 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     <h3>{c.name}</h3>
                     <p>{c.email}</p>
                     <span className="goal-pill">{c.goal}</span>
+                    <p className="client-action-summary">
+                      {overview.trainees
+                        .find((item) => item.person.id === c.id)
+                        ?.reasons.join(' · ') || 'No current follow-ups'}
+                    </p>
                     <footer>
-                      <span>Joined {dateLabel(c.joinedAt)}</span>
-                      <span className="status-dot" /> Active
+                      <span>
+                        {overview.trainees.find((item) => item.person.id === c.id)
+                          ?.completedSetsThisWeek ?? 0}{' '}
+                        completed sets in 7 days
+                      </span>
                     </footer>
                   </button>
                 ))}
               </div>
               {!searchClients.length && (
                 <EmptyState
-                  title={search ? 'No matching clients.' : 'Your people will be here.'}
+                  title={
+                    search || followUpOnly ? 'No matching clients.' : 'Your people will be here.'
+                  }
                   text={
-                    search
-                      ? 'Try another name or email.'
+                    search || followUpOnly
+                      ? 'Try another name or email, or turn off the follow-up filter.'
                       : 'Start with an invitation, then build something stronger together.'
                   }
                   action={
@@ -952,6 +1006,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     )
                     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))}
                   onOpen={openClass}
+                  onEdit={coach ? editSession : undefined}
                   onCancel={
                     coach
                       ? async (c) => {
@@ -1072,7 +1127,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           )}
           {activeView === 'analytics' && (
             <>
-              <TrainingProgress data={data} onPractice={() => go('practice')} />
+              <TrainingProgress
+                key={progressClient}
+                initialClient={progressClient}
+                data={data}
+                onPractice={() => go('practice')}
+              />
               <section className="panel">
                 <SectionTitle title="Session history" />
                 <SessionRows classes={history} onOpen={openClass} />
@@ -1291,11 +1351,13 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             modal === 'invite'
               ? 'Invite someone to move better.'
               : modal === 'schedule'
-                ? 'Make time for a great session.'
+                ? selectedSession
+                  ? 'Edit scheduled session'
+                  : 'Make time for a great session.'
                 : modal === 'plan'
                   ? selectedPlan?.name || 'Build your next workout.'
                   : modal === 'client'
-                    ? selectedClient?.name || 'Client profile'
+                    ? currentClient?.name || 'Client profile'
                     : modal === 'checkIn'
                       ? 'How are you feeling today?'
                       : modal === 'notifications'
@@ -1365,13 +1427,21 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           )}
           {modal === 'schedule' && (
             <ScheduleForm
+              key={selectedSession?.id ?? 'new'}
+              session={selectedSession}
               data={data}
               busy={busy}
               onSubmit={async (payload) => {
                 try {
                   await command(payload);
                   setModal(null);
-                  notify(data.demo ? 'Sample session added.' : 'Session scheduled.');
+                  notify(
+                    selectedSession
+                      ? 'Session updated.'
+                      : data.demo
+                        ? 'Sample session added.'
+                        : 'Session scheduled.',
+                  );
                 } catch {}
               }}
             />
@@ -1398,24 +1468,41 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               }}
             />
           )}
-          {modal === 'client' && selectedClient && (
+          {modal === 'client' && currentClient && (
             <div className="client-detail">
-              <Avatar name={selectedClient.name} />
-              <p>{selectedClient.email}</p>
-              <div className="goal-pill">{selectedClient.goal}</div>
+              <Avatar name={currentClient.name} />
+              <p>{currentClient.email}</p>
+              <div className="goal-pill">{currentClient.goal}</div>
+              <ClientManagement
+                key={currentClient.id}
+                client={currentClient}
+                data={data}
+                busy={busy}
+                onSave={command}
+                onRemoved={() => {
+                  setModal(null);
+                  setSelectedClient(null);
+                  notify('Trainee removed from studio.');
+                }}
+              />
               <ClientCoaching
-                client={data.clients.find((c) => c.id === selectedClient.id) ?? selectedClient}
+                client={currentClient}
                 data={data}
                 onSave={command}
                 busy={busy}
+                onProgress={() => {
+                  setModal(null);
+                  go('analytics');
+                  setProgressClient(currentClient.id);
+                }}
               />
               <SectionTitle
                 title="Training together"
-                detail={`Joined ${dateLabel(selectedClient.joinedAt)}`}
+                detail={`Joined ${dateLabel(currentClient.joinedAt)}`}
               />
               <SessionRows
                 classes={data.classes.filter((c) =>
-                  c.participants.some((p) => p.id === selectedClient.id),
+                  c.participants.some((p) => p.id === currentClient.id),
                 )}
                 onOpen={async (c) => {
                   setModal(null);
@@ -1540,93 +1627,16 @@ function Stat({
     </section>
   );
 }
-function ProgressChart({ classes, large = false }: { classes: ClassView[]; large?: boolean }) {
-  const { dateLabel } = useTimeFormat();
-  const items = [...classes]
-    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
-    .slice(-8)
-    .map((c) => {
-      const sums = c.participants.flatMap((p) => (p.summary ? [p.summary] : [])),
-        samples = sums.reduce((n, s) => n + s.trackedSamples, 0);
-      return {
-        date: c.startsAt,
-        score: samples ? sums.reduce((n, s) => n + s.scoreTotal, 0) / samples : null,
-      };
-    })
-    .filter((c) => c.score !== null);
-  if (!items.length)
-    return (
-      <div className="chart-empty">
-        <Activity size={28} />
-        <p>Your progress appears after a tracked session.</p>
-      </div>
-    );
-  const points = items
-    .map(
-      (item, i) =>
-        `${30 + i * (340 / Math.max(1, items.length - 1))},${150 - (item.score! / 100) * 120}`,
-    )
-    .join(' ');
-  return (
-    <div className={`progress-chart ${large ? 'large' : ''}`}>
-      <svg
-        viewBox="0 0 400 185"
-        role="img"
-        aria-label={`Form estimates: ${items.map((i) => `${dateLabel(i.date)} ${Math.round(i.score!)} percent`).join(', ')}`}
-      >
-        <defs>
-          <linearGradient id={`chart-fill-${large}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#b0a3ed" stopOpacity=".3" />
-            <stop offset="100%" stopColor="#b0a3ed" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[30, 70, 110, 150].map((y) => (
-          <line key={y} x1="30" x2="375" y1={y} y2={y} stroke="#eee" strokeDasharray="3 5" />
-        ))}
-        <polygon
-          points={`30,155 ${points} ${items.length > 1 ? '370' : '30'},155`}
-          fill={`url(#chart-fill-${large})`}
-        />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#8564bc"
-          strokeWidth="3"
-          strokeLinejoin="round"
-        />
-        {items.map((item, i) => (
-          <g key={item.date}>
-            <circle
-              cx={30 + i * (340 / Math.max(1, items.length - 1))}
-              cy={150 - (item.score! / 100) * 120}
-              r="4"
-              fill="#8564bc"
-              stroke="white"
-              strokeWidth="2"
-            />
-            <text
-              x={30 + i * (340 / Math.max(1, items.length - 1))}
-              y="177"
-              textAnchor="middle"
-              fill="#606b58"
-              fontSize="10"
-            >
-              {dateLabel(item.date)}
-            </text>
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
 function SessionRows({
   classes,
   onOpen,
   onCancel,
+  onEdit,
 }: {
   classes: ClassView[];
   onOpen: (c: ClassView) => void;
   onCancel?: (c: ClassView) => void;
+  onEdit?: (c: ClassView) => void;
 }) {
   const { timeLabel, timeZone } = useTimeFormat();
   if (!classes.length)
@@ -1662,6 +1672,16 @@ function SessionRows({
             {['completed', 'cancelled'].includes(c.status) ? 'View' : 'Open studio'}
             <ArrowUpRight size={15} />
           </button>
+          {c.status === 'scheduled' && onEdit && (
+            <button
+              className="button outline small-button"
+              onClick={() => onEdit(c)}
+              aria-label={`Edit ${c.title}`}
+            >
+              <Pencil size={15} />
+              Edit
+            </button>
+          )}
           {c.status === 'scheduled' && onCancel && (
             <button
               className="icon-button"
@@ -1758,163 +1778,6 @@ function CameraPractice({ data }: { data: WorkspaceData }) {
           : 'Practice history stays on this page unless you enable saving.'}
       </p>
     </section>
-  );
-}
-function ScheduleForm({
-  data,
-  busy,
-  onSubmit,
-}: {
-  data: WorkspaceData;
-  busy: boolean;
-  onSubmit: (c: Command) => void;
-}) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [allClients, setAllClients] = useState(false);
-  const [searchClients, setSearchClients] = useState('');
-  const selectedCount = allClients ? data.clients.length : selected.length;
-  const next = new Date(Date.now() + 3600000);
-  const local = new Date(next.getTime() - next.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-  return (
-    <form
-      className="form-stack"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const f = new FormData(e.currentTarget);
-        onSubmit({
-          action: 'createClass',
-          title: f.get('title'),
-          startsAt: new Date(String(f.get('startsAt'))).toISOString(),
-          duration: Number(f.get('duration')),
-          capacity: Math.max(1, selectedCount),
-          includeAllClients: allClients,
-          planId: f.get('planId') || undefined,
-          participantIds: selected,
-        });
-      }}
-    >
-      <div className="form-two">
-        <label>
-          Session title
-          <input
-            name="title"
-            required
-            minLength={2}
-            maxLength={80}
-            placeholder="Full body foundations"
-          />
-        </label>
-        <label>
-          Workout plan
-          <select name="planId">
-            <option value="">Choose at session time</option>
-            {data.plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Date & time
-          <input name="startsAt" type="datetime-local" defaultValue={local} required />
-        </label>
-        <label>
-          Duration
-          <select name="duration">
-            {[30, 45, 60, 90].map((n) => (
-              <option key={n} value={n}>
-                {n} minutes
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p className="microcopy">
-        Times use {Intl.DateTimeFormat().resolvedOptions().timeZone}. Sessions support up to{' '}
-        {MAX_CLASS_CLIENTS} trainees.
-      </p>
-      <label>
-        Invite your clients <span className="subtle">{selectedCount} selected</span>
-      </label>
-      {data.clients.length > 0 && (
-        <div className="session-client-actions">
-          <label>
-            <input
-              type="checkbox"
-              checked={allClients}
-              disabled={data.clients.length > MAX_CLASS_CLIENTS}
-              onChange={(event) => {
-                setAllClients(event.target.checked);
-                setSelected([]);
-              }}
-            />{' '}
-            Include all clients
-          </label>
-          <button
-            type="button"
-            className="text-action"
-            onClick={() => {
-              setSelected([]);
-              setAllClients(false);
-            }}
-          >
-            Clear selection
-          </button>
-        </div>
-      )}
-      {data.clients.length > MAX_CLASS_CLIENTS && (
-        <p className="inline-notice">Select up to {MAX_CLASS_CLIENTS} clients for this session.</p>
-      )}
-      {data.clients.length > 8 && (
-        <label>
-          Find a client
-          <input
-            type="search"
-            value={searchClients}
-            onChange={(event) => setSearchClients(event.target.value)}
-            placeholder="Search names"
-          />
-        </label>
-      )}
-      <div className="participant-picker">
-        {data.clients
-          .filter((client) => client.name.toLowerCase().includes(searchClients.toLowerCase()))
-          .map((c, i) => (
-            <label key={c.id}>
-              <input
-                type="checkbox"
-                checked={allClients || selected.includes(c.id)}
-                disabled={
-                  allClients || (!selected.includes(c.id) && selected.length >= MAX_CLASS_CLIENTS)
-                }
-                onChange={(e) =>
-                  setSelected((s) =>
-                    e.target.checked
-                      ? s.length < MAX_CLASS_CLIENTS
-                        ? [...s, c.id]
-                        : s
-                      : s.filter((id) => id !== c.id),
-                  )
-                }
-              />
-              <Avatar name={c.name} small index={i} />
-              {c.name}
-            </label>
-          ))}
-      </div>
-      {!data.clients.length && (
-        <p className="inline-notice">
-          Invite clients to your studio to add them. You can schedule a solo rehearsal now.
-        </p>
-      )}
-      <button className="button dark" disabled={busy || selectedCount > MAX_CLASS_CLIENTS}>
-        <CalendarDays size={17} />
-        {busy ? 'Saving…' : 'Schedule session'}
-      </button>
-    </form>
   );
 }
 function PlanForm({

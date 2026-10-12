@@ -273,6 +273,22 @@ try {
     where: { id: item.id },
     data: { startedAt: new Date(Date.now() - 20000) },
   });
+  const firstConsent = new Date(Date.now() - 15000);
+  await db.enrollment.update({
+    where: { classId_userId: { classId: item.id, userId: trainee.id } },
+    data: { consentAt: firstConsent },
+  });
+  // Rejoining preserves the beginning of the consented reporting window.
+  await check('/api/command', { action: 'consent', id: item.id, consent: true }, trainee);
+  assert.equal(
+    (
+      await db.enrollment.findUniqueOrThrow({
+        where: { classId_userId: { classId: item.id, userId: trainee.id } },
+      })
+    ).consentAt.getTime(),
+    firstConsent.getTime(),
+  );
+  checks++;
   await check(
     '/api/workout-sets',
     { ...record, clientId: randomUUID(), classId: item.id, exercise: 'squat' },
@@ -294,7 +310,7 @@ try {
     classId: item.id,
     exercise: 'squat',
     revision: 0,
-    reps: 2,
+    reps: 12,
     holdSeconds: 0,
     score: 90,
     confidence: 0.95,
@@ -302,6 +318,8 @@ try {
     cue: 'Continue comfortably.',
   };
   await check('/api/metrics', metric, trainee);
+  await check('/api/metrics', { ...metric, reps: 1000 }, trainee, 400);
+  await check('/api/metrics', { ...metric, holdSeconds: 1 }, trainee, 400);
   await check('/api/command', { action: 'muteParticipants', id: item.id }, trainee, 403);
   await check('/api/command', { action: 'muteParticipants', id: item.id }, other, 404);
   await check(
@@ -398,7 +416,7 @@ try {
   await check('/api/video/token', { classId: item.id }, trainee, 409);
   const personal = await check('/api/export', undefined, trainee);
   assert.equal(personal.profile.email, trainee.email);
-  assert.equal(personal.workouts[0].summary.totalReps, 9);
+  assert.equal(personal.workouts[0].summary.totalReps, 19);
   assert.equal(personal.workouts[0].summary.totalHoldSeconds, 1);
   assert.equal(personal.workoutSets.length, 2);
   assert.equal(personal.checkIns[0].note, 'Ready to train');
@@ -517,7 +535,34 @@ try {
   const futureSnapshot = (await check('/api/workspace', undefined, coach)).classes.find(
     (session) => session.id === future.id,
   );
-  await check('/api/command', { action: 'removeClient', userId: trainee.id }, coach);
+  // Assignment and new enrollment race against membership removal. Whichever
+  // operation wins, removal must leave no future access or ghost assignment.
+  const racingChanges = await Promise.all([
+    request('/api/command', { action: 'removeClient', userId: trainee.id }, coach),
+    request('/api/command', { action: 'assignPlan', userId: trainee.id, planId: plan.id }, coach),
+    request(
+      '/api/command',
+      {
+        action: 'createClass',
+        title: 'Concurrent enrollment',
+        startsAt: start,
+        duration: 30,
+        capacity: 1,
+        participantIds: [trainee.id],
+      },
+      coach,
+    ),
+  ]);
+  assert.equal(racingChanges[0].status, 200);
+  assert.ok([200, 404].includes(racingChanges[1].status));
+  assert.ok([200, 403].includes(racingChanges[2].status));
+  assert.equal(
+    await db.enrollment.count({
+      where: { userId: trainee.id, class: { status: 'scheduled' } },
+    }),
+    0,
+  );
+  checks += 4;
   await check(
     '/api/command',
     { ...update, id: future.id, participantIds: [], expectedVersion: futureSnapshot.editVersion },

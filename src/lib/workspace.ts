@@ -3,7 +3,7 @@ import { db } from './db';
 import { ApiError } from './security';
 import type { WorkspaceData, Block, ClassView, ExerciseId } from './types';
 import { sessionEditVersion } from './session-management';
-export async function workspaceData(userId: string): Promise<WorkspaceData> {
+export async function workspaceData(userId: string, classId?: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
   const studio = await db.studio.findFirst({
@@ -46,13 +46,16 @@ export async function workspaceData(userId: string): Promise<WorkspaceData> {
       ? db.workoutPlan.findMany({ where: { studioId: studio.id }, orderBy: { createdAt: 'desc' } })
       : [],
     db.classSession.findMany({
-      where:
-        user.role === 'coach'
+      where: {
+        ...(classId ? { id: classId } : {}),
+        ...(user.role === 'coach'
           ? { studio: { ownerId: userId } }
-          : { enrollments: { some: { userId } } },
+          : { enrollments: { some: { userId } } }),
+      },
       include: {
         studio: { include: { owner: { select: { name: true } } } },
         enrollments: {
+          where: user.role === 'coach' ? {} : { userId },
           include: { user: { select: { id: true, name: true } }, metric: true, summary: true },
         },
       },

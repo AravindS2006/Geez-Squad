@@ -11,7 +11,7 @@ export default async function LiveStudio({ params }: { params: Promise<{ id: str
     redirect('/login');
   }
   const { id } = await params;
-  const data = await workspaceData(user.id);
+  const data = await workspaceData(user.id, id);
   const item = data.classes.find((c) => c.id === id);
   if (!item) notFound();
   return <StudioPage item={item} user={data.user} services={data.services} />;

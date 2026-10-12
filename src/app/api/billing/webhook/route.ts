@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { shouldReconcileSubscription } from '@/lib/billing-policy';
+import type { BillingSubscription } from '@prisma/client';
 export async function POST(request: Request) {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
@@ -26,29 +28,47 @@ export async function POST(request: Request) {
       'customer.subscription.deleted',
     ];
     let subscription: Stripe.Subscription | null = null;
+    let observedBilling: BillingSubscription | null = null;
+    const retrieve = async (
+      id: string,
+      customer: string | Stripe.Customer | Stripe.DeletedCustomer | null,
+    ) => {
+      const customerId = typeof customer === 'string' ? customer : customer?.id;
+      if (!customerId) throw new Error('Billing customer is missing');
+      // Capture the database version before the remote read. If another event
+      // commits while Stripe responds, retry instead of overwriting its state.
+      observedBilling = await db.billingSubscription.findUnique({ where: { customerId } });
+      if (!observedBilling) throw new Error('Billing customer is not registered');
+      return stripe.subscriptions.retrieve(id);
+    };
     if (subscriptionEvents.includes(event.type)) {
       const source = event.data.object as Stripe.Subscription;
-      subscription = await stripe.subscriptions.retrieve(source.id);
+      subscription = await retrieve(source.id, source.customer);
     }
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
       const id =
         typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
-      if (id) subscription = await stripe.subscriptions.retrieve(id);
+      if (id) subscription = await retrieve(id, session.customer);
     }
     await db.$transaction(async (tx) => {
       if (await tx.webhookEvent.findUnique({ where: { id: event.id } })) return;
       if (subscription) {
-        const customerId =
-          typeof subscription.customer === 'string'
-            ? subscription.customer
-            : subscription.customer.id;
-        const existing = await tx.billingSubscription.findUnique({ where: { customerId } });
+        const existing = observedBilling;
         if (!existing) throw new Error('Billing customer is not registered');
-        await tx.billingSubscription.update({
-          where: { id: existing.id },
-          data: { subscriptionId: subscription.id, status: subscription.status },
-        });
+        if (
+          shouldReconcileSubscription(existing.subscriptionId, subscription.id, subscription.status)
+        ) {
+          const changed = await tx.billingSubscription.updateMany({
+            where: {
+              id: existing.id,
+              subscriptionId: existing.subscriptionId,
+              updatedAt: existing.updatedAt,
+            },
+            data: { subscriptionId: subscription.id, status: subscription.status },
+          });
+          if (!changed.count) throw new Error('Concurrent billing update; retry required');
+        }
       }
       await tx.webhookEvent.create({ data: { id: event.id } });
     });

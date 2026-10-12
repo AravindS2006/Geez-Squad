@@ -181,6 +181,8 @@ export function CameraAnalyzer({
     owner?: string;
   } | null>(null);
   const saveOwner = useRef(saveForUser);
+  const sessionContext = useRef({ classId, revision });
+  sessionContext.current = { classId, revision };
   const retryOwner = useRef(historyUserId);
   retryOwner.current = historyUserId;
   saveOwner.current = saveForUser;
@@ -406,8 +408,7 @@ export function CameraAnalyzer({
     activeSet.current = {
       clientId: crypto.randomUUID(),
       exercise: exerciseRef.current,
-      revision,
-      classId,
+      ...sessionContext.current,
       owner: saveOwner.current,
     };
     const preview = previewState.current;
@@ -520,7 +521,7 @@ export function CameraAnalyzer({
       }),
     );
     setAnalysis({ ...empty, reps: initialReps, holdSeconds: initialHoldSeconds });
-  }, [exercise, revision, block?.sets, block?.reps, block?.rest, block?.loadKg]);
+  }, [classId, exercise, revision, block?.sets, block?.reps, block?.rest, block?.loadKg]);
   useEffect(() => {
     const onPageHide = () => {
       const unfinished = recordSet();

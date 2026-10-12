@@ -580,6 +580,23 @@ function exercisePose(exercise: ProfileExerciseId, angle: number): Landmark[] {
 }
 
 describe('exercise-specific profiles', () => {
+  it('suspends both-arm depth tracking when the other arm loses valid depth geometry', () => {
+    const state = initialPoseState();
+    const observe = (angle: number, timestamp: number, uncertain = false) => {
+      const image = exercisePose('jumpingjack', angle);
+      const world = image.map((point) => ({ ...point, x: (point.x * W) / H, z: 0 }));
+      if (uncertain) world[14].visibility = 0.2;
+      return analyzePose([image], 'jumpingjack', state, timestamp, W, H, false, {}, [world]);
+    };
+    observe(15, 100);
+    observe(15, 200);
+    observe(60, 300);
+    expect(state.stage).toBe('working');
+    const result = observe(155, 400, true);
+    expect(result.tracked).toBe(false);
+    expect(result.score).toBeNull();
+    expect(state.bottomSeen).toBe(false);
+  });
   it.each(['lateralraise', 'jumpingjack'] as const)(
     'requires a front-facing view for %s rather than counting a side-on arm lift',
     (exercise) => {

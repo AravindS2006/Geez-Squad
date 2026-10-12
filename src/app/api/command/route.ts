@@ -169,25 +169,34 @@ export async function POST(request: Request) {
       }
       case 'assignPlan': {
         const owned = requireCoach();
-        const member = await db.membership.findUnique({
-          where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
-        });
-        if (!member) throw new ApiError(404, 'Choose a client from your own studio.');
-        if (data.planId === null) {
-          await db.planAssignment.deleteMany({
-            where: { studioId: owned.id, userId: data.userId },
-          });
-        } else {
-          const plan = await db.workoutPlan.findFirst({
-            where: { id: data.planId, studioId: owned.id },
-          });
-          if (!plan) throw new ApiError(404, 'Choose a plan from your own studio.');
-          await db.planAssignment.upsert({
-            where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
-            create: { studioId: owned.id, userId: data.userId, planId: plan.id },
-            update: { planId: plan.id, assignedAt: new Date() },
-          });
-        }
+        await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                const member = await tx.membership.findUnique({
+                  where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+                });
+                if (!member) throw new ApiError(404, 'Choose a client from your own studio.');
+                if (data.planId === null) {
+                  await tx.planAssignment.deleteMany({
+                    where: { studioId: owned.id, userId: data.userId },
+                  });
+                } else {
+                  const plan = await tx.workoutPlan.findFirst({
+                    where: { id: data.planId, studioId: owned.id },
+                  });
+                  if (!plan) throw new ApiError(404, 'Choose a plan from your own studio.');
+                  await tx.planAssignment.upsert({
+                    where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+                    create: { studioId: owned.id, userId: data.userId, planId: plan.id },
+                    update: { planId: plan.id, assignedAt: new Date() },
+                  });
+                }
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
         break;
       }
       case 'coachNote': {
@@ -216,41 +225,53 @@ export async function POST(request: Request) {
       }
       case 'createClass': {
         const owned = requireCoach();
-        const ids = data.includeAllClients
-          ? (
-              await db.membership.findMany({
-                where: { studioId: owned.id },
-                select: { userId: true },
-              })
-            ).map((member) => member.userId)
-          : [...new Set(data.participantIds)];
-        if (
-          (!data.includeAllClients && ids.length !== data.participantIds.length) ||
-          ids.length > MAX_CLASS_CLIENTS ||
-          (!data.includeAllClients && ids.length > data.capacity)
-        )
-          throw new ApiError(400, 'Check the class capacity and participant list.');
-        if (new Date(data.startsAt).getTime() < Date.now() - 60000)
-          throw new ApiError(400, 'Choose a future start time.');
-        const members = await db.membership.count({
-          where: { studioId: owned.id, userId: { in: ids } },
-        });
-        if (members !== ids.length) throw new ApiError(403, 'Select clients from your own studio.');
-        const plan = data.planId
-          ? await db.workoutPlan.findFirst({ where: { id: data.planId, studioId: owned.id } })
-          : null;
-        if (data.planId && !plan) throw new ApiError(404, 'Plan not found.');
-        const item = await db.classSession.create({
-          data: {
-            studioId: owned.id,
-            title: data.title,
-            startsAt: new Date(data.startsAt),
-            duration: data.duration,
-            capacity: Math.max(data.capacity, ids.length),
-            planId: plan?.id,
-            enrollments: { create: ids.map((userId) => ({ userId })) },
-          },
-        });
+        const item = await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                const ids = data.includeAllClients
+                  ? (
+                      await tx.membership.findMany({
+                        where: { studioId: owned.id },
+                        select: { userId: true },
+                      })
+                    ).map((member) => member.userId)
+                  : [...new Set(data.participantIds)];
+                if (
+                  (!data.includeAllClients && ids.length !== data.participantIds.length) ||
+                  ids.length > MAX_CLASS_CLIENTS ||
+                  (!data.includeAllClients && ids.length > data.capacity)
+                )
+                  throw new ApiError(400, 'Check the class capacity and participant list.');
+                if (new Date(data.startsAt).getTime() < Date.now() - 60000)
+                  throw new ApiError(400, 'Choose a future start time.');
+                const members = await tx.membership.count({
+                  where: { studioId: owned.id, userId: { in: ids } },
+                });
+                if (members !== ids.length)
+                  throw new ApiError(403, 'Select clients from your own studio.');
+                const plan = data.planId
+                  ? await tx.workoutPlan.findFirst({
+                      where: { id: data.planId, studioId: owned.id },
+                    })
+                  : null;
+                if (data.planId && !plan) throw new ApiError(404, 'Plan not found.');
+                return tx.classSession.create({
+                  data: {
+                    studioId: owned.id,
+                    title: data.title,
+                    startsAt: new Date(data.startsAt),
+                    duration: data.duration,
+                    capacity: Math.max(data.capacity, ids.length),
+                    planId: plan?.id,
+                    enrollments: { create: ids.map((userId) => ({ userId })) },
+                  },
+                });
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
         result.id = item.id;
         break;
       }
@@ -480,8 +501,8 @@ export async function POST(request: Request) {
         const item = await requireClass(data.id, user.id);
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         if (item.studio.ownerId !== user.id)
-          await db.enrollment.update({
-            where: { classId_userId: { classId: item.id, userId: user.id } },
+          await db.enrollment.updateMany({
+            where: { classId: item.id, userId: user.id, consentAt: null },
             data: { consentAt: new Date() },
           });
         break;

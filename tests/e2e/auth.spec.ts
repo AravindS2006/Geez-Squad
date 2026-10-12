@@ -78,6 +78,16 @@ test('session controls wait for delayed client scripts before accepting a click'
     });
     expect(scheduled.ok()).toBe(true);
     const session = await scheduled.json();
+    // The direct room URL must work even when the workspace's latest 100
+    // sessions no longer contain this authorized session.
+    const studio = await db.studio.findFirstOrThrow({ where: { owner: { email } } });
+    await db.classSession.createMany({
+      data: Array.from({ length: 101 }, (_, index) => ({
+        studioId: studio.id,
+        title: `Later scheduled session ${index}`,
+        startsAt: new Date(Date.now() + 86400000 + index * 60000),
+      })),
+    });
     await page.route('**/_next/static/**/*.js', async (route) => {
       await scriptsReady;
       await route.continue();

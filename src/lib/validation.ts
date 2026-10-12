@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { exerciseIds } from './exercise-profiles';
+import { exerciseIds, isHoldExercise } from './exercise-profiles';
 import { MAX_CLASS_CLIENTS } from './class-policy';
 export const exerciseSchema = z.enum(exerciseIds);
 const identifier = z.string().min(1).max(100);
@@ -113,22 +113,26 @@ export const commandSchema = z.discriminatedUnion('action', [
     goal: z.string().trim().min(2).max(160),
   }),
 ]);
-export const metricSchema = z.object({
-  classId: identifier,
-  exercise: exerciseSchema,
-  revision: z.number().int().min(0),
-  reps: z.number().int().min(0).max(5000),
-  holdSeconds: z.number().int().min(0).max(7200),
-  score: z.number().finite().min(0).max(100).nullable(),
-  confidence: z.number().finite().min(0).max(1),
-  phase: z.string().max(40),
-  cue: z.string().max(180),
-  quality: z.number().finite().min(0).max(100).nullable().optional(),
-  rangeDegrees: z.number().finite().min(0).max(180).nullable().optional(),
-  repSeconds: z.number().finite().min(0).max(30).nullable().optional(),
-  trackingCoverage: z.number().finite().min(0).max(100).nullable().optional(),
-  rejectedReps: z.number().int().min(0).max(5000).optional(),
-});
+export const metricSchema = z
+  .object({
+    classId: identifier,
+    exercise: exerciseSchema,
+    revision: z.number().int().min(0),
+    reps: z.number().int().min(0).max(5000),
+    holdSeconds: z.number().int().min(0).max(7200),
+    score: z.number().finite().min(0).max(100).nullable(),
+    confidence: z.number().finite().min(0).max(1),
+    phase: z.string().max(40),
+    cue: z.string().max(180),
+    quality: z.number().finite().min(0).max(100).nullable().optional(),
+    rangeDegrees: z.number().finite().min(0).max(180).nullable().optional(),
+    repSeconds: z.number().finite().min(0).max(30).nullable().optional(),
+    trackingCoverage: z.number().finite().min(0).max(100).nullable().optional(),
+    rejectedReps: z.number().int().min(0).max(5000).optional(),
+  })
+  .refine((data) => (isHoldExercise(data.exercise) ? data.reps === 0 : data.holdSeconds === 0), {
+    message: 'Use repetitions or hold time for the selected exercise.',
+  });
 const score = z.number().finite().min(0).max(100).nullable();
 export const workoutSetSchema = z
   .object({

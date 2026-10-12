@@ -34,9 +34,12 @@ export function normalizeWorkoutConfig(
   const defaults = defaultWorkoutConfig(exercise);
   const profile = getExerciseProfile(exercise);
   const bounded = (value: unknown, fallback: number, min: number, max: number) =>
-    typeof value === 'number' && Number.isFinite(value)
-      ? Math.round(Math.max(min, Math.min(max, value)))
-      : fallback;
+    Math.round(
+      Math.max(
+        min,
+        Math.min(max, typeof value === 'number' && Number.isFinite(value) ? value : fallback),
+      ),
+    );
   const topAngle = bounded(
     input.topAngle,
     defaults.topAngle,

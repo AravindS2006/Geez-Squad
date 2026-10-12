@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
+import { metricElapsedSeconds } from '@/lib/metric-policy';
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
@@ -32,7 +33,12 @@ export async function POST(request: Request) {
               throw new ApiError(409, 'Stale hold time.');
             const delta = data.reps - (previous?.revision === data.revision ? previous.reps : 0);
             // Client estimates are untrusted: enforce a physical plausibility bound per reporting interval.
-            const elapsed = previous ? (Date.now() - previous.updatedAt.getTime()) / 1000 : 3;
+            const elapsed = metricElapsedSeconds(
+              Date.now(),
+              item.startedAt,
+              enrollment.consentAt,
+              previous?.updatedAt,
+            );
             if (delta > Math.max(4, Math.ceil(elapsed * 2)))
               throw new ApiError(400, 'Rep summary changed too quickly.');
             const holdDelta =

@@ -24,12 +24,15 @@ Data export returns only the requesting user's profile, memberships, and workout
 
 ## Known engineering limits
 
-- Metrics, cues, and control state use 3-second polling rather than a durable realtime bus. Local detector feedback is immediate. Load-test before scaling beyond the eight-trainee cap.
+- Metrics, cues, and control state use 3-second polling rather than a durable realtime bus. Local detector feedback is immediate. The enrollment ceiling is 100; it is not a verified concurrency guarantee. Load-test the intended PostgreSQL and RTC concurrency before increasing operational class sizes.
 - Clients compute their own estimates; the backend validates bounds but cannot attest that they came from an actual camera. They must not be used for competitions, insurance, medical decisions, or fraud-sensitive rewards.
-- Scores are heuristic geometry comparisons. The included rule version is `geometry-v1`; no validated learned scoring model exists yet.
+- Scores are heuristic geometry comparisons. The included rule version is `profile-v6`; no validated learned scoring model exists yet. Keep one trainee in view: the configured single-person tracker cannot reliably reject all extra people.
 - Stopping local analysis while a shared camera is active stops inference, not the separately indicated video room stream. Use the room camera toggle or leave video to stop sharing.
 - Browser CPU performance, thermal throttling, supported Safari behavior, and live WebRTC reconnection remain to be measured on physical devices.
 - Stripe and email integration code needs real service tests. Paid feature entitlements, operator console, automated deletion, recurring availability, push notifications, and coach verification are future milestones.
-- DB transactions use serializable isolation for invite/onboarding and metrics. Serialization conflicts fail safely; client summary polling retries on its next interval. Add bounded retry handling and observe conflicts under PostgreSQL load.
+- Critical membership/enrollment and metrics operations use serializable transactions. The shared write helper provides bounded serialization-conflict retries and serializes local SQLite writes. Observe retries and failures under PostgreSQL load; local SQLite checks do not establish production concurrency behavior.
+- Workspace history is bounded to 100 classes, 500 saved sets, and 100 check-ins. Direct authorized room access is independent of that class-list bound. Add pagination and explicit reporting periods before presenting these views as complete lifetime history.
+
+See the [12 October codebase audit](CODEBASE_AUDIT_2026-10-12.md) for the latest fixes, evidence, and unresolved acceptance work.
 
 Before production, assess dependency licensing, conduct threat modeling/pentesting, test all service failure states, choose monitoring/alert recipients, and rehearse restores. The included checks are development verification, not an independent security certification.

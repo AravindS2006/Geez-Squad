@@ -66,7 +66,10 @@ export default function PrivacyPage() {
       <h2>Camera limitations and wellbeing</h2>
       <ul>
         <li>Use the instructed camera angle and keep the required joints visible.</li>
-        <li>Low visibility and multiple people prevent useful scoring.</li>
+        <li>
+          Keep only one person in view. This tracker follows one body and cannot reliably detect or
+          reject additional people. Low visibility can interrupt scoring.
+        </li>
         <li>Camera geometry cannot measure pain, joint loading, or diagnose injuries.</li>
         <li>
           Stop if you feel pain, dizziness, or discomfort; discuss suitable exercise with a

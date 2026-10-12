@@ -49,7 +49,7 @@ The browser test configuration uses an installed Microsoft Edge. Change the chan
 
 MediaPipe Pose Landmarker Heavy detects 33 landmarks in a worker using local model/WASM assets. Sustained slow inference switches from Heavy to Full, then to Lite when needed. Analysis is capped at 20 frames/sec with one inference in flight. GPU initialization or runtime stalls recover through CPU. One-person VIDEO tracking provides native temporal smoothing. Abrupt body relocation requires stable reacquisition; isolated limb jumps and relocating uncertain joints are hidden. Keep a single trainee in view; crowded views are unsupported. Each annotated display pairs the analyzed image with its corresponding landmarks. Workers, bitmaps and owned tracks are released on stop/unmount.
 
-The profile-v4 engine uses image/world geometry, confidence gates, stable limb selection, adaptive movement-signal smoothing, exercise profiles, state transitions, hysteresis, range and duration validation, time-weighted form rules, cooldown, and completed-rep quality. It supports squat, push-up, curl, plank, lunge, shoulder press, lateral raise, jumping jack, glute bridge, crunch, row, and side plank. Guided calibration measures confident, stable endpoints with the coach. Five-second hands-free starting tolerates small posture changes and pauses for temporary tracking uncertainty.
+The profile-v6 engine uses image/world geometry, confidence gates, stable limb selection, adaptive movement-signal smoothing, exercise profiles, state transitions, hysteresis, range and duration validation, time-weighted form rules, cooldown, and completed-rep quality. Bilateral movements keep both limbs in the same coordinate space. It supports squat, push-up, curl, plank, lunge, shoulder press, lateral raise, jumping jack, glute bridge, crunch, row, and side plank. Guided calibration measures confident, stable endpoints with the coach. Five-second hands-free starting tolerates small posture changes and pauses for temporary tracking uncertainty.
 
 Scores estimate visible movement rather than proving safe or perfect technique. Signed-in trainees can save practice history explicitly; live training uses join consent. Set records retain reps/holds, observed active and tracked time, form and rep quality, range, tempo, confidence, rejection counts, and optional reported load. Failed saves queue by account and can be retried without duplicate rows. No calories, heart rate, injury predictions, or body-fat estimates are inferred.
 
@@ -59,6 +59,7 @@ The coach overview fits up to 36 trainee tiles on desktops, with search, attenti
 
 ## Documentation
 
+- [Codebase audit, fixes, and remaining validation — 12 October 2026](docs/CODEBASE_AUDIT_2026-10-12.md)
 - [Current accuracy and Geez Squad release](docs/GEEZ_SQUAD_RELEASE.md)
 - [Professional coaching phase plan](docs/PHASE_2_PLAN.md)
 - [Research and implementation plan](docs/IMPLEMENTATION_PLAN.md)

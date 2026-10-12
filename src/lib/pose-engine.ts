@@ -2,7 +2,7 @@ import type { ExerciseId } from './types';
 import { getExerciseProfile, type ExerciseProfile } from './exercise-profiles';
 import { defaultWorkoutConfig, normalizeWorkoutConfig, type WorkoutConfig } from './workout-config';
 
-export const RULE_VERSION = 'profile-v5';
+export const RULE_VERSION = 'profile-v6';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
   reps: number;
@@ -662,7 +662,9 @@ export function analyzePose(
     x: (filtered[index + side]?.x ?? NaN) * width,
     y: (filtered[index + side]?.y ?? NaN) * height,
   });
-  const trustworthyWorld = sideWorld[side];
+  // A bilateral cycle uses one coordinate space for both limbs. Losing the
+  // opposite limb's depth must not silently substitute its projected angle.
+  const trustworthyWorld = !profile.bilateral || sideWorld.every(Boolean) ? sideWorld[side] : null;
   let source: '3d' | '2d' = trustworthyWorld ? '3d' : '2d';
   if (state.stage === 'working' && state.geometrySource === '3d' && !trustworthyWorld)
     return suspend(

@@ -5871,6 +5871,53 @@ small {
 .workout-record:last-child {
   border-bottom: 0;
 }
+.workout-record-details {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workout-record-details summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.record-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.meeting-schedule-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 0 16px 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--meeting-line, #3d454d);
+  border-radius: 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.meeting-schedule-bar > div {
+  display: grid;
+  gap: 4px;
+}
+.meeting-schedule-bar p {
+  flex: 1 1 180px;
+  margin: 0;
+  color: inherit;
+}
+.meeting-link-message {
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+.meeting-schedule-bar span {
+  color: var(--meeting-muted);
+}
+.meeting-room .modal .meeting-schedule-bar span {
+  color: var(--muted);
+}
 .workout-record > div {
   display: flex;
   flex-direction: column;

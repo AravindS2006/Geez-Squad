@@ -28,6 +28,8 @@ Create a coach account, then a trainee account in a second browser profile. The 
 
 ## Checks
 
+See the [session and exercise-record correction report](docs/SESSION_RECORDS_2026-10-13.md) for scheduling, time-zone handling, meeting access, saved-history fixes, and their verification.
+
 ```sh
 npm run typecheck
 npm test

@@ -7,7 +7,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const item = await db.classSession.findUnique({
       where: { id },
-      include: { studio: { select: { ownerId: true } } },
+      include: {
+        studio: { select: { ownerId: true } },
+        plan: { select: { blocks: true } },
+        _count: { select: { enrollments: true } },
+      },
     });
     if (!item) throw new ApiError(404, 'This session is not available.');
     const coach = item.studio.ownerId === user.id;
@@ -15,7 +19,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // the private metrics fetched for every trainee's three-second poll.
     const enrollments = await db.enrollment.findMany({
       where: { classId: id, ...(coach ? {} : { userId: user.id }) },
-      include: { user: { select: { id: true, name: true } }, metric: true },
+      include: { user: { select: { id: true, name: true } }, metric: true, summary: true },
       orderBy: { createdAt: 'asc' },
     });
     if (!coach && !enrollments.length) throw new ApiError(404, 'This session is not available.');
@@ -30,16 +34,32 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     });
     return NextResponse.json(
       {
+        title: item.title,
+        startsAt: item.startsAt,
+        duration: item.duration,
+        capacity: item.capacity,
+        planId: item.planId,
+        workout: item.plan?.blocks ?? [],
+        participantCount: item._count.enrollments,
         status: item.status,
         exercise: item.exercise,
         revision: item.revision,
         paused: item.paused,
         startedAt: item.startedAt,
+        endedAt: item.endedAt,
         participants: enrollments.map((e) => ({
           id: e.userId,
           name: e.user.name,
           helpRequested: e.helpRequested,
           metric: e.metric,
+          summary: e.summary
+            ? {
+                totalReps: e.summary.totalReps,
+                totalHoldSeconds: e.summary.totalHoldSeconds,
+                trackedSamples: e.summary.trackedSamples,
+                scoreTotal: e.summary.scoreTotal,
+              }
+            : null,
         })),
         messages: messages.reverse().map((m) => ({
           id: m.id,

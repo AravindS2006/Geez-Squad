@@ -31,7 +31,7 @@ Data export returns only the requesting user's profile, memberships, and workout
 - Browser CPU performance, thermal throttling, supported Safari behavior, and live WebRTC reconnection remain to be measured on physical devices.
 - Stripe and email integration code needs real service tests. Paid feature entitlements, operator console, automated deletion, recurring availability, push notifications, and coach verification are future milestones.
 - Critical membership/enrollment and metrics operations use serializable transactions. The shared write helper provides bounded serialization-conflict retries and serializes local SQLite writes. Observe retries and failures under PostgreSQL load; local SQLite checks do not establish production concurrency behavior.
-- Workspace history is bounded to 100 classes, 500 saved sets, and 100 check-ins. Direct authorized room access is independent of that class-list bound. Add pagination and explicit reporting periods before presenting these views as complete lifetime history.
+- Workspace history is bounded to 100 classes per status, 500 saved sets, and 100 check-ins. Live classes and nearest scheduled classes are selected independently of history. Insights reveals loaded exercise records in batches of 50 and can retry pending device saves. Direct authorized room access is independent of class-list bounds. Backend pagination is still required for complete lifetime history.
 
 See the [12 October codebase audit](CODEBASE_AUDIT_2026-10-12.md) for the latest fixes, evidence, and unresolved acceptance work.
 

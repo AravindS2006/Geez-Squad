@@ -29,7 +29,10 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   await page.getByRole('dialog').getByRole('button', { name: 'Schedule session' }).click();
   await expect(page.getByText('Mindful movement', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Overview' }).click();
-  await page.getByRole('button', { name: 'Open studio', exact: true }).first().click();
+  await page
+    .getByRole('button', { name: /^(Open studio|Join session)$/ })
+    .first()
+    .click();
   await expect(page.getByText('ILLUSTRATIVE STUDIO PREVIEW')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Focus Ava Thompson/ })).toBeVisible();
   await page.getByRole('button', { name: 'Coach tools', exact: true }).click();

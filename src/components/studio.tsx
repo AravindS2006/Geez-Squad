@@ -37,6 +37,8 @@ import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
 import { CoachMonitor } from './coach-monitor';
+import { sessionElapsedSeconds } from '@/lib/session-timing';
+import { useTimeFormat } from './time-provider';
 import {
   CLASSMATE_PAGE_SIZE,
   cameraQuality,
@@ -46,13 +48,23 @@ import {
 const CameraAnalyzer = dynamic(() => import('./camera-analyzer').then((m) => m.CameraAnalyzer), {
   ssr: false,
 });
-type LiveState = {
-  status: string;
-  exercise: ClassView['exercise'];
-  revision: number;
-  paused: boolean;
-  startedAt: string | null;
-  participants: ClassView['participants'];
+type LiveState = Pick<
+  ClassView,
+  | 'title'
+  | 'startsAt'
+  | 'duration'
+  | 'capacity'
+  | 'planId'
+  | 'workout'
+  | 'participantCount'
+  | 'status'
+  | 'exercise'
+  | 'revision'
+  | 'paused'
+  | 'startedAt'
+  | 'endedAt'
+  | 'participants'
+> & {
   messages: MessageView[];
 };
 type CoachVideoLayout = {
@@ -93,10 +105,14 @@ export function Studio({
     [draft, setDraft] = useState(''),
     [cue, setCue] = useState(''),
     [ending, setEnding] = useState(false),
-    [seconds, setSeconds] = useState(0),
+    [now, setNow] = useState(() => Date.now()),
     [connectionState, setConnectionState] = useState('Not connected'),
     [analysisWarning, setAnalysisWarning] = useState('');
   const [devicesOpen, setDevicesOpen] = useState(false);
+  const { dateLabel, timeLabel, timeZone } = useTimeFormat();
+  const [linkMessage, setLinkMessage] = useState('');
+  const controlVersion = useRef(0);
+  const controlPending = useRef(false);
   const [coachToolsOpen, setCoachToolsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
@@ -212,13 +228,20 @@ export function Studio({
     let timer: ReturnType<typeof setTimeout>;
     let failures = 0;
     async function poll() {
+      const version = controlVersion.current;
       try {
         const state = await fetchJson<LiveState>(`/api/classes/${initialClass!.id}`);
         if (!active) return;
         failures = 0;
+        if (controlPending.current || version !== controlVersion.current) {
+          timer = setTimeout(poll, 3000);
+          return;
+        }
         setItem((p) => (p ? { ...p, ...state } : p));
         setMessages(state.messages);
         if (state.status === 'completed' || state.status === 'cancelled') {
+          joinGeneration.current++;
+          setShowConsent(false);
           void room.current?.disconnect();
           setConnected(false);
           setStream(null);
@@ -239,12 +262,7 @@ export function Studio({
     };
   }, [demo, initialClass?.id]);
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (current.current?.startedAt)
-        setSeconds(
-          Math.max(0, Math.floor((Date.now() - +new Date(current.current.startedAt)) / 1000)),
-        );
-    }, 1000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
@@ -312,7 +330,9 @@ export function Studio({
     return () => clearInterval(timer);
   }, [demo, coach, connected, consent]);
   async function control(control: string, exercise?: string) {
-    if (!item) return;
+    if (!item || controlPending.current) return;
+    controlPending.current = true;
+    controlVersion.current++;
     setBusy(true);
     setError('');
     try {
@@ -327,6 +347,7 @@ export function Studio({
                 exercise: (exercise as ClassView['exercise']) || c.exercise,
                 revision: control === 'exercise' ? c.revision + 1 : c.revision,
                 startedAt: control === 'start' ? new Date().toISOString() : c.startedAt,
+                endedAt: control === 'end' ? new Date().toISOString() : c.endedAt,
               }
             : c,
         );
@@ -336,6 +357,8 @@ export function Studio({
         setItem((c) => (c ? { ...c, ...s } : c));
       }
       if (control === 'end') {
+        joinGeneration.current++;
+        setShowConsent(false);
         await room.current?.disconnect();
         setConnected(false);
         setStream(null);
@@ -344,6 +367,8 @@ export function Studio({
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Please retry.');
     } finally {
+      controlVersion.current++;
+      controlPending.current = false;
       setBusy(false);
     }
   }
@@ -456,13 +481,25 @@ export function Studio({
       } catch {
         setAudioBlocked(true);
       }
+      if (!mounted.current || joinGeneration.current !== run) {
+        await instance.disconnect();
+        return;
+      }
       await instance.localParticipant.setCameraEnabled(preferences.cameraOn);
+      if (!mounted.current || joinGeneration.current !== run) {
+        await instance.disconnect();
+        return;
+      }
       await instance.localParticipant.setMicrophoneEnabled(preferences.microphoneOn);
+      if (!mounted.current || joinGeneration.current !== run) {
+        await instance.disconnect();
+        return;
+      }
       setCamera(preferences.cameraOn);
       setMic(preferences.microphoneOn);
       update();
     } catch (err) {
-      if (mounted.current) {
+      if (mounted.current && joinGeneration.current === run) {
         setError(
           err instanceof Error ? err.message : 'Could not join video. Check permissions and retry.',
         );
@@ -649,12 +686,75 @@ export function Studio({
       />
     );
   const ended = item.status === 'completed' || item.status === 'cancelled';
+  const seconds = hydrated ? sessionElapsedSeconds(item, now) : 0;
   const focused = item.participants.find((p) => p.id === focus);
   const me = item.participants.find((p) => p.id === user.id);
   const coachParticipant = remote.find((p) => p.identity === item.coachId);
   const lastCue = [...messages]
     .reverse()
     .find((m) => m.kind === 'cue' && (!m.recipientId || m.recipientId === user.id));
+  const sessionDetails = (
+    <>
+      <div className="meeting-schedule-bar">
+        <div>
+          <strong>
+            {dateLabel(item.startsAt)} · {timeLabel(item.startsAt)}–
+            {timeLabel(new Date(Date.parse(item.startsAt) + item.duration * 60000).toISOString())}
+          </strong>
+          <span>
+            {timeZone} · {item.duration} min planned
+          </span>
+        </div>
+        <p>
+          {item.status === 'scheduled'
+            ? coach
+              ? 'Start the class when you are ready. Trainees can wait here.'
+              : 'Waiting for your coach to start. This page updates automatically.'
+            : item.status === 'live'
+              ? seconds >= item.duration * 60
+                ? 'Past the planned duration · the coach will end the session.'
+                : item.paused
+                  ? 'Exercise tracking is paused. Meeting time includes pauses.'
+                  : connected
+                    ? 'Connected · your meeting controls are below.'
+                    : coach
+                      ? 'Class is live. Join video to connect with your trainees.'
+                      : 'Class is live. Join video to see and hear your coach.'
+              : 'This session has ended.'}
+        </p>
+        {!demo && !ended && (
+          <button
+            className="button outline small-button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(`${window.location.origin}/studio/${item.id}`);
+                setLinkMessage(
+                  'Session link copied. Only enrolled trainees and the coach can open it.',
+                );
+              } catch {
+                setLinkMessage(
+                  `Copy this session link: ${window.location.origin}/studio/${item.id}`,
+                );
+              }
+            }}
+          >
+            Copy session link
+          </button>
+        )}
+      </div>
+      {linkMessage && (
+        <p className="meeting-notice meeting-link-message" role="status">
+          {linkMessage}
+        </p>
+      )}
+      {!demo && !services.video && !ended && (
+        <p className="inline-notice meeting-notice">
+          Live video is unavailable in this studio. Scheduling and exercise history are still
+          available.
+        </p>
+      )}
+    </>
+  );
   return (
     <div
       ref={meetingRef}
@@ -681,13 +781,13 @@ export function Studio({
         <div className="meeting-presence">
           <span className={`meeting-status ${item.status === 'live' ? 'is-live' : ''}`}>
             <i />
-            {item.paused ? 'Paused' : item.status}
+            {item.status === 'live' && item.paused ? 'Paused' : item.status}
           </span>
           <span>
             <Users size={15} />
-            {item.participants.length} trainees
+            {item.participantCount ?? item.participants.length} trainees
           </span>
-          <time>
+          <time aria-label="Session elapsed time" title="Elapsed meeting time, including pauses">
             {String(Math.floor(seconds / 60)).padStart(2, '0')}:
             {String(seconds % 60).padStart(2, '0')}
           </time>
@@ -711,6 +811,7 @@ export function Studio({
           )}
         </div>
       </header>
+      {item.status !== 'live' && sessionDetails}
       {error && (
         <p className="inline-error meeting-notice" role="alert">
           {error}
@@ -750,7 +851,16 @@ export function Studio({
         <div className="session-finished meeting-finished">
           <CheckCircle2 size={42} />
           <h2>{item.status === 'completed' ? 'Session complete' : 'Session cancelled'}</h2>
-          <p>Tracked summaries are saved in Insights.</p>
+          <p>
+            {item.status === 'completed'
+              ? 'Review saved exercise records in Insights. Any pending saves can be retried there.'
+              : 'This session was cancelled.'}
+          </p>
+          {!demo && item.status === 'completed' && (
+            <a className="button outline" href="/app?view=analytics">
+              View exercise records
+            </a>
+          )}
           {coach && item.status === 'completed' && !demo && (
             <button className="button outline" disabled={busy} onClick={() => void control('end')}>
               Retry video room cleanup
@@ -1009,7 +1119,13 @@ export function Studio({
               {!demo && !connected && item.status === 'live' && (
                 <button
                   className="button lime meeting-join"
-                  aria-label={connecting ? 'Connecting live video' : 'Join live video'}
+                  aria-label={
+                    !services.video
+                      ? 'Live video unavailable'
+                      : connecting
+                        ? 'Connecting live video'
+                        : 'Join live video'
+                  }
                   disabled={connecting || !services.video}
                   onClick={() => setShowConsent(true)}
                 >
@@ -1230,6 +1346,7 @@ export function Studio({
       )}
       {devicesOpen && (
         <Modal title="Meeting options" onClose={() => setDevicesOpen(false)}>
+          {item.status === 'live' && sessionDetails}
           <div className="form-stack">
             {connected && (
               <fieldset disabled={deviceBusy}>

@@ -247,6 +247,8 @@ try {
     coach,
   );
   const allView = await check(`/api/classes/${allClass.id}`, undefined, coach);
+  assert.equal(allView.participantCount, 1);
+  checks++;
   assert.deepEqual(
     allView.participants.map((person) => person.id),
     [trainee.id],
@@ -413,6 +415,13 @@ try {
     checks++;
   }
   await check('/api/command', { action: 'classControl', id: item.id, control: 'end' }, coach);
+  const endedView = await check(`/api/classes/${item.id}`, undefined, trainee);
+  assert.equal(endedView.status, 'completed');
+  assert.ok(endedView.endedAt);
+  assert.equal(endedView.participants.length, 1);
+  assert.equal(endedView.participants[0].summary.totalReps, 19);
+  assert.equal(endedView.participants[0].summary.totalHoldSeconds, 1);
+  checks++;
   await check('/api/video/token', { classId: item.id }, trainee, 409);
   const personal = await check('/api/export', undefined, trainee);
   assert.equal(personal.profile.email, trainee.email);
@@ -463,6 +472,19 @@ try {
   assert.equal(traineeEdited.startsAt, update.startsAt);
   assert.equal(traineeEdited.editVersion, undefined);
   checks += 3;
+  const updatedPoll = await check(`/api/classes/${allClass.id}`, undefined, trainee);
+  assert.deepEqual(
+    [
+      updatedPoll.title,
+      updatedPoll.startsAt,
+      updatedPoll.duration,
+      updatedPoll.planId,
+      updatedPoll.participantCount,
+    ],
+    [update.title, update.startsAt, 60, plan.id, 1],
+  );
+  assert.deepEqual(updatedPoll.workout, edited.workout);
+  checks++;
   await check(
     '/api/command',
     { ...update, expectedVersion: edited.editVersion, participantIds: [] },

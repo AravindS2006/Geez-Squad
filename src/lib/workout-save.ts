@@ -7,15 +7,13 @@ function read(): Pending[] {
   try {
     const value = JSON.parse(readBrowserPreference(key) || '[]');
     return Array.isArray(value)
-      ? value
-          .filter(
-            (item) =>
-              item &&
-              typeof item.userId === 'string' &&
-              item.record &&
-              typeof item.record.clientId === 'string',
-          )
-          .slice(-100)
+      ? value.filter(
+          (item) =>
+            item &&
+            typeof item.userId === 'string' &&
+            item.record &&
+            typeof item.record.clientId === 'string',
+        )
       : [];
   } catch {
     return [];

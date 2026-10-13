@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { MAX_CLASS_CLIENTS } from '@/lib/class-policy';
+import { localDateTime, parseSessionTime } from '@/lib/session-timing';
 import type { ClassView, WorkspaceData } from '@/lib/types';
 import { Avatar } from './ui';
 import { useTimeFormat } from './time-provider';
@@ -21,14 +22,15 @@ export function ScheduleForm({
   const [selected, setSelected] = useState<string[]>(session?.participants.map((p) => p.id) ?? []);
   const [allClients, setAllClients] = useState(false);
   const [search, setSearch] = useState('');
+  const [timeError, setTimeError] = useState('');
   const [capacity, setCapacity] = useState(
     session?.capacity ?? Math.max(1, Math.min(MAX_CLASS_CLIENTS, data.clients.length)),
   );
   const selectedCount = allClients ? data.clients.length : selected.length;
   const next = session ? new Date(session.startsAt) : new Date(Date.now() + 3600000);
-  const local = new Date(next.getTime() - next.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
+  const [local, setLocal] = useState(() => localDateTime(next));
+  const [duration, setDuration] = useState(session?.duration ?? 30);
+  const startsAt = parseSessionTime(local, session?.startsAt);
   function pick(id: string, checked: boolean) {
     const current = allClients ? data.clients.map((client) => client.id) : selected;
     const updated = checked
@@ -44,14 +46,25 @@ export function ScheduleForm({
       onSubmit={(event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
+        if (!startsAt) {
+          setTimeError(
+            'Choose a valid local time. This time may not exist because the clocks change.',
+          );
+          return;
+        }
+        if (Date.parse(startsAt) < Date.now() - 60000) {
+          setTimeError('Choose a future start time.');
+          return;
+        }
+        setTimeError('');
         onSubmit({
           action: session ? 'updateClass' : 'createClass',
           ...(session
             ? { id: session.id, expectedVersion: session.editVersion ?? '0'.repeat(64) }
             : {}),
           title: form.get('title'),
-          startsAt: new Date(String(form.get('startsAt'))).toISOString(),
-          duration: Number(form.get('duration')),
+          startsAt,
+          duration,
           capacity,
           planId: form.get('planId') || (session ? null : undefined),
           participantIds: selected,
@@ -84,7 +97,16 @@ export function ScheduleForm({
         </label>
         <label>
           Date &amp; time
-          <input name="startsAt" type="datetime-local" defaultValue={local} required />
+          <input
+            name="startsAt"
+            type="datetime-local"
+            value={local}
+            onChange={(event) => {
+              setLocal(event.target.value);
+              setTimeError('');
+            }}
+            required
+          />
         </label>
         <label>
           Duration (minutes)
@@ -93,7 +115,8 @@ export function ScheduleForm({
             type="number"
             min={10}
             max={120}
-            defaultValue={session?.duration ?? 30}
+            value={duration}
+            onChange={(event) => setDuration(Number(event.target.value))}
             required
           />
         </label>
@@ -110,6 +133,28 @@ export function ScheduleForm({
           />
         </label>
       </div>
+      {timeError && (
+        <p className="inline-error" role="alert">
+          {timeError}
+        </p>
+      )}
+      {startsAt && duration > 0 && duration <= 120 && (
+        <p className="microcopy">
+          Starts{' '}
+          {new Date(startsAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+          {' · Ends '}
+          {new Date(Date.parse(startsAt) + duration * 60000).toLocaleString('en-IN', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}
+          {' · '}
+          {
+            new Intl.DateTimeFormat('en-IN', { timeZoneName: 'longOffset' })
+              .formatToParts(new Date(startsAt))
+              .find((part) => part.type === 'timeZoneName')?.value
+          }
+        </p>
+      )}
       <p className="microcopy">
         Times use {timeZone}. Sessions support up to {MAX_CLASS_CLIENTS} trainees.
         {session && ' Changes appear on the enrolled trainees’ calendars after you save.'}

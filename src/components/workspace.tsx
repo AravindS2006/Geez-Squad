@@ -55,6 +55,7 @@ import { ScheduleForm } from './session-form';
 import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
 import { coachingOverview } from '@/lib/coaching-insights';
+import { compareSessions } from '@/lib/session-timing';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
@@ -197,10 +198,10 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     : 'dashboard';
   const upcoming = data.classes
     .filter((c) => c.status === 'scheduled' || c.status === 'live')
-    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  const history = data.classes.filter(
-    (c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - 30 * 86400000,
-  );
+    .sort(compareSessions);
+  const history = data.classes
+    .filter((c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - 30 * 86400000)
+    .sort(compareSessions);
   function go(next: string) {
     if (next === 'analytics') setProgressClient('all');
     setMobileMenu(false);
@@ -1004,7 +1005,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                         ? ['scheduled', 'live'].includes(c.status)
                         : c.status === filter,
                     )
-                    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))}
+                    .sort(compareSessions)}
                   onOpen={openClass}
                   onEdit={coach ? editSession : undefined}
                   onCancel={
@@ -1132,6 +1133,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 initialClient={progressClient}
                 data={data}
                 onPractice={() => go('practice')}
+                onRefresh={refresh}
               />
               <section className="panel">
                 <SectionTitle title="Session history" />
@@ -1663,13 +1665,19 @@ function SessionRows({
           <div className="session-info">
             <strong>{c.title}</strong>
             <span>
-              {timeLabel(c.startsAt)} · {c.duration} min · {c.participants.length}{' '}
-              {c.participants.length === 1 ? 'participant' : 'participants'}
+              {timeLabel(c.startsAt)}–
+              {timeLabel(new Date(Date.parse(c.startsAt) + c.duration * 60000).toISOString())} ·{' '}
+              {c.duration} min · {c.participantCount ?? c.participants.length}{' '}
+              {(c.participantCount ?? c.participants.length) === 1 ? 'participant' : 'participants'}
             </span>
           </div>
           <span className={`pill ${c.status === 'live' ? 'live-pill' : ''}`}>{c.status}</span>
           <button className="button outline small-button" onClick={() => onOpen(c)}>
-            {['completed', 'cancelled'].includes(c.status) ? 'View' : 'Open studio'}
+            {['completed', 'cancelled'].includes(c.status)
+              ? 'View'
+              : c.status === 'live'
+                ? 'Join session'
+                : 'Open studio'}
             <ArrowUpRight size={15} />
           </button>
           {c.status === 'scheduled' && onEdit && (

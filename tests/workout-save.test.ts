@@ -62,6 +62,26 @@ it('never submits records queued for another account', async () => {
   expect(request).not.toHaveBeenCalled();
   expect(pendingWorkoutSets('other')).toBe(1);
 });
+it('does not silently discard older unsent records when more than 100 accumulate', async () => {
+  values.set(
+    key,
+    JSON.stringify(
+      Array.from({ length: 101 }, (_, index) => ({
+        userId: 'owner',
+        record: { ...record, clientId: `pending-${index}` },
+      })),
+    ),
+  );
+  expect(pendingWorkoutSets('owner')).toBe(101);
+  request.mockRejectedValue(Error('Offline'));
+  await expect(saveWorkoutSet('owner', record)).rejects.toThrow('Offline');
+  expect(pendingWorkoutSets('owner')).toBe(102);
+  expect(
+    JSON.parse(values.get(key)!).some(
+      (item: { record: { clientId: string } }) => item.record.clientId === 'pending-0',
+    ),
+  ).toBe(true);
+});
 it('retries later records when one pending record is rejected', async () => {
   const later = { ...record, clientId: '01636788-f8a1-44e7-88b4-ae74a9fe5895' };
   values.set(

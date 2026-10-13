@@ -81,6 +81,7 @@ export type ClassView = {
   startsAt: string;
   duration: number;
   capacity: number;
+  participantCount?: number;
   status: string;
   exercise: ExerciseId;
   revision: number;

@@ -1,10 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, Download, CheckCircle2, Timer, CalendarDays } from 'lucide-react';
 import type { WorkspaceData, WorkoutSetView, ClientView } from '@/lib/types';
 import { exercises, exerciseName } from '@/lib/catalog';
 import { summarizeWorkouts, workoutCsv } from '@/lib/progress-metrics';
 import { traineeInsight } from '@/lib/coaching-insights';
+import { isHoldExercise } from '@/lib/exercise-profiles';
+import { pendingWorkoutSets, retryWorkoutSets } from '@/lib/workout-save';
 import { useTimeFormat } from './time-provider';
 import { EmptyState, SectionTitle } from './ui';
 
@@ -31,29 +33,48 @@ export function TrainingProgress({
   data,
   onPractice,
   initialClient = 'all',
+  onRefresh,
 }: {
   data: WorkspaceData;
   onPractice: () => void;
   initialClient?: string;
+  onRefresh?: () => Promise<void>;
 }) {
   const [days, setDays] = useState(30),
     [client, setClient] = useState(initialClient),
     [exercise, setExercise] = useState('all'),
     [source, setSource] = useState('all');
+  const [visibleRecords, setVisibleRecords] = useState(50);
+  const [pending, setPending] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+  useEffect(() => {
+    const update = () => setPending(pendingWorkoutSets(data.user.id));
+    update();
+    window.addEventListener('focus', update);
+    window.addEventListener('storage', update);
+    return () => {
+      window.removeEventListener('focus', update);
+      window.removeEventListener('storage', update);
+    };
+  }, [data.user.id]);
+  useEffect(() => setVisibleRecords(50), [days, client, exercise, source]);
   const { dateLabel, timeLabel, timeZone } = useTimeFormat();
   const coach = data.user.role === 'coach';
   const cohort = coach && client === 'all';
-  const sets = data.workoutSets.filter(
-    (set) =>
-      Date.parse(set.endedAt) >= Date.now() - days * 86400000 &&
-      (cohort
-        ? data.clients.some((person) => person.id === set.userId)
-        : client === 'all'
-          ? set.userId === data.user.id
-          : set.userId === client) &&
-      (exercise === 'all' || set.exercise === exercise) &&
-      (source === 'all' || (source === 'live' ? !!set.classId : !set.classId)),
-  );
+  const sets = data.workoutSets
+    .filter(
+      (set) =>
+        Date.parse(set.endedAt) >= Date.now() - days * 86400000 &&
+        (cohort
+          ? data.clients.some((person) => person.id === set.userId)
+          : client === 'all'
+            ? set.userId === data.user.id
+            : set.userId === client) &&
+        (exercise === 'all' || set.exercise === exercise) &&
+        (source === 'all' || (source === 'live' ? !!set.classId : !set.classId)),
+    )
+    .sort((a, b) => Date.parse(b.endedAt) - Date.parse(a.endedAt));
   const totals = summarizeWorkouts(sets, timeZone);
   const checkIns = data.checkIns
     .filter(
@@ -109,6 +130,44 @@ export function TrainingProgress({
           Export CSV
         </button>
       </div>
+      {!data.demo && (pending > 0 || saveMessage) && (
+        <div className="inline-notice record-recovery">
+          <p role="status">
+            {saveMessage ||
+              `${pending} exercise record${pending === 1 ? '' : 's'} on this device still need to be saved.`}
+          </p>
+          {pending > 0 && (
+            <button
+              className="button outline"
+              disabled={retrying}
+              onClick={async () => {
+                setRetrying(true);
+                setSaveMessage('');
+                try {
+                  await retryWorkoutSets(data.user.id);
+                  setSaveMessage('Exercise records saved.');
+                } catch (error) {
+                  setSaveMessage(
+                    error instanceof Error ? error.message : 'Could not save. Please retry.',
+                  );
+                } finally {
+                  setPending(pendingWorkoutSets(data.user.id));
+                  try {
+                    await onRefresh?.();
+                  } catch {
+                    setSaveMessage(
+                      'History could not refresh. Reload to check your saved records.',
+                    );
+                  }
+                  setRetrying(false);
+                }
+              }}
+            >
+              {retrying ? 'Saving records…' : 'Retry pending saves'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="progress-filters">
         <label>
           Period
@@ -331,9 +390,12 @@ export function TrainingProgress({
             </section>
           )}
           <section className="panel">
-            <SectionTitle title="Recent workout sets" detail="Last 50 records in this view" />
+            <SectionTitle
+              title="Recent workout sets"
+              detail={`Showing ${Math.min(visibleRecords, sets.length)} of ${sets.length} records in this view · ${timeZone}`}
+            />
             <div className="workout-record-list">
-              {sets.slice(0, 50).map((set) => (
+              {sets.slice(0, visibleRecords).map((set) => (
                 <WorkoutRecord
                   key={set.id}
                   set={set}
@@ -342,6 +404,14 @@ export function TrainingProgress({
                 />
               ))}
             </div>
+            {sets.length > visibleRecords && (
+              <button
+                className="button outline"
+                onClick={() => setVisibleRecords((count) => count + 50)}
+              >
+                Show more exercise records
+              </button>
+            )}
           </section>
         </>
       )}
@@ -432,18 +502,35 @@ function WorkoutRecord({
         </span>
       </div>
       <div>
-        <strong>{set.holdMs ? `${Math.round(set.holdMs / 1000)}s` : `${set.reps} reps`}</strong>
+        <strong>
+          {isHoldExercise(set.exercise) ? `${Math.round(set.holdMs / 1000)}s` : `${set.reps} reps`}
+        </strong>
         <span>
           Set {set.setNumber} · target {set.target}
+          {isHoldExercise(set.exercise) ? 's' : ' reps'}
         </span>
       </div>
       <div>
-        <strong>{number(set.qualityScore, ' /100')}</strong>
-        <span>Rep quality</span>
+        <strong>
+          {number(isHoldExercise(set.exercise) ? set.formScore : set.qualityScore, ' /100')}
+        </strong>
+        <span>{isHoldExercise(set.exercise) ? 'Form estimate' : 'Rep quality'}</span>
       </div>
       <span className={`pill ${set.completed ? 'target-complete' : ''}`}>
         {set.completed ? 'Target reached' : 'Finished early'}
       </span>
+      <details className="workout-record-details">
+        <summary>Exercise record details</summary>
+        <p>
+          Active {number(set.activeMs / 1000)}s · tracked {number(set.trackedMs / 1000)}s · form{' '}
+          {number(set.formScore, ' /100')}
+        </p>
+        <p>
+          Range {number(set.rangeDegrees, '°')} · rep tempo {number(set.repSeconds, 's')} · load{' '}
+          {number(set.loadKg, 'kg')}
+        </p>
+        <p>{set.ruleVersion} · Missing measurements remain unavailable.</p>
+      </details>
     </article>
   );
 }

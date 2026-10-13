@@ -52,7 +52,10 @@ for (const [path, button] of [
   await scan(`${path} + ${button} dialog`);
 }
 await page.goto('http://localhost:3000/demo');
-await page.getByRole('button', { name: 'Open studio', exact: true }).first().click();
+await page
+  .getByRole('button', { name: /^(Open studio|Join session)$/ })
+  .first()
+  .click();
 await page.getByText('ILLUSTRATIVE STUDIO PREVIEW', { exact: true }).waitFor();
 await scan('/demo + live studio');
 await page.getByRole('button', { name: 'Coach tools' }).click();

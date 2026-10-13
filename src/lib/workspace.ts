@@ -3,6 +3,7 @@ import { db } from './db';
 import { ApiError } from './security';
 import type { WorkspaceData, Block, ClassView, ExerciseId } from './types';
 import { sessionEditVersion } from './session-management';
+import { compareSessions } from './session-timing';
 export async function workspaceData(userId: string, classId?: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
@@ -45,23 +46,29 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     studio
       ? db.workoutPlan.findMany({ where: { studioId: studio.id }, orderBy: { createdAt: 'desc' } })
       : [],
-    db.classSession.findMany({
-      where: {
-        ...(classId ? { id: classId } : {}),
-        ...(user.role === 'coach'
-          ? { studio: { ownerId: userId } }
-          : { enrollments: { some: { userId } } }),
-      },
-      include: {
-        studio: { include: { owner: { select: { name: true } } } },
-        enrollments: {
-          where: user.role === 'coach' ? {} : { userId },
-          include: { user: { select: { id: true, name: true } }, metric: true, summary: true },
-        },
-      },
-      orderBy: { startsAt: 'desc' },
-      take: 100,
-    }),
+    Promise.all(
+      (classId ? [undefined] : ['live', 'scheduled', 'completed', 'cancelled']).map((status) =>
+        db.classSession.findMany({
+          where: {
+            ...(classId ? { id: classId } : {}),
+            ...(status ? { status } : {}),
+            ...(user.role === 'coach'
+              ? { studio: { ownerId: userId } }
+              : { enrollments: { some: { userId } } }),
+          },
+          include: {
+            _count: { select: { enrollments: true } },
+            studio: { include: { owner: { select: { name: true } } } },
+            enrollments: {
+              where: user.role === 'coach' ? {} : { userId },
+              include: { user: { select: { id: true, name: true } }, metric: true, summary: true },
+            },
+          },
+          orderBy: { startsAt: status === 'scheduled' || status === 'live' ? 'asc' : 'desc' },
+          take: 100,
+        }),
+      ),
+    ).then((groups) => groups.flat()),
     db.billingSubscription.findUnique({ where: { userId } }),
     db.workoutSet.findMany({
       where: { user: visibleUser },
@@ -88,6 +95,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     startsAt: c.startsAt.toISOString(),
     duration: c.duration,
     capacity: c.capacity,
+    participantCount: c._count.enrollments,
     status: c.status,
     exercise: c.exercise as ExerciseId,
     revision: c.revision,
@@ -160,7 +168,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
       description: p.description,
       blocks: p.blocks as unknown as Block[],
     })),
-    classes: classViews,
+    classes: classViews.sort(compareSessions),
     workoutSets: sets.map(({ user: person, class: session, ...set }) => ({
       ...set,
       exercise: set.exercise as ExerciseId,

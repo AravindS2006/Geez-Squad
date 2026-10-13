@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight, Eye, EyeOff, ArrowRight, Check } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { Brand, MotionArt } from './ui';
+import { loginDestination } from '@/lib/login-destination';
 export function AuthForm({
   testingMode,
   signupEnabled,
@@ -17,6 +18,8 @@ export function AuthForm({
   const params = useSearchParams();
   const token = params.get('token'),
     invite = params.get('invite');
+  const destination = loginDestination(params.get('next'));
+  const signedInDestination = invite ? `/invite?code=${encodeURIComponent(invite)}` : destination;
   const [mode, setMode] = useState(
       token && passwordResetEnabled
         ? 'reset'
@@ -41,10 +44,14 @@ export function AuthForm({
     const form = new FormData(event.currentTarget);
     const email = String(form.get('email') || ''),
       password = String(form.get('password') || '');
-    const callbackURL = invite ? `/login?invite=${encodeURIComponent(invite)}` : '/login';
+    const callbackURL = invite
+      ? `/login?invite=${encodeURIComponent(invite)}`
+      : destination !== '/app'
+        ? `/login?next=${encodeURIComponent(destination)}`
+        : '/login';
     try {
       if (mode === 'forgot') {
-        const r = await authClient.requestPasswordReset({ email, redirectTo: '/login' });
+        const r = await authClient.requestPasswordReset({ email, redirectTo: callbackURL });
         if (r.error) throw new Error(r.error.message);
         setNotice('If this email has an account, you will receive a password reset link.');
       } else if (mode === 'reset') {
@@ -61,7 +68,7 @@ export function AuthForm({
                 name: String(form.get('name') || ''),
                 callbackURL,
               })
-            : await authClient.signIn.email({ email, password, callbackURL });
+            : await authClient.signIn.email({ email, password, callbackURL: signedInDestination });
         if (result.error) {
           if (result.error.code === 'EMAIL_NOT_VERIFIED' && passwordResetEnabled) {
             setNotice('Check your email for a verification link, then sign in again.');
@@ -73,8 +80,7 @@ export function AuthForm({
         if (!session.data) {
           setNotice('Check your email to verify your account, then sign in.');
           setMode('login');
-        } else
-          window.location.href = invite ? `/invite?code=${encodeURIComponent(invite)}` : '/app';
+        } else window.location.href = signedInDestination;
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not continue. Please retry.');

@@ -192,7 +192,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
       .getByRole('dialog')
       .getByRole('button', { name: 'Schedule session', exact: true })
       .click();
-    await coach.getByRole('button', { name: 'Open studio', exact: true }).click();
+    await coach.getByRole('button', { name: /^(Open studio|Join session)$/ }).click();
     const startResponsePromise = coach.waitForResponse(
       (response) => {
         if (!response.url().endsWith('/api/command') || response.request().method() !== 'POST')
@@ -208,11 +208,13 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     await expect(coach.getByRole('button', { name: 'End session', exact: true })).toBeVisible();
     await trainee.getByRole('link', { name: 'Sessions', exact: true }).click();
     await expect(trainee.getByText('A shared journey', { exact: true })).toBeVisible();
-    await trainee.getByRole('button', { name: 'Open studio', exact: true }).click();
+    await trainee.getByRole('button', { name: /^(Open studio|Join session)$/ }).click();
     await expect(
       trainee.getByRole('button', { name: /Enable camera|Turn on session camera/ }),
     ).toBeVisible();
-    const videoButton = trainee.getByRole('button', { name: 'Join live video', exact: true });
+    const videoButton = trainee.getByRole('button', {
+      name: /^(Join live video|Live video unavailable)$/,
+    });
     await expect(videoButton).toBeVisible();
     const workspace = await coachContext.request.get('http://localhost:3000/api/workspace');
     expect(workspace.ok()).toBe(true);

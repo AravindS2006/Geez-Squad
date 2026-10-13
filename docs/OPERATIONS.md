@@ -26,7 +26,7 @@ Data export returns only the requesting user's profile, memberships, and workout
 
 - Metrics, cues, and control state use 3-second polling rather than a durable realtime bus. Local detector feedback is immediate. The enrollment ceiling is 100; it is not a verified concurrency guarantee. Load-test the intended PostgreSQL and RTC concurrency before increasing operational class sizes.
 - Clients compute their own estimates; the backend validates bounds but cannot attest that they came from an actual camera. They must not be used for competitions, insurance, medical decisions, or fraud-sensitive rewards.
-- Scores are heuristic geometry comparisons. The included rule version is `profile-v6`; no validated learned scoring model exists yet. Keep one trainee in view: the configured single-person tracker cannot reliably reject all extra people.
+- Scores are heuristic geometry comparisons. The included rule version is `profile-v7`; no validated learned scoring model exists yet. Bridge, crunch, and row have no numeric form score. Keep one trainee in view: the configured single-person tracker cannot reliably reject all extra people.
 - Stopping local analysis while a shared camera is active stops inference, not the separately indicated video room stream. Use the room camera toggle or leave video to stop sharing.
 - Browser CPU performance, thermal throttling, supported Safari behavior, and live WebRTC reconnection remain to be measured on physical devices.
 - Stripe and email integration code needs real service tests. Paid feature entitlements, operator console, automated deletion, recurring availability, push notifications, and coach verification are future milestones.

@@ -12,6 +12,7 @@ export type TrainingMetrics = {
   confidenceMs: number;
   repSamples: number;
   qualityTotal: number;
+  qualitySamples: number;
   rangeTotal: number;
   tempoTotal: number;
   rejectedReps: number;
@@ -30,6 +31,7 @@ export function initialTrainingMetrics(reps = 0, timestamp: number | null = null
     confidenceMs: 0,
     repSamples: 0,
     qualityTotal: 0,
+    qualitySamples: 0,
     rangeTotal: 0,
     tempoTotal: 0,
     rejectedReps: 0,
@@ -59,9 +61,12 @@ export function observeTrainingMetrics(
     state.confidenceMs += dt;
     state.confidenceTotal += analysis.confidence * dt;
   }
-  if (analysis.reps === state.lastReps + 1 && analysis.lastRepQuality != null) {
+  if (analysis.reps === state.lastReps + 1) {
     state.repSamples++;
-    state.qualityTotal += analysis.lastRepQuality;
+    if (analysis.lastRepQuality != null) {
+      state.qualityTotal += analysis.lastRepQuality;
+      state.qualitySamples++;
+    }
     state.rangeTotal += analysis.rangeDegrees ?? 0;
     state.tempoTotal += analysis.lastRepSeconds ?? 0;
   }
@@ -80,7 +85,7 @@ export function trainingMetricsSummary(state: TrainingMetrics) {
     activeMs: Math.round(state.activeMs),
     trackedMs: Math.round(state.trackedMs),
     formScore: average(state.scoreTotal, state.scoredMs),
-    qualityScore: average(state.qualityTotal, state.repSamples),
+    qualityScore: average(state.qualityTotal, state.qualitySamples),
     rangeDegrees: average(state.rangeTotal, state.repSamples),
     repSeconds: average(state.tempoTotal, state.repSamples),
     confidence: state.confidenceMs ? state.confidenceTotal / state.confidenceMs : null,

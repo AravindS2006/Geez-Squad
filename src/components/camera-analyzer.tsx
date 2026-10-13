@@ -169,7 +169,6 @@ export function CameraAnalyzer({
   const configRef = useRef(config);
   const baseline = useRef({ reps: initialReps, holdMs: initialHoldSeconds * 1000 });
   const completedRef = useRef<SetResult[]>([]);
-  const samples = useRef({ count: 0, total: 0 });
   const metrics = useRef(initialTrainingMetrics(initialReps));
   const setStartedAt = useRef('');
   const lastObservedAt = useRef('');
@@ -320,9 +319,7 @@ export function CameraAnalyzer({
     const entry = {
       number: completedRef.current.length + 1,
       amount,
-      score: samples.current.count
-        ? Math.round(samples.current.total / samples.current.count)
-        : null,
+      score: measured.formScore,
       range: result.rangeDegrees ?? 0,
       tempo: result.lastRepSeconds ?? 0,
       quality: measured.qualityScore,
@@ -422,6 +419,7 @@ export function CameraAnalyzer({
       sideStartSeen: [...preview.sideStartSeen],
       sideStartSource: [...preview.sideStartSource],
       geometrySource: preview.geometrySource,
+      formReference: preview.formReference ? { ...preview.formReference } : null,
       sideWorldSegments: preview.sideWorldSegments.map((lengths) =>
         lengths ? [...lengths] : null,
       ) as [number[] | null, number[] | null],
@@ -433,7 +431,6 @@ export function CameraAnalyzer({
       previousHoldValid: isHoldExercise(exerciseRef.current),
     };
     cancelStart();
-    samples.current = { count: 0, total: 0 };
     modeRef.current = 'active';
     setMode('active');
     setShowGo(true);
@@ -864,7 +861,11 @@ export function CameraAnalyzer({
               calibrationRef.current = measured;
               setCalibration(measured);
               if (measured.phase === 'complete' && measured.range) {
-                updateConfig(measured.range);
+                updateConfig({
+                  ...measured.range,
+                  side: measured.side,
+                  calibrationSource: measured.source,
+                });
                 calibrationRef.current = null;
                 previewState.current = initialPoseState();
               } else if (measured.phase === 'failed') calibrationRef.current = null;
@@ -905,10 +906,6 @@ export function CameraAnalyzer({
               result.rejectedReps = measured.rejectedReps;
               if (result.reps > tally.current.reps) signalRep();
               tally.current = { reps: state.current.reps, holdMs: state.current.holdMs };
-              if (result.score !== null) {
-                samples.current.count++;
-                samples.current.total += result.score;
-              }
               const progress = workoutSetProgress(
                 exerciseRef.current,
                 result.reps,
@@ -1078,7 +1075,14 @@ export function CameraAnalyzer({
     workoutSetProgress(exercise, analysis.reps, tally.current.holdMs, baseline.current),
   );
   const updateConfig = (change: Partial<WorkoutConfig>) => {
-    const next = normalizeWorkoutConfig(exerciseRef.current, { ...configRef.current, ...change });
+    const manualGeometryChange =
+      !('calibrationSource' in change) &&
+      ('side' in change || 'topAngle' in change || 'bottomAngle' in change);
+    const next = normalizeWorkoutConfig(exerciseRef.current, {
+      ...configRef.current,
+      ...(manualGeometryChange ? { calibrationSource: undefined } : {}),
+      ...change,
+    });
     configRef.current = next;
     setConfig(next);
     try {
@@ -1193,7 +1197,9 @@ export function CameraAnalyzer({
                 </strong>
               </div>
               <div>
-                <span>Form estimate</span>
+                <span title="Limited visible alignment estimate, not a complete assessment of technique. A dash means this movement has no supported form score.">
+                  Form estimate
+                </span>
                 <strong>
                   {analysis.score === null ? '—' : Math.round(analysis.score)}
                   <small>{analysis.score === null ? '' : '/100'}</small>
@@ -1581,8 +1587,9 @@ export function CameraAnalyzer({
                   Record tracking report locally
                 </label>
                 <p className="microcopy">
-                  Optional troubleshooting: keeps the last minute of joint coordinates and counter
-                  states on this device. No video or audio is recorded. Nothing is uploaded.
+                  Optional troubleshooting: keeps up to 600 analyzed frames or one minute of joint
+                  coordinates and counter states on this device. No video or audio is recorded.
+                  Nothing is uploaded.
                 </p>
                 <button
                   type="button"
@@ -1614,6 +1621,8 @@ export function CameraAnalyzer({
                   onClick={() => {
                     cancelStart();
                     const next = beginMovementCalibration(performance.now());
+                    updateConfig({ calibrationSource: undefined });
+                    previewState.current = initialPoseState();
                     calibrationRef.current = next;
                     setCalibration(next);
                     setSettingsOpen(false);
@@ -1638,8 +1647,9 @@ export function CameraAnalyzer({
                 Tap Start set before stepping back. Stay in your starting position through the
                 five-second countdown. Small movements are tolerated; brief tracking uncertainty
                 pauses the timer. Full, controlled movements count after Go. Pose analysis stays on
-                your device. Form scores are camera estimates to review with your coach. Stop if a
-                movement causes pain.
+                your device. Form scores describe limited visible alignment. Bridge, crunch, and row
+                show no form score because their technique is not sufficiently measured. Review
+                technique with your coach. Stop if a movement causes pain.
               </p>
             </section>
             {mode === 'active' && (

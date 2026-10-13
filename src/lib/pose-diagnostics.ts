@@ -2,7 +2,10 @@ import type { Analysis, Landmark } from './pose-engine';
 import type { ExerciseId } from './types';
 import type { WorkoutConfig } from './workout-config';
 
-type DiagnosticConfig = Pick<WorkoutConfig, 'side' | 'topAngle' | 'bottomAngle' | 'minRepMs'>;
+type DiagnosticConfig = Pick<
+  WorkoutConfig,
+  'side' | 'topAngle' | 'bottomAngle' | 'minRepMs' | 'calibrationSource'
+>;
 
 type DiagnosticPoint = {
   x: number | null;
@@ -78,18 +81,7 @@ export function recordPoseDiagnostics(
   },
 ): void {
   if (!Number.isFinite(input.timestamp) || input.timestamp < 0) return;
-  const previous = buffer.frames.at(-1);
   if (buffer.lastTimestamp !== null && input.timestamp <= buffer.lastTimestamp) return;
-  const changed =
-    previous &&
-    (previous.continuity !== input.continuity ||
-      previous.stage !== input.stage ||
-      previous.analysis.tracked !== input.analysis.tracked ||
-      previous.analysis.reps !== input.analysis.reps ||
-      previous.analysis.rejectionReason !== (input.analysis.rejectionReason ?? null) ||
-      previous.analysis.geometrySource !== (input.analysis.geometrySource ?? null));
-  if (!changed && buffer.lastTimestamp !== null && input.timestamp - buffer.lastTimestamp < 100)
-    return;
   buffer.lastTimestamp = input.timestamp;
   const result = input.analysis;
   buffer.frames.push({
@@ -100,6 +92,9 @@ export function recordPoseDiagnostics(
       topAngle: input.config.topAngle,
       bottomAngle: input.config.bottomAngle,
       minRepMs: input.config.minRepMs,
+      ...(input.config.calibrationSource
+        ? { calibrationSource: input.config.calibrationSource }
+        : {}),
     },
     width: input.width,
     height: input.height,
@@ -124,8 +119,9 @@ export function recordPoseDiagnostics(
     poses: points(input.poses),
     worldPoses: points(input.worldPoses),
   });
-  // Ten regular samples per second plus important tracking transitions. Keep
-  // no more than 600 samples or a minute, even under rapidly alternating faults.
+  // Retain every analyzed frame: downsampling erased short extrema while the
+  // state still said "working", making missed-rep reports impossible to inspect.
+  // Bound memory to 600 frames or a minute (about 30 seconds at 20 analyzed FPS).
   while (buffer.frames.length > 600 || input.timestamp - buffer.frames[0].timestamp > 60000)
     buffer.frames.shift();
 }

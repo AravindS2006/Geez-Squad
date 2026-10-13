@@ -1,8 +1,11 @@
+import { jointAngle, type Point } from './pose-geometry';
+import { analyzePoseForm } from './pose-form';
+export { jointAngle } from './pose-geometry';
 import type { ExerciseId } from './types';
 import { getExerciseProfile, type ExerciseProfile } from './exercise-profiles';
 import { defaultWorkoutConfig, normalizeWorkoutConfig, type WorkoutConfig } from './workout-config';
 
-export const RULE_VERSION = 'profile-v6';
+export const RULE_VERSION = 'profile-v7';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
   reps: number;
@@ -13,6 +16,7 @@ export type Analysis = {
   cue: string;
   angle: number | null;
   tracked: boolean;
+  postureValid?: boolean;
   ruleVersion: string;
   rangeDegrees?: number;
   lastRepSeconds?: number;
@@ -26,7 +30,7 @@ export type Analysis = {
 };
 
 type Filter = { raw: number; value: number; velocity: number; timestamp: number };
-type Point = { x: number; y: number; z?: number };
+
 type Identity = { x: number; y: number; torso: number; width: number; height: number };
 export type PoseState = {
   reps: number;
@@ -69,6 +73,7 @@ export type PoseState = {
   lastRawSignal: number | null;
   rawVelocity: number;
   sideStartSource: ['2d' | '3d' | null, '2d' | '3d' | null];
+  formReference: Point | null;
 };
 
 export function initialPoseState(): PoseState {
@@ -113,22 +118,8 @@ export function initialPoseState(): PoseState {
     lastRawSignal: null,
     rawVelocity: 0,
     sideStartSource: [null, null],
+    formReference: null,
   };
-}
-
-export function jointAngle(a: Point, b: Point, c: Point): number | null {
-  const ux = a.x - b.x,
-    uy = a.y - b.y,
-    uz = (a.z ?? 0) - (b.z ?? 0),
-    vx = c.x - b.x,
-    vy = c.y - b.y,
-    vz = (c.z ?? 0) - (b.z ?? 0);
-  const denominator = Math.hypot(ux, uy, uz) * Math.hypot(vx, vy, vz);
-  if (!Number.isFinite(denominator) || denominator < 0.0001) return null;
-  return (
-    (Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy + uz * vz) / denominator))) * 180) /
-    Math.PI
-  );
 }
 
 const clamp = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
@@ -171,6 +162,7 @@ function resetCycle(state: PoseState, releaseSide = false) {
   state.sideWorldSegments = [null, null];
   state.lastRawSignal = null;
   state.rawVelocity = 0;
+  state.formReference = null;
   if (releaseSide) {
     state.side = null;
     state.identity = null;
@@ -330,96 +322,6 @@ function worldGeometry(
   return angle === null ? null : { angle, lengths };
 }
 
-function formAnalysis(
-  kind: string,
-  point: (index: number) => Point,
-): { score: number; valid: boolean; cue: string | null } {
-  const shoulder = point(11),
-    hip = point(23),
-    ankle = point(27);
-  const verticalLean =
-    (Math.atan2(Math.abs(shoulder.x - hip.x), Math.abs(shoulder.y - hip.y)) * 180) / Math.PI;
-  const slope = Math.abs((Math.atan2(ankle.y - shoulder.y, ankle.x - shoulder.x) * 180) / Math.PI);
-  const flat = Math.min(slope, 180 - slope);
-  const alignment = jointAngle(shoulder, hip, ankle);
-  if (kind === 'pushup' || kind === 'plank' || kind === 'sideplank') {
-    const valid = flat <= 55 && alignment !== null && alignment >= 140;
-    const score = alignment === null ? 0 : clamp(100 - Math.max(0, 175 - alignment) * 2);
-    return {
-      score,
-      valid,
-      cue:
-        flat > 55
-          ? 'Move into a side-on push-up position: hands below shoulders, legs extended.'
-          : alignment === null || alignment < 155
-            ? 'Keep shoulders, hips, and ankles in a steadier line.'
-            : null,
-    };
-  }
-  if (kind === 'curl') {
-    const elbow = point(13);
-    const upperArmLean =
-      (Math.atan2(Math.abs(elbow.x - shoulder.x), Math.abs(elbow.y - shoulder.y)) * 180) / Math.PI;
-    const score = clamp(95 - Math.max(0, upperArmLean - 20) * 1.5 - Math.max(0, verticalLean - 25));
-    return {
-      score,
-      valid: upperArmLean <= 65 && verticalLean <= 55,
-      cue:
-        upperArmLean > 35
-          ? 'Keep your upper arm steadier and reduce the weight if needed.'
-          : verticalLean > 30
-            ? 'Keep your torso steady as you curl.'
-            : null,
-    };
-  }
-  if (kind === 'squat' || kind === 'lunge')
-    return {
-      score: clamp(95 - Math.max(0, verticalLean - 45) * 1.3),
-      valid: verticalLean < 80,
-      cue:
-        verticalLean > 60 ? 'Check your trunk position with your coach before continuing.' : null,
-    };
-  if (kind === 'lateralraise' || kind === 'press' || kind === 'jumpingjack') {
-    const wrist = point(15);
-    const elbow = point(13);
-    const aboveShoulder =
-      kind !== 'press' || wrist.y < shoulder.y + Math.abs(hip.y - shoulder.y) * 0.15;
-    return {
-      score: clamp(95 - Math.max(0, verticalLean - 20) * 1.5),
-      valid: verticalLean < 50 && aboveShoulder,
-      cue: !aboveShoulder
-        ? 'Start with your hands near shoulder height, then press upward.'
-        : verticalLean > 30
-          ? 'Keep your torso tall and steady.'
-          : kind === 'lateralraise' && elbow.y < shoulder.y - Math.abs(hip.y - shoulder.y) * 0.15
-            ? 'Raise only to your coach-approved shoulder height.'
-            : null,
-    };
-  }
-  if (kind === 'bridge' || kind === 'crunch')
-    return {
-      score: 90,
-      valid:
-        flat < 65 &&
-        verticalLean > 35 &&
-        shoulder.y >= ankle.y - Math.hypot(shoulder.x - hip.x, shoulder.y - hip.y) * 0.65,
-      cue:
-        flat >= 65 ||
-        verticalLean <= 35 ||
-        shoulder.y < ankle.y - Math.hypot(shoulder.x - hip.x, shoulder.y - hip.y) * 0.65
-          ? 'Lie side-on with shoulders, hips, and feet visible before starting.'
-          : null,
-    };
-  if (kind === 'row')
-    return {
-      score: clamp(95 - Math.max(0, verticalLean - 80)),
-      valid: verticalLean >= 20 && verticalLean < 90,
-      cue:
-        verticalLean < 20 ? 'Hinge at your hips and keep your trunk steady before rowing.' : null,
-    };
-  return { score: 90, valid: true, cue: null };
-}
-
 function reject(state: PoseState, reason: string, cue: string, timestamp: number) {
   state.feedbackUntil = timestamp + 1800;
   state.feedback = cue;
@@ -439,12 +341,16 @@ export function analyzePose(
 ): Analysis {
   const profile = getExerciseProfile(exercise);
   const config = normalizeWorkoutConfig(exercise, settings);
+  // A duplicated/out-of-order delivery is not evidence of a new body or a
+  // tracking loss. Ignore it without destroying an observed in-flight cycle.
   if (
-    paused ||
-    !Number.isFinite(timestamp) ||
-    timestamp < 0 ||
-    (state.lastTimestamp && timestamp <= state.lastTimestamp)
-  ) {
+    !paused &&
+    Number.isFinite(timestamp) &&
+    state.lastTimestamp &&
+    timestamp <= state.lastTimestamp
+  )
+    return unavailable(state, 'Waiting for a fresh camera frame.');
+  if (paused || !Number.isFinite(timestamp) || timestamp < 0) {
     resetCycle(state, true);
     state.lastTimestamp = 0;
     return unavailable(
@@ -482,7 +388,17 @@ export function analyzePose(
   const startEndpoint = profile.direction === 'decrease' ? config.topAngle : config.bottomAngle;
   const inputWorld = worldLandmarks?.length === 1 ? worldLandmarks[0] : undefined;
   const sideWorld = [0, 1].map((limb) =>
-    worldGeometry(pose, inputWorld, limb, profile, width, height, state.sideWorldSegments[limb]),
+    config.calibrationSource === '2d'
+      ? null
+      : worldGeometry(
+          pose,
+          inputWorld,
+          limb,
+          profile,
+          width,
+          height,
+          state.sideWorldSegments[limb],
+        ),
   );
   const sideSignals = [0, 1].map(
     (limb) =>
@@ -543,6 +459,7 @@ export function analyzePose(
       // Its geometry lock must not inherit the inactive limb's measurement
       // space; same-limb source changes still require reacquisition below.
       state.geometrySource = null;
+      state.formReference = null;
     }
   }
   const confidence = profile.bilateral ? Math.min(left, right) : side === 0 ? left : right;
@@ -665,6 +582,14 @@ export function analyzePose(
   // A bilateral cycle uses one coordinate space for both limbs. Losing the
   // opposite limb's depth must not silently substitute its projected angle.
   const trustworthyWorld = !profile.bilateral || sideWorld.every(Boolean) ? sideWorld[side] : null;
+  if (config.calibrationSource === '3d' && !trustworthyWorld)
+    return suspend(
+      state,
+      timestamp,
+      'Your calibrated depth view is unavailable. Restore the camera view or calibrate again.',
+      profile.occlusionGraceMs,
+      confidence,
+    );
   let source: '3d' | '2d' = trustworthyWorld ? '3d' : '2d';
   if (state.stage === 'working' && state.geometrySource === '3d' && !trustworthyWorld)
     return suspend(
@@ -719,7 +644,20 @@ export function analyzePose(
   // filter the movement signal once rather than cascading two low-pass delays.
   const angle = filterValue(state, 'angle', rawSignal, timestamp, 0.08);
   state.smoothAngle = angle;
-  const form = formAnalysis(profile.form, imagePoint);
+  const formPoint = source === '3d' ? (index: number) => inputWorld![index + side] : imagePoint;
+  if (profile.form === 'curl' && !state.formReference) {
+    const shoulder = formPoint(11),
+      hip = formPoint(23);
+    state.formReference = {
+      x: shoulder.x - hip.x,
+      y: shoulder.y - hip.y,
+      z: (shoulder.z ?? 0) - (hip.z ?? 0),
+    };
+  }
+  const form = analyzePoseForm(profile.form, imagePoint, formPoint, state.formReference);
+  if (!form.valid && form.score !== null) form.score = Math.min(form.score, 60);
+  if (form.score !== null && form.valid)
+    form.score = clamp(filterValue(state, 'formScore', form.score, timestamp, 0.03));
   if (
     profile.form === 'sideplank' &&
     confidenceOf(pose[11]) >= 0.65 &&
@@ -730,12 +668,17 @@ export function analyzePose(
     const dy = Math.abs((filtered[11].y - filtered[12].y) * height);
     if (dy < dx * 0.65) {
       form.valid = false;
-      form.score = Math.min(form.score, 60);
+      form.score = Math.min(form.score ?? 60, 60);
       form.cue =
         'Turn onto your supporting side and stack your shoulders. Ask your coach to verify the side plank.';
     }
   }
-  if ((profile.form === 'pushup' || profile.isHold) && !form.valid && form.score > 75) {
+  if (
+    (profile.form === 'pushup' || profile.isHold) &&
+    !form.valid &&
+    Math.abs(imagePoint(27).y - imagePoint(11).y) >
+      Math.abs(imagePoint(27).x - imagePoint(11).x) * 1.43
+  ) {
     resetCycle(state, false);
     return unavailable(state, form.cue ?? profile.startCue, confidence);
   }
@@ -771,6 +714,7 @@ export function analyzePose(
       cue: form.cue ?? (holding ? 'Hold steady and breathe comfortably.' : profile.startCue),
       angle: Math.round(angle),
       tracked: true,
+      postureValid: form.valid,
       ruleVersion: RULE_VERSION,
       geometrySource: source,
       trackedSide: side === 0 ? 'left' : 'right',
@@ -796,25 +740,28 @@ export function analyzePose(
   const shoulderSpan = Math.max(1, Math.abs(imagePoint(11).x - otherImagePoint(11).x));
   const feetClosed = profile.form !== 'jumpingjack' || ankleWidth <= shoulderSpan * 1.1;
   const feetOpen = profile.form !== 'jumpingjack' || ankleWidth >= shoulderSpan * 1.25;
+  const startTolerance = state.stage !== 'seek' ? profile.hysteresis : 0;
   const atStart =
     (decreasing
-      ? angle >= startAngle &&
-        (!profile.bilateral || (otherAngle !== null && otherAngle >= startAngle))
-      : angle <= startAngle &&
-        (!profile.bilateral || (otherAngle !== null && otherAngle <= startAngle))) && feetClosed;
+      ? angle >= startAngle - startTolerance &&
+        (!profile.bilateral || (otherAngle !== null && otherAngle >= startAngle - startTolerance))
+      : angle <= startAngle + startTolerance &&
+        (!profile.bilateral ||
+          (otherAngle !== null && otherAngle <= startAngle + startTolerance))) && feetClosed;
   const awayFromStart = decreasing
     ? angle < startAngle - profile.hysteresis
     : angle > startAngle + profile.hysteresis;
   const atEnd =
     (decreasing
-      ? rawSignal <= endAngle && angle <= endAngle + profile.hysteresis
-      : rawSignal >= endAngle && angle >= endAngle - profile.hysteresis) &&
+      ? rawSignal <= endAngle + profile.hysteresis && angle <= endAngle + profile.hysteresis
+      : rawSignal >= endAngle - profile.hysteresis && angle >= endAngle - profile.hysteresis) &&
     (!profile.bilateral ||
       (otherAngle !== null &&
         (decreasing
           ? otherAngle <= endAngle + profile.hysteresis
           : otherAngle >= endAngle - profile.hysteresis))) &&
-    feetOpen;
+    feetOpen &&
+    (profile.form !== 'press' || imagePoint(15).y < imagePoint(11).y - torso * 0.35);
   const candidate = atStart ? 'top' : atEnd ? 'bottom' : 'moving';
   const previousCandidate = state.candidate;
   if (candidate !== state.candidate) {
@@ -845,9 +792,11 @@ export function analyzePose(
     state.cycleMax = Math.max(state.cycleMax, rawSignal);
     const observedInterval =
       !returningFromLoss && gap > 0 && gap <= profile.occlusionGraceMs ? gap : 0;
-    state.cycleFormTotal += form.score * observedInterval;
+    if (form.score !== null) {
+      state.cycleFormTotal += form.score * observedInterval;
+      state.cycleSamples += observedInterval;
+    }
     state.cycleConfidenceTotal += confidence * observedInterval;
-    state.cycleSamples += observedInterval;
     // Brief landmark noise must not invalidate a whole cycle. Both adjacent
     // observations must show bad alignment before that interval counts as bad.
     if (
@@ -937,17 +886,16 @@ export function analyzePose(
         reject(state, 'cooldown', 'Finish one controlled movement at a time.', timestamp);
       else {
         const formScore = state.cycleFormTotal / Math.max(1, state.cycleSamples);
-        const confidenceScore =
-          (state.cycleConfidenceTotal / Math.max(1, state.cycleSamples)) * 100;
+        const confidenceScore = (state.cycleConfidenceTotal / Math.max(1, state.observedMs)) * 100;
         const rangeScore = Math.min(
           100,
           (range / Math.max(1, Math.abs(config.topAngle - config.bottomAngle))) * 100,
         );
         const timingScore = state.observedMs >= Math.max(800, config.minRepMs) ? 100 : 85;
         // Layer 12: score the completed cycle, rather than the last camera frame.
-        state.lastRepQuality = clamp(
-          formScore * 0.5 + rangeScore * 0.25 + confidenceScore * 0.15 + timingScore * 0.1,
-        );
+        state.lastRepQuality = state.cycleSamples
+          ? clamp(formScore * 0.5 + rangeScore * 0.25 + confidenceScore * 0.15 + timingScore * 0.1)
+          : null;
         state.reps += 1;
         state.lastRepAt = timestamp;
         state.lastRange = Math.round(range);
@@ -994,6 +942,7 @@ export function analyzePose(
     cue,
     angle: Math.round(angle),
     tracked: true,
+    postureValid: form.valid,
     ruleVersion: RULE_VERSION,
     rangeDegrees: state.lastRange,
     lastRepSeconds: state.lastDuration,

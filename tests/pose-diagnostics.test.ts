@@ -43,12 +43,22 @@ const input = {
 };
 
 describe('opt-in tracking diagnostics', () => {
+  it('keeps a brief endpoint even without a counter or phase transition', () => {
+    const buffer = initialPoseDiagnostics();
+    for (const [timestamp, angle] of [
+      [100, 100],
+      [150, 80],
+      [200, 100],
+    ])
+      recordPoseDiagnostics(buffer, { ...input, timestamp, analysis: { ...analysis, angle } });
+    expect(buffer.frames.map((frame) => frame.analysis.angle)).toEqual([100, 80, 100]);
+  });
   it('keeps at most a minute and 600 samples regardless of camera FPS', () => {
     const buffer = initialPoseDiagnostics();
     for (let time = 0; time < 120000; time += 10)
       recordPoseDiagnostics(buffer, { ...input, timestamp: time });
     expect(buffer.frames).toHaveLength(600);
-    expect(buffer.frames.at(-1)!.timestamp - buffer.frames[0].timestamp).toBe(59900);
+    expect(buffer.frames.at(-1)!.timestamp - buffer.frames[0].timestamp).toBe(5990);
     expect(buffer.frames[0].timestamp).toBeGreaterThanOrEqual(60000);
   });
 

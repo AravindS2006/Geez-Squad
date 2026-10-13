@@ -1,6 +1,6 @@
 # Browser pose analysis research
 
-Reviewed 8 October 2026. Sources below are official library documentation, implementation code, and the filter authors' research. The implementation recommendations are engineering judgments; landmark benchmark scores do not establish repetition accuracy for this application.
+Reviewed 8 October 2026. Sources below are official library documentation, implementation code, and the filter authors' research. The implementation recommendations are engineering judgments; landmark benchmark scores do not establish repetition accuracy for this application. The [13 October v7 correction report](POSE_RELIABILITY_2026-10-13.md) supersedes the earlier form-scoring and diagnostic-sampling behavior described here.
 
 ## Model choice
 

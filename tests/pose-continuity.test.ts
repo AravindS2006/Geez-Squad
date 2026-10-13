@@ -308,7 +308,16 @@ describe('anatomical landmark continuity', () => {
     expect(observe(state, swap(points), 66).rejected).toBe(false);
   });
 
-  it.each([NaN, Infinity, -1, 0])(
+  it('ignores duplicate timestamps without erasing the last reliable identity', () => {
+    const state = initialPoseContinuity(),
+      points = pose();
+    observe(state, points, 100);
+    const previous = state.previous;
+    expect(observe(state, points, 100)).toMatchObject({ rejected: true, resetRequired: false });
+    expect(state.previous).toBe(previous);
+    expect(observe(state, points, 150).rejected).toBe(false);
+  });
+  it.each([NaN, Infinity, -1])(
     'rejects a stale or invalid timestamp %s consistently',
     (timestamp) => {
       const state = initialPoseContinuity(),

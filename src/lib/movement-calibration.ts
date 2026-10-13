@@ -50,6 +50,7 @@ export function advanceMovementCalibration(
   };
   if (
     !analysis.tracked ||
+    analysis.postureValid === false ||
     analysis.confidence < 0.8 ||
     analysis.angle === null ||
     !Number.isFinite(analysis.angle) ||
@@ -77,7 +78,7 @@ export function advanceMovementCalibration(
   const angle = analysis.angle;
   const moved =
     next.startAngle !== null &&
-    (profile.direction === 'decrease' ? next.startAngle - angle : angle - next.startAngle) >= 33;
+    (profile.direction === 'decrease' ? next.startAngle - angle : angle - next.startAngle) >= 25;
   if (next.phase === 'end' && !moved)
     return {
       ...next,
@@ -108,7 +109,11 @@ export function advanceMovementCalibration(
     };
   const high = Math.max(next.startAngle!, measured),
     low = Math.min(next.startAngle!, measured);
-  const range = normalizeWorkoutConfig(exercise, { topAngle: high - 4, bottomAngle: low + 4 });
+  const inset = Math.min(4, Math.max(0, (high - low - 25) / 2));
+  const range = normalizeWorkoutConfig(exercise, {
+    topAngle: high - inset,
+    bottomAngle: low + inset,
+  });
   if (range.topAngle > high || range.bottomAngle < low || range.topAngle - range.bottomAngle < 25)
     return {
       ...next,

@@ -1,5 +1,7 @@
 # Verification and release evidence
 
+The [13 October pose reliability report](POSE_RELIABILITY_2026-10-13.md) records the subsequent v7 corrections for front-facing curls, calibration, readiness, and unsupported form scores. These are local changes; see that report for the fresh verification and physical-camera limits.
+
 The [12 October 2026 codebase audit](CODEBASE_AUDIT_2026-10-12.md) records the latest local fixes and verification: 291 unit tests, 175 API checks, 38 browser cases, 20 accessibility scans, both email modes, and the production build. Those changes have not been deployed by the audit. The release records below are historical evidence, not a claim that this patch has passed fresh cloud or physical-device acceptance.
 
 Updated 9 October 2026. Geez Squad is deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app). This report records automated evidence and its limits; the GitHub workflow and Vercel deployment identify the exact released commit.

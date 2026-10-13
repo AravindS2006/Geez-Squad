@@ -6,6 +6,7 @@ export type WorkoutConfig = {
   target: number;
   rest: number;
   side: 'auto' | 'left' | 'right';
+  calibrationSource?: '2d' | '3d';
   topAngle: number;
   bottomAngle: number;
   minRepMs: number;
@@ -31,6 +32,7 @@ export function normalizeWorkoutConfig(
   exercise: ExerciseId,
   input: Partial<WorkoutConfig>,
 ): WorkoutConfig {
+  input = input && typeof input === 'object' ? input : {};
   const defaults = defaultWorkoutConfig(exercise);
   const profile = getExerciseProfile(exercise);
   const bounded = (value: unknown, fallback: number, min: number, max: number) =>
@@ -52,6 +54,10 @@ export function normalizeWorkoutConfig(
     target: bounded(input.target, defaults.target, 1, 120),
     rest: bounded(input.rest, defaults.rest, 0, 300),
     side: input.side === 'left' || input.side === 'right' ? input.side : 'auto',
+    ...((input.side === 'left' || input.side === 'right') &&
+    (input.calibrationSource === '2d' || input.calibrationSource === '3d')
+      ? { calibrationSource: input.calibrationSource }
+      : {}),
     topAngle,
     bottomAngle: bounded(
       input.bottomAngle,

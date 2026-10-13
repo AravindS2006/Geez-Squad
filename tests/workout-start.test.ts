@@ -125,7 +125,7 @@ describe('hands-free set start', () => {
           confidence: 0.65,
           score: 75,
           angle: isHoldExercise(exercise)
-            ? 155
+            ? config.topAngle
             : getExerciseProfile(exercise).direction === 'increase'
               ? config.bottomAngle
               : config.topAngle,

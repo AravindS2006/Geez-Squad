@@ -180,13 +180,19 @@ export function validatePoseContinuity(
     return result;
   };
   if (
+    Number.isFinite(timestamp) &&
+    timestamp >= 0 &&
+    state.timestamp !== null &&
+    timestamp <= state.timestamp
+  )
+    return reject('invalid-frame');
+  if (
     !Number.isFinite(timestamp) ||
     timestamp < 0 ||
     !Number.isFinite(width) ||
     !Number.isFinite(height) ||
     width <= 0 ||
-    height <= 0 ||
-    (state.timestamp !== null && timestamp <= state.timestamp)
+    height <= 0
   ) {
     Object.assign(state, initialPoseContinuity());
     result.resetRequired = true;

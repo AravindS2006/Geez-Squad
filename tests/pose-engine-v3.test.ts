@@ -686,7 +686,11 @@ describe('exercise-specific profiles', () => {
       );
     expect(result!.tracked).toBe(true);
     expect(state.reps).toBe(1);
-    expect(state.lastRepQuality).toBeGreaterThan(70);
+    if (['glutebridge', 'crunch', 'row'].includes(exercise)) {
+      expect(state.lastRepQuality).toBeNull();
+      expect(result!.score).toBeNull();
+      expect(result!.postureValid).toBe(true);
+    } else expect(state.lastRepQuality).toBeGreaterThan(70);
   });
   it.each(['plank', 'sideplank'] as const)(
     'accumulates only observed aligned %s hold time',

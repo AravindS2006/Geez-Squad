@@ -204,6 +204,12 @@ test('guided calibration saves a personal range on mobile without starting or co
     await page.getByText('Adjust tracking with your coach', { exact: true }).click();
     await expect(page.getByLabel('Higher endpoint (°)')).toHaveValue('166');
     await expect(page.getByLabel('Lower endpoint (°)')).toHaveValue('94');
+    await expect(page.getByLabel('Body side')).toHaveValue('left');
+    expect(
+      await page.evaluate(
+        () => JSON.parse(localStorage.getItem('geez-squad-workout-v3-squat')!).calibrationSource,
+      ),
+    ).toBe('2d');
     await page.getByRole('button', { name: 'Close dialog' }).click();
     await page.reload();
     await page.getByRole('button', { name: 'Workout settings', exact: true }).click();

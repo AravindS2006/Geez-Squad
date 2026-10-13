@@ -57,10 +57,13 @@ export function canStartWorkout(
     !Number.isFinite(result.confidence) ||
     result.confidence < 0.65 ||
     result.confidence > 1 ||
-    result.score === null ||
-    !Number.isFinite(result.score) ||
-    result.score < (continuing ? 65 : 75) ||
-    result.score > 100 ||
+    result.postureValid === false ||
+    (result.score === null
+      ? result.postureValid !== true
+      : !Number.isFinite(result.score) ||
+        result.score < 0 ||
+        (result.postureValid !== true && result.score < (continuing ? 65 : 75)) ||
+        result.score > 100) ||
     result.angle === null ||
     !Number.isFinite(result.angle) ||
     result.angle < 0 ||
@@ -69,7 +72,7 @@ export function canStartWorkout(
     !Number.isFinite(config.bottomAngle)
   )
     return false;
-  if (profile.isHold) return result.phase === 'holding' && result.angle >= (continuing ? 160 : 155);
+  if (profile.isHold) return result.phase === 'holding' && result.angle >= config.topAngle;
   const atStart =
     profile.direction === 'decrease'
       ? result.angle >= config.topAngle - (continuing ? 8 : 0)

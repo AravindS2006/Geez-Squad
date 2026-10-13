@@ -8,19 +8,34 @@ type CurlFixture = {
   curlRawWristX: number;
   curlObservedCounts: string[];
   curlTerminatedWorkers: number;
+  curlArmLean: number;
 };
 
 for (const condition of [
-  { name: 'steady starting arm', noisy: false },
-  { name: 'idle-arm jitter and torso identity errors', noisy: true },
+  { name: 'phone with a steady starting arm', noisy: false, viewport: { width: 390, height: 844 } },
+  {
+    name: 'phone with idle-arm jitter and torso identity errors',
+    noisy: true,
+    viewport: { width: 390, height: 844 },
+  },
+  {
+    name: 'desktop with a steady starting arm',
+    noisy: false,
+    viewport: { width: 1280, height: 720 },
+  },
+  {
+    name: 'desktop with idle-arm jitter and torso identity errors',
+    noisy: true,
+    viewport: { width: 1280, height: 720 },
+  },
 ])
-  test(`a front-facing phone counts ten continuous right-arm curls with ${condition.name}`, async ({}, testInfo) => {
+  test(`front-facing ${condition.name} counts ten continuous curls and detects depth form errors`, async ({}, testInfo) => {
     test.setTimeout(60000);
     const browser = await chromium.launch({
       channel: 'msedge',
       args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     });
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const context = await browser.newContext({ viewport: condition.viewport });
     const page = await context.newPage();
     // The worker fixture emits MediaPipe's image and world-landmark contracts.
     // The production geometry, automatic limb selection, filtering and rep engine run unchanged.
@@ -33,6 +48,7 @@ for (const condition of [
       fixture.curlRawWristX = 0.695;
       fixture.curlObservedCounts = [];
       fixture.curlTerminatedWorkers = 0;
+      fixture.curlArmLean = 0;
       const drawLine = CanvasRenderingContext2D.prototype.lineTo;
       CanvasRenderingContext2D.prototype.lineTo = function (x: number, y: number) {
         if (
@@ -91,7 +107,8 @@ for (const condition of [
             const x = side === 0 ? 0.3 : 0.7;
             const worldX = side === 0 ? -0.15 : 0.15;
             const angle = side === 0 ? (moving && noisy ? 142 : 170) : rightAngle;
-            const radians = (angle * Math.PI) / 180;
+            const lean = (fixture.curlArmLean * Math.PI) / 180;
+            const radians = ((angle - fixture.curlArmLean) * Math.PI) / 180;
             image[11 + side] = { x, y: 0.2, visibility: 0.95, presence: 0.95 };
             image[13 + side] = { x, y: 0.42, visibility: 0.95, presence: 0.95 };
             image[23 + side] = { x, y: 0.65, visibility: 0.95, presence: 0.95 };
@@ -114,8 +131,8 @@ for (const condition of [
             };
             world[13 + side] = {
               x: worldX,
-              y: -0.23,
-              z: 0,
+              y: -0.45 + 0.22 * Math.cos(lean),
+              z: -0.22 * Math.sin(lean),
               visibility: 0.95,
               presence: 0.95,
             };
@@ -128,8 +145,8 @@ for (const condition of [
             };
             world[15 + side] = {
               x: worldX,
-              y: -0.23 - Math.cos(radians) * 0.18,
-              z: -Math.sin(radians) * 0.18,
+              y: world[13 + side].y - Math.cos(radians) * 0.18,
+              z: world[13 + side].z - Math.sin(radians) * 0.18,
               visibility: 0.95,
               presence: 0.95,
             };
@@ -270,7 +287,7 @@ for (const condition of [
         const report = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         expect(report.frameCount).toBeGreaterThan(30);
         expect(report.frameCount).toBeLessThanOrEqual(600);
-        expect(report.ruleVersion).toBe('profile-v6');
+        expect(report.ruleVersion).toBe('profile-v7');
         expect(
           report.frames.some(
             (frame: { continuity: string }) => frame.continuity === 'landmark-identity',
@@ -283,6 +300,19 @@ for (const condition of [
         expect(JSON.stringify(report)).not.toMatch(/bitmap|data:image|apiKey|cookie/);
       }
       await page.getByRole('button', { name: 'Close dialog' }).click();
+      await page.evaluate(() => {
+        (window as unknown as CurlFixture).curlArmLean = 50;
+      });
+      await expect
+        .poll(async () =>
+          Number.parseInt(
+            await page.locator('.analyzer-hud > div').nth(1).locator('strong').innerText(),
+            10,
+          ),
+        )
+        .toBeLessThan(75);
+      await expect(page.locator('.analyzer-cue')).toContainText('upper arm');
+      await expect(reps).toHaveText('10');
       await page.getByRole('button', { name: 'Stop local camera analysis' }).click();
       await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
       expect(

@@ -27,7 +27,17 @@ async function scan(path) {
   );
 }
 for (const path of [
+  '/',
   '/demo',
+  '/demo?view=members',
+  '/demo?view=memberships',
+  '/demo?view=attendance',
+  '/demo?view=payments',
+  '/demo?view=enquiries',
+  '/demo?view=staff',
+  '/demo?view=classes',
+  '/demo?view=studio-details',
+  '/demo?view=coaching',
   '/demo?view=clients',
   '/demo?view=sessions',
   '/demo?view=plans',
@@ -51,7 +61,7 @@ for (const [path, button] of [
   await page.getByRole('dialog').waitFor();
   await scan(`${path} + ${button} dialog`);
 }
-await page.goto('http://localhost:3000/demo');
+await page.goto('http://localhost:3000/demo?view=coaching');
 await page
   .getByRole('button', { name: /^(Open studio|Join session)$/ })
   .first()

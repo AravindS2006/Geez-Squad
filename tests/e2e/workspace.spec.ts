@@ -5,7 +5,7 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/demo');
-  await expect(page.getByRole('heading', { name: 'A good day to make progress.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'A stronger studio starts here.' })).toBeVisible();
   await expect(
     page.getByText('All client data and history are illustrative.', { exact: false }),
   ).toBeVisible();
@@ -15,7 +15,7 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   await page.getByLabel('A little context').fill('Test plan in sample mode.');
   await page.getByRole('button', { name: 'Save workout plan' }).click();
   await expect(page.getByRole('heading', { name: 'Controlled strength' })).toBeVisible();
-  await page.getByRole('link', { name: 'Sessions', exact: true }).click();
+  await page.getByRole('link', { name: 'Live sessions', exact: true }).click();
   await page.getByRole('button', { name: 'Schedule session', exact: true }).click();
   await page.getByLabel('Session title').fill('Mindful movement');
   await page
@@ -28,7 +28,7 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   ).toBeEnabled();
   await page.getByRole('dialog').getByRole('button', { name: 'Schedule session' }).click();
   await expect(page.getByText('Mindful movement', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Overview' }).click();
+  await page.getByRole('link', { name: 'Coaching overview', exact: true }).click();
   await page
     .getByRole('button', { name: /^(Open studio|Join session)$/ })
     .first()
@@ -51,10 +51,22 @@ test('mobile navigation closes with its close button, backdrop, Escape, and Sett
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/demo');
-  await expect(page.getByRole('heading', { name: 'A good day to make progress.' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
-    true,
-  );
+  await expect(page.getByRole('heading', { name: 'A stronger studio starts here.' })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    JSON.stringify(
+      await page.evaluate(() =>
+        Array.from(document.querySelectorAll('main *'))
+          .filter((e) => e.getBoundingClientRect().right > innerWidth + 1)
+          .slice(0, 12)
+          .map((e) => ({
+            tag: e.tagName,
+            cls: e.className,
+            width: e.getBoundingClientRect().width,
+          })),
+      ),
+    ),
+  ).toBe(true);
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toBeVisible();
   await page.getByRole('button', { name: 'Close navigation' }).click();
@@ -72,7 +84,7 @@ test('mobile navigation closes with its close button, backdrop, Escape, and Sett
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'My clients' }).click();
+  await page.getByRole('link', { name: /Coaching clients/ }).click();
   await expect(page.getByRole('heading', { name: 'People make the progress.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

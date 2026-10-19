@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:api": "node scripts/test-api.mjs",
+    "test:studio": "node scripts/test-studio-operations.mjs",
     "test:capacity": "node scripts/test-class-capacity.mjs",
     "test:media": "node scripts/test-media-capacity.mjs",
     "test:e2e": "playwright test",

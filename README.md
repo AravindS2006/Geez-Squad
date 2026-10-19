@@ -1,8 +1,8 @@
 # Geez Squad
 
-A live fitness coaching studio built with Next.js, Better Auth, Prisma, LiveKit, and MediaPipe. Includes coach and trainee workspaces, invitations, scheduling, assigned workout plans, private coach notes, check-ins, group video, local camera analysis, correction cues, durable set history, progress metrics, settings, and CSV/data export.
+A fitness studio management and coaching product built with Next.js, Better Auth, Prisma, LiveKit, and MediaPipe. Includes a public landing page, operations dashboard, member register, membership plans and renewals, payment ledger and receipts, physical attendance, in-studio class booking rosters, enquiry follow-ups, staff directory, and studio details, alongside the existing coach and trainee workspaces, video sessions, workout plans and progress tools. See the [studio product guide](docs/STUDIO_PRODUCT.md) for workflows, database migrations, verification and release boundaries.
 
-**Status:** deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app), with Vercel, Neon PostgreSQL, and LiveKit Cloud. See the current [verification report](docs/VERIFICATION.md). Physical-device accuracy trials, independent review, email/domain setup, and broader public-launch acceptance remain separate work.
+**Status:** an earlier coaching release is deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app), with Vercel, Neon PostgreSQL, and LiveKit Cloud. The studio management phase is implemented locally and requires the PostgreSQL migrations and deployment described in the [studio product guide](docs/STUDIO_PRODUCT.md). Physical-device accuracy trials, independent review, email/domain setup, and broader public-launch acceptance remain separate work.
 
 ## Run locally
 

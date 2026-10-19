@@ -22,7 +22,9 @@ test('a real coach account can onboard and persist a workout plan', async ({ pag
     await page.getByLabel('Studio name').fill('Browser test studio');
     await page.getByRole('checkbox', { name: /I am 18/ }).check();
     await page.getByRole('button', { name: 'Create my workspace' }).click();
-    await expect(page.getByRole('heading', { name: 'A good day to make progress.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'A stronger studio starts here.' }),
+    ).toBeVisible();
     await page.getByRole('link', { name: 'Workout plans' }).click();
     await page.getByRole('button', { name: 'Create plan', exact: true }).first().click();
     await page.getByLabel('Plan name').fill('Persisted foundations');
@@ -184,7 +186,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     ).toBeVisible();
     await coach.reload();
     await expect(coach.getByRole('heading', { name: 'Journey Trainee' })).toBeVisible();
-    await coach.getByRole('link', { name: 'Sessions', exact: true }).click();
+    await coach.getByRole('link', { name: 'Live sessions', exact: true }).click();
     await coach.getByRole('button', { name: 'Schedule session', exact: true }).click();
     await coach.getByLabel('Session title').fill('A shared journey');
     await coach.getByRole('checkbox', { name: /Journey Trainee/ }).check();
@@ -206,7 +208,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     const startResponse = await startResponsePromise;
     expect(startResponse.status(), JSON.stringify(await startResponse.json())).toBe(200);
     await expect(coach.getByRole('button', { name: 'End session', exact: true })).toBeVisible();
-    await trainee.getByRole('link', { name: 'Sessions', exact: true }).click();
+    await trainee.getByRole('link', { name: 'Live sessions', exact: true }).click();
     await expect(trainee.getByText('A shared journey', { exact: true })).toBeVisible();
     await trainee.getByRole('button', { name: /^(Open studio|Join session)$/ }).click();
     await expect(

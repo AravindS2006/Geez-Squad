@@ -34,6 +34,12 @@ import {
   ShieldCheck,
   Pencil,
   Trash2,
+  CreditCard,
+  CalendarCheck,
+  Wallet,
+  ContactRound,
+  Building2,
+  UserRoundCog,
 } from 'lucide-react';
 import {
   Brand,
@@ -56,16 +62,27 @@ import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
 import { coachingOverview } from '@/lib/coaching-insights';
 import { compareSessions } from '@/lib/session-timing';
+import { StudioOperations } from './studio-operations';
+import { MemberMembership } from './member-membership';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
 });
 const nav = [
-  { id: 'dashboard', name: 'Overview', icon: LayoutDashboard },
-  { id: 'clients', name: 'My clients', icon: Users },
-  { id: 'sessions', name: 'Sessions', icon: CalendarDays },
+  { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+  { id: 'members', name: 'Members', icon: Users },
+  { id: 'memberships', name: 'Memberships', icon: CreditCard },
+  { id: 'attendance', name: 'Attendance', icon: CalendarCheck },
+  { id: 'payments', name: 'Payments', icon: Wallet },
+  { id: 'enquiries', name: 'Enquiries', icon: ContactRound },
+  { id: 'staff', name: 'Team', icon: UserRoundCog },
+  { id: 'classes', name: 'Studio classes', icon: CalendarDays },
+  { id: 'sessions', name: 'Live sessions', icon: Video },
+  { id: 'coaching', name: 'Coaching overview', icon: Activity },
+  { id: 'clients', name: 'Coaching clients', icon: Users },
   { id: 'plans', name: 'Workout plans', icon: Dumbbell },
   { id: 'analytics', name: 'Insights', icon: ChartNoAxesCombined },
+  { id: 'studio-details', name: 'Studio details', icon: Building2 },
 ];
 type Command = Record<string, unknown>;
 export function Workspace({ initial, view }: { initial: WorkspaceData; view: string }) {
@@ -193,6 +210,15 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     'studio',
     'practice',
     'setup',
+    'members',
+    'memberships',
+    'attendance',
+    'payments',
+    'enquiries',
+    'staff',
+    'studio-details',
+    'coaching',
+    'classes',
   ].includes(view)
     ? view
     : 'dashboard';
@@ -496,20 +522,21 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           <span>
             <strong>{data.studio?.name || 'Your studio'}</strong>
             <small>
-              {data.demo ? 'Sample workspace' : coach ? 'Coach workspace' : 'Trainee workspace'}
+              {data.demo ? 'Sample studio' : coach ? 'Studio management' : 'Member workspace'}
             </small>
           </span>
           <ChevronDown size={14} />
         </button>
-        <span className="nav-label">WORKSPACE</span>
+        <span className="nav-label">{coach ? 'YOUR STUDIO' : 'YOUR TRAINING'}</span>
         <nav>
           {nav
-            .filter((n) => coach || n.id !== 'clients')
+            .filter((n) => coach || ['dashboard', 'sessions', 'plans', 'analytics'].includes(n.id))
             .map((n) => (
               <Link
                 key={n.id}
                 href={`${base}?view=${n.id}`}
                 className={`nav-item ${activeView === n.id ? 'active' : ''}`}
+                aria-current={activeView === n.id ? 'page' : undefined}
                 onClick={() => {
                   setMobileMenu(false);
                   setSearch('');
@@ -548,7 +575,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <Avatar name={data.user.name} small />
             <span>
               <strong>{data.user.name}</strong>
-              <small>{coach ? 'Fitness coach' : 'Trainee'}</small>
+              <small>{coach ? 'Studio owner' : 'Member'}</small>
             </span>
             <Settings2 size={16} />
           </button>
@@ -567,7 +594,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <Menu size={21} />
           </button>
           <div className="breadcrumb">
-            Your workspace<span>/</span>
+            {coach ? 'Geez Squad studio' : 'Your workspace'}
+            <span>/</span>
             <strong>
               {activeView === 'studio'
                 ? 'Live studio'
@@ -603,7 +631,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           <div className="demo-banner">
             <span>
               <span className="status-dot" /> Sample studio · All client data and history are
-              illustrative.
+              illustrative. Changes reset on refresh.
             </span>
             <Link href="/login">
               Make it yours
@@ -617,52 +645,74 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               {syncWarning}
             </p>
           )}
-          {search && activeView !== 'clients' && activeView !== 'plans' && (
-            <div className="search-results panel">
-              <SectionTitle
-                title={`Results for “${search}”`}
-                action={
+          {search &&
+            ![
+              'clients',
+              'plans',
+              'dashboard',
+              'members',
+              'memberships',
+              'attendance',
+              'payments',
+              'enquiries',
+              'staff',
+              'studio-details',
+              'classes',
+            ].includes(activeView) && (
+              <div className="search-results panel">
+                <SectionTitle
+                  title={`Results for “${search}”`}
+                  action={
+                    <button
+                      className="icon-button"
+                      aria-label="Clear search"
+                      onClick={() => setSearch('')}
+                    >
+                      <X size={16} />
+                    </button>
+                  }
+                />
+                {searchClients.slice(0, 4).map((c) => (
                   <button
-                    className="icon-button"
-                    aria-label="Clear search"
-                    onClick={() => setSearch('')}
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedClient(c);
+                      show('client');
+                    }}
                   >
-                    <X size={16} />
+                    <Avatar name={c.name} small />
+                    {c.name}
+                    <ArrowUpRight size={15} />
                   </button>
-                }
-              />
-              {searchClients.slice(0, 4).map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedClient(c);
-                    show('client');
-                  }}
-                >
-                  <Avatar name={c.name} small />
-                  {c.name}
-                  <ArrowUpRight size={15} />
-                </button>
-              ))}
-              {searchPlans.slice(0, 4).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setSelectedPlan(p);
-                    show('plan');
-                  }}
-                >
-                  <Dumbbell size={17} />
-                  {p.name}
-                  <ArrowUpRight size={15} />
-                </button>
-              ))}
-              {!searchClients.length && !searchPlans.length && (
-                <p>No clients or plans match your search.</p>
-              )}
-            </div>
+                ))}
+                {searchPlans.slice(0, 4).map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedPlan(p);
+                      show('plan');
+                    }}
+                  >
+                    <Dumbbell size={17} />
+                    {p.name}
+                    <ArrowUpRight size={15} />
+                  </button>
+                ))}
+                {!searchClients.length && !searchPlans.length && (
+                  <p>No clients or plans match your search.</p>
+                )}
+              </div>
+            )}
+          {coach && data.studio && (
+            <StudioOperations
+              view={activeView}
+              workspace={data}
+              search={search}
+              onNavigate={go}
+              onSchedule={() => show('schedule')}
+            />
           )}
-          {activeView === 'dashboard' && (
+          {(activeView === 'coaching' || (activeView === 'dashboard' && !coach)) && (
             <>
               <div className="page-heading">
                 <div>
@@ -685,6 +735,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   {coach ? 'Schedule session' : 'Camera practice'}
                 </button>
               </div>
+              {!coach && !data.demo && <MemberMembership />}
               {!coach && (
                 <section className="panel trainee-coaching-overview">
                   <div>

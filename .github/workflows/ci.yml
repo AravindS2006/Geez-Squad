@@ -26,6 +26,8 @@ jobs:
             }
             node scripts/test-api.mjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/test-studio-operations.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             npx playwright test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node scripts/check-accessibility.mjs

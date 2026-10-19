@@ -30,7 +30,7 @@ export function demoData(): WorkspaceData {
       role: 'coach',
       goal: 'Help people move better',
     },
-    studio: { id: 'sample', name: 'The Movement Studio' },
+    studio: { id: 'sample', name: 'Geez Squad' },
     clients,
     plans: [
       {

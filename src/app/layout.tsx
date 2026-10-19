@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './operations.css';
 import { TimeProvider } from '@/components/time-provider';
 export const metadata: Metadata = {
-  title: 'Geez Squad — Move better, together.',
+  title: 'Geez Squad — Stronger, together.',
   description:
-    'Your premium live coaching studio. Human guidance, real-time movement insights, and progress that matters.',
+    'Your fitness studio, connected. Memberships, classes, personal coaching, and a community that moves you forward.',
   icons: { icon: '/icon.svg' },
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {

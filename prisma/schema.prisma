@@ -83,6 +83,144 @@ model Studio {
   plans WorkoutPlan[]
   classes ClassSession[]
   assignments PlanAssignment[]
+  address String @default("")
+  phone String @default("")
+  hours String @default("")
+  members StudioMember[]
+  offers MembershipOffer[]
+  terms MemberTerm[]
+  payments StudioPayment[]
+  attendance StudioAttendance[]
+  enquiries StudioEnquiry[]
+  staff StudioStaff[]
+  studioClasses StudioClass[]
+}
+
+model StudioMember {
+  id String @id @default(cuid())
+  studioId String
+  name String
+  email String @default("")
+  phone String @default("")
+  goal String @default("")
+  status String @default("active")
+  joinedOn String
+  createdAt DateTime @default(now())
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  terms MemberTerm[]
+  attendance StudioAttendance[]
+  bookings StudioBooking[]
+  @@index([studioId, status])
+}
+
+model MembershipOffer {
+  id String @id @default(cuid())
+  studioId String
+  name String
+  description String @default("")
+  durationDays Int
+  pricePaise Int
+  active Boolean @default(true)
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  terms MemberTerm[]
+  @@index([studioId])
+}
+
+model MemberTerm {
+  id String @id @default(cuid())
+  studioId String
+  memberId String
+  offerId String
+  planName String
+  feePaise Int
+  startsOn String
+  endsOn String
+  status String @default("active")
+  createdAt DateTime @default(now())
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  offer MembershipOffer @relation(fields: [offerId], references: [id])
+  payments StudioPayment[]
+  @@index([studioId, endsOn])
+  @@index([memberId])
+}
+
+model StudioPayment {
+  id String @id
+  studioId String
+  termId String
+  amountPaise Int
+  paidOn String
+  method String
+  reference String @default("")
+  createdAt DateTime @default(now())
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  term MemberTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+  @@index([studioId, paidOn])
+}
+
+model StudioAttendance {
+  id String @id @default(cuid())
+  studioId String
+  memberId String
+  date String
+  createdAt DateTime @default(now())
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([memberId, date])
+  @@index([studioId, date])
+}
+
+model StudioEnquiry {
+  id String @id @default(cuid())
+  studioId String
+  name String
+  phone String
+  interest String
+  source String
+  stage String @default("new")
+  followUpOn String
+  note String @default("")
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  @@index([studioId, followUpOn])
+}
+
+model StudioStaff {
+  id String @id @default(cuid())
+  studioId String
+  name String
+  email String @default("")
+  phone String @default("")
+  role String
+  specialty String @default("")
+  status String @default("active")
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  @@index([studioId])
+}
+
+model StudioClass {
+  id String @id @default(cuid())
+  studioId String
+  title String
+  trainer String
+  location String
+  startsAt DateTime
+  duration Int
+  capacity Int
+  status String @default("scheduled")
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  bookings StudioBooking[]
+  @@index([studioId, startsAt])
+}
+
+model StudioBooking {
+  id String @id @default(cuid())
+  classId String
+  memberId String
+  status String @default("booked")
+  class StudioClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([classId, memberId])
 }
 model Membership {
   id String @id @default(cuid())

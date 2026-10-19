@@ -16,13 +16,14 @@ npx vercel@62.4.0 integration add neon --name geez-squad-production --plan free_
 
 Do not retry creation if a previous attempt completed; inspect the integration/resource first. Use a pooled runtime URL and a direct migration URL. Neon injects `DATABASE_URL_UNPOOLED`; set `DIRECT_URL` to that same direct connection in Production. Keep preview, test, and production data separate. The Free plan is an initial setup choice, not a throughput/SLA guarantee; evaluate backups, limits, and load before broad launch. [Neon Marketplace integration](https://vercel.com/integrations/neon).
 
-The canonical model is `prisma/schema.prisma`. `scripts/postgres.mjs` creates an equivalent ignored PostgreSQL schema; committed PostgreSQL migrations are in `prisma/postgres/migrations`. The live Neon database has `20261006000000_init`, `20261009000000_training_insights` and `20261009140000_session_room_identity`. Training insights add set history, check-ins, assignments, private notes, richer latest metrics and hold totals. The nullable room identity preserves sessions started before the rename. Both additive changes were rehearsed in an isolated schema with legacy data before release. Apply migrations before promoting the matching build. Broader concurrency, load, and restore trials remain separate acceptance work.
+The canonical model is `prisma/schema.prisma`. `scripts/postgres.mjs` creates an equivalent ignored PostgreSQL schema; committed PostgreSQL migrations are in `prisma/postgres/migrations`. The live Neon database has `20261006000000_init`, `20261009000000_training_insights`, `20261009140000_session_room_identity`, `20261019000000_studio_operations`, and `20261019010000_studio_classes`. The studio migrations were applied on 19 October after an isolated rehearsal and verification that existing accounts were preserved. See [the login deployment repair](LOGIN_DEPLOYMENT_FIX.md). Apply migrations before deploying the matching build. Broader concurrency, load, and restore trials remain separate acceptance work.
 
 Run migrations from a secure release environment with the production values loaded:
 
 ```sh
 npx vercel@62.4.0 env pull .vercel/.env.production.local --environment=production --yes --scope aravinds2006s-projects
 node --env-file=.vercel/.env.production.local scripts/postgres.mjs migrate
+node --env-file=.vercel/.env.production.local scripts/postgres.mjs check
 node --env-file=.vercel/.env.production.local scripts/verify-postgres.mjs
 ```
 

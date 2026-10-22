@@ -31,7 +31,8 @@ for (const failure of [
       };
     });
     await page.route('**/pose-worker.js', async (route) => {
-      const response = await route.fetch();
+      // Retry transient socket resets while the harness loads the worker; assertions still fail normally.
+      const response = await route.fetch({ maxRetries: 2 });
       const source = await response.text();
       await route.fulfill({
         response,
@@ -143,7 +144,7 @@ for (const [variant, cpuFallback] of [
     });
     if (cpuFallback) {
       await page.route('**/pose-worker.js', async (route) => {
-        const response = await route.fetch();
+        const response = await route.fetch({ maxRetries: 2 });
         // Inject a failed GPU initialization. The fallback then uses the real
         // production model and CPU/WASM initialization without modification.
         await route.fulfill({
@@ -221,7 +222,7 @@ test('a stalled GPU inference recovers through a real CPU worker without replaci
     };
   });
   await page.route('**/pose-worker.js', async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({ maxRetries: 2 });
     await route.fulfill({
       response,
       body: (await response.text()).replace(

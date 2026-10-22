@@ -38,15 +38,18 @@ for (const failure of [
         response,
         body:
           failure === 'GPU initialization stall'
-            ? source.replace(
-                'const { FilesetResolver, PoseLandmarker } = self.exports;',
-                `const { FilesetResolver, PoseLandmarker } = self.exports;
+            ? source
+                .replace(
+                  'const { FilesetResolver, PoseLandmarker } = self.exports;',
+                  `const { FilesetResolver, PoseLandmarker } = self.exports;
                 const nativeCreate = PoseLandmarker.createFromOptions.bind(PoseLandmarker);
                 PoseLandmarker.createFromOptions = (files, options) =>
                   options.baseOptions.delegate === 'GPU'
                     ? new Promise(() => {})
                     : nativeCreate(files, options);`,
-              )
+                )
+                // Isolate initialization recovery from host CPU speed; the other cases test slow inference.
+                .replace('inferenceMs: performance.now() - started,', 'inferenceMs: 1,')
             : source.replace(
                 'inferenceMs: performance.now() - started,',
                 failure === 'slow Full inference'

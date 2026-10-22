@@ -33,7 +33,10 @@
     "assets": "node scripts/prepare-assets.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,mjs}\" \"tests/**/*.ts\" \"scripts/*.mjs\" \"*.{json,ts,mjs}\" public/pose-worker.js",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,mjs}\" \"tests/**/*.ts\" \"scripts/*.mjs\" \"*.{json,ts,mjs}\" public/pose-worker.js",
-    "test:a11y": "node scripts/check-accessibility.mjs"
+    "test:a11y": "node scripts/check-accessibility.mjs",
+    "mail:verify": "node scripts/verify-mail.mjs",
+    "db:members:check": "node scripts/backfill-member-accounts.mjs",
+    "db:members:backfill": "node scripts/backfill-member-accounts.mjs --apply"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.32",
@@ -43,6 +46,7 @@
     "livekit-server-sdk": "2.19.1",
     "lucide-react": "1.52.0",
     "next": "16.3.8",
+    "nodemailer": "^10.2.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
@@ -53,11 +57,12 @@
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.58.0",
     "@types/node": "^22.19.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "prettier": "^3.9.9",
     "prisma": "6.19.3",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.12"
   }
 }

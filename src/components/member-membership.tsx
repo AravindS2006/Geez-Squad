@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { CreditCard, CalendarCheck } from 'lucide-react';
 import { fetchJson } from '@/lib/client';
-import { money, studioToday } from '@/lib/studio-operations';
+import { money, studioToday, selectCurrentTerm } from '@/lib/studio-operations';
 type MembershipSummary = {
   id: string;
   name: string;
@@ -34,7 +34,7 @@ export function MemberMembership() {
   if (error)
     return (
       <p className="inline-notice" role="status">
-        Your studio membership could not be loaded. Refresh to try again.
+        {error}
       </p>
     );
   if (!rows.length) return null;
@@ -46,10 +46,7 @@ export function MemberMembership() {
         Your studio membership
       </h2>
       {rows.map((m) => {
-        const term =
-          m.terms.find(
-            (t) => t.status !== 'cancelled' && t.startsOn <= today && t.endsOn >= today,
-          ) || m.terms.find((t) => t.status !== 'cancelled');
+        const term = selectCurrentTerm(m.terms, today);
         const due = m.terms
           .filter((t) => t.status !== 'cancelled')
           .reduce(

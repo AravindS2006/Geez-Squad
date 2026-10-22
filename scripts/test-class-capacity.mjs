@@ -1,3 +1,4 @@
+import { grantLocalTestTerm } from './test-member-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
@@ -63,6 +64,7 @@ try {
         Array.from({ length: Math.min(4, count - i + 1) }, (_, j) => createClient(i + j)),
       )),
     );
+  for (const trainee of trainees) await grantLocalTestTerm(db, studio.id, trainee.id);
   const session = await db.classSession.create({
     data: {
       studioId: studio.id,

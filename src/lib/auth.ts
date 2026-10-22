@@ -4,8 +4,14 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { db } from './db';
 import { sendMail } from './mail';
 import { getEmailPolicy } from './email-policy.mjs';
+import { logEvent } from './logger';
+import { requestContext } from './request-log';
 export const emailPolicy = getEmailPolicy(process.env);
 export const auth = betterAuth({
+  logger: {
+    level: 'debug',
+    log: (level) => logEvent(level, 'auth_event', requestContext.getStore()),
+  },
   appName: 'Geez Squad',
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,

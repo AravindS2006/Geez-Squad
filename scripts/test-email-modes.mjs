@@ -1,3 +1,4 @@
+import { grantLocalTestTerm } from './test-member-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
@@ -32,6 +33,7 @@ const env = {
   VERCEL: '1',
   NODE_ENV: 'production',
 };
+process.env.DATABASE_URL = databaseUrl;
 const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
 let server;
 let exited;
@@ -164,6 +166,10 @@ try {
       workspace.clients.length === 1 && workspace.clients[0].id === trainee.id,
       'The coach must see the enrolled trainee.',
     );
+    const acceptedMembership = await db.membership.findFirstOrThrow({
+      where: { userId: trainee.id },
+    });
+    await grantLocalTestTerm(db, acceptedMembership.studioId, trainee.id);
     const session = await command(
       {
         action: 'createClass',
@@ -221,7 +227,7 @@ try {
     await startServer('disabled');
     const existingSession = await request('/api/workspace', undefined, trainee.cookie);
     check(
-      existingSession.status === 401,
+      existingSession.status === 403,
       'Restoring verification must also gate existing unverified testing sessions.',
     );
     const gated = await post('sign-in/email', { email: trainee.email, password });

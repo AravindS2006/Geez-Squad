@@ -1,3 +1,4 @@
+import { grantStudioTerm } from './support/membership';
 import { expect, test } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -45,6 +46,7 @@ for (const traineeCount of [8, 30, 48]) {
           }),
         ),
       );
+      for (const clientId of traineeIds) await grantStudioTerm(db, clientId);
       const scheduled = await page.request.post('/api/command', {
         headers,
         data: {

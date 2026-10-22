@@ -1,3 +1,13 @@
+import { loggedRoute } from '@/lib/request-log';
+import {
+  linkAcceptedMember,
+  requireParticipation,
+  revokeIneligibleParticipants,
+  reconcileBookings,
+} from '@/lib/member-access';
+import { logEvent } from '@/lib/logger';
+import { requestContext } from '@/lib/request-log';
+import { studioToday } from '@/lib/studio-operations';
 import { createHash, randomBytes } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
@@ -15,10 +25,15 @@ import {
   requireClass,
 } from '@/lib/security';
 import { RoomServiceClient, TrackSource } from 'livekit-server-sdk';
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const data = commandSchema.parse(await readJson(request));
+    logEvent('info', 'command_received', {
+      ...requestContext.getStore(),
+      action: data.action,
+      actorId: user.id,
+    });
     await rateLimit(user.id, 'command');
     const studio = await db.studio.findUnique({ where: { ownerId: user.id } });
     const requireCoach = () => {
@@ -138,6 +153,11 @@ export async function POST(request: Request) {
             await tx.membership.create({
               data: { studioId: invitation.studioId, userId: user.id },
             });
+            await linkAcceptedMember(tx, invitation.studioId, user);
+            await tx.studioJoinRequest.updateMany({
+              where: { email: user.email.toLowerCase(), member: { studioId: invitation.studioId } },
+              data: { status: 'accepted' },
+            });
           },
           { isolationLevel: 'Serializable' },
         );
@@ -250,6 +270,13 @@ export async function POST(request: Request) {
                 });
                 if (members !== ids.length)
                   throw new ApiError(403, 'Select clients from your own studio.');
+                for (const clientId of ids)
+                  await requireParticipation(
+                    owned.id,
+                    clientId,
+                    studioToday(new Date(data.startsAt)),
+                    tx,
+                  );
                 const plan = data.planId
                   ? await tx.workoutPlan.findFirst({
                       where: { id: data.planId, studioId: owned.id },
@@ -309,6 +336,13 @@ export async function POST(request: Request) {
                   ids.length > data.capacity
                 )
                   throw new ApiError(400, 'Check the session capacity and participant list.');
+                for (const clientId of ids)
+                  await requireParticipation(
+                    owned.id,
+                    clientId,
+                    studioToday(new Date(data.startsAt)),
+                    tx,
+                  );
                 if (ids.some((id) => !allowed.has(id)))
                   throw new ApiError(403, 'Select trainees from your own studio.');
                 if (
@@ -355,23 +389,27 @@ export async function POST(request: Request) {
       }
       case 'clientProfile': {
         const owned = requireCoach();
-        const updated = await db.user.updateMany({
+        if (
+          !(await db.membership.findUnique({
+            where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+          }))
+        )
+          throw new ApiError(404, 'Choose a trainee from your own studio.');
+        const updated = await db.studioMember.updateMany({
           where: {
-            id: data.userId,
-            role: 'trainee',
+            studioId: owned.id,
+            userId: data.userId,
             name: data.expectedName,
             goal: data.expectedGoal,
-            memberships: { some: { studioId: owned.id } },
+            user: { memberships: { some: { studioId: owned.id } } },
           },
           data: { name: data.name, goal: data.goal },
         });
-        if (!updated.count) {
-          const member = await db.membership.findUnique({
-            where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
-          });
-          if (!member) throw new ApiError(404, 'Choose a trainee from your own studio.');
-          throw new ApiError(409, 'This profile changed. Refresh and reopen it before saving.');
-        }
+        if (!updated.count)
+          throw new ApiError(
+            409,
+            'This studio profile changed. Refresh and reopen it before saving.',
+          );
         await db.auditEvent.create({
           data: { actorId: user.id, action: 'clientProfile', targetId: data.userId },
         });
@@ -388,18 +426,6 @@ export async function POST(request: Request) {
                   include: { user: { select: { email: true } } },
                 });
                 if (!member) throw new ApiError(404, 'Choose a trainee from your own studio.');
-                if (
-                  await tx.enrollment.findFirst({
-                    where: {
-                      userId: data.userId,
-                      class: { studioId: owned.id, status: 'live' },
-                    },
-                  })
-                )
-                  throw new ApiError(
-                    409,
-                    'End this trainee’s live session before removing studio access.',
-                  );
                 const scheduled = await tx.enrollment.findMany({
                   where: {
                     userId: data.userId,
@@ -437,6 +463,15 @@ export async function POST(request: Request) {
                   },
                 });
                 await tx.membership.delete({ where: { id: member.id } });
+                await tx.studioMember.updateMany({
+                  where: { studioId: owned.id, userId: data.userId },
+                  data: { status: 'paused' },
+                });
+                await reconcileBookings(tx, owned.id);
+                await tx.studioJoinRequest.updateMany({
+                  where: { member: { studioId: owned.id, userId: data.userId } },
+                  data: { status: 'withdrawn' },
+                });
                 await tx.auditEvent.create({
                   data: { actorId: user.id, action: 'removeClient', targetId: data.userId },
                 });
@@ -445,6 +480,7 @@ export async function POST(request: Request) {
             ),
           process.env.DATABASE_PROVIDER !== 'postgresql',
         );
+        await revokeIneligibleParticipants(owned.id, data.userId);
         break;
       }
       case 'classControl': {
@@ -499,6 +535,7 @@ export async function POST(request: Request) {
       }
       case 'consent': {
         const item = await requireClass(data.id, user.id);
+        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         if (item.studio.ownerId !== user.id)
           await db.enrollment.updateMany({
@@ -509,6 +546,7 @@ export async function POST(request: Request) {
       }
       case 'help': {
         const item = await requireClass(data.id, user.id);
+        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         const target = data.userId ?? user.id;
         if (target !== user.id && (item.studio.ownerId !== user.id || data.requested))
@@ -523,6 +561,7 @@ export async function POST(request: Request) {
       }
       case 'message': {
         const item = await requireClass(data.id, user.id);
+        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live')
           throw new ApiError(409, 'Messages are available during a live class.');
         if (data.kind === 'cue' && item.studio.ownerId !== user.id)
@@ -617,3 +656,5 @@ async function deleteRoom(roomName: string, identities: string[]) {
 function isRoomMissing(error: unknown) {
   return !!error && typeof error === 'object' && 'status' in error && error.status === 404;
 }
+
+export const POST = loggedRoute('/api/command', handlePOST);

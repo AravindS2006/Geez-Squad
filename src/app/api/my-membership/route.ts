@@ -1,14 +1,14 @@
+import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireUser, safeError } from '@/lib/security';
-export async function GET() {
+async function handleGET() {
   try {
     const user = await requireUser();
-    // A matching email alone never grants access: the account must also belong to this studio.
+    // Stable account ownership survives contact-email edits and membership expiry.
     const rows = await db.studioMember.findMany({
       where: {
-        email: user.email.toLowerCase(),
-        studio: { memberships: { some: { userId: user.id } } },
+        userId: user.id,
       },
       select: {
         id: true,
@@ -38,3 +38,5 @@ export async function GET() {
     return safeError(error);
   }
 }
+
+export const GET = loggedRoute('/api/my-membership', handleGET);

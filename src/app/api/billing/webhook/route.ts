@@ -1,9 +1,10 @@
+import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { shouldReconcileSubscription } from '@/lib/billing-policy';
 import type { BillingSubscription } from '@prisma/client';
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
   const signature = request.headers.get('stripe-signature');
@@ -80,3 +81,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = loggedRoute('/api/billing/webhook', handlePOST);

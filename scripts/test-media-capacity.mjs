@@ -1,3 +1,4 @@
+import { grantLocalTestTerm } from './test-member-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -146,6 +147,7 @@ try {
       }),
     ),
   );
+  for (const userId of ids) await grantLocalTestTerm(db, studio.id, userId);
   roomName = `geez-squad-media-${fixtureId}`;
   session = await db.classSession.create({
     data: {

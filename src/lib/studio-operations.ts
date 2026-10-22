@@ -7,6 +7,11 @@ const phone = z.string().trim().max(30);
 const date = z.iso.date();
 export const operationsSchema = z.discriminatedUnion('action', [
   z.object({
+    action: z.literal('memberAccess'),
+    memberId: id,
+    operation: z.enum(['resend', 'withdraw']),
+  }),
+  z.object({
     action: z.literal('studioClass'),
     id: id.optional(),
     title: text.min(2),
@@ -32,6 +37,8 @@ export const operationsSchema = z.discriminatedUnion('action', [
     goal: text,
     joinedOn: date,
     status: z.enum(['active', 'paused', 'archived']),
+    offerId: id.optional(),
+    startsOn: date.optional(),
   }),
   z.object({
     action: z.literal('offer'),
@@ -85,6 +92,8 @@ export const operationsSchema = z.discriminatedUnion('action', [
 ]);
 export type OperationsCommand = z.infer<typeof operationsSchema>;
 export type StudioMember = {
+  userId?: string | null;
+  accessStatus?: string;
   id: string;
   name: string;
   email: string;
@@ -196,14 +205,31 @@ export function outstanding(term: MemberTerm, payments: StudioPayment[]) {
       payments.filter((p) => p.termId === term.id).reduce((sum, p) => sum + p.amountPaise, 0),
   );
 }
-export function currentTerm(data: OperationsData, memberId: string, today: string) {
-  return data.terms
-    .filter((t) => t.memberId === memberId && t.status !== 'cancelled')
+export function selectCurrentTerm<T extends { startsOn: string; endsOn: string; status: string }>(
+  terms: T[],
+  today: string,
+) {
+  return terms
+    .filter((t) => t.status !== 'cancelled')
     .sort((a, b) => {
-      const activeA = termStatus(a, today) === 'active',
-        activeB = termStatus(b, today) === 'active';
-      return Number(activeB) - Number(activeA) || b.endsOn.localeCompare(a.endsOn);
+      const activeA = a.startsOn <= today && a.endsOn >= today,
+        activeB = b.startsOn <= today && b.endsOn >= today;
+      const futureA = a.startsOn > today,
+        futureB = b.startsOn > today;
+      return (
+        Number(activeB) - Number(activeA) ||
+        Number(futureB) - Number(futureA) ||
+        (futureA && futureB
+          ? a.startsOn.localeCompare(b.startsOn)
+          : b.endsOn.localeCompare(a.endsOn))
+      );
     })[0];
+}
+export function currentTerm(data: OperationsData, memberId: string, today: string) {
+  return selectCurrentTerm(
+    data.terms.filter((t) => t.memberId === memberId),
+    today,
+  );
 }
 export function validateTerm(
   data: OperationsData,
@@ -238,6 +264,15 @@ export function applyDemoOperation(
       ? rows.map((r) => (r.id === row.id ? row : r))
       : [row, ...rows];
   switch (c.action) {
+    case 'memberAccess':
+      return {
+        ...data,
+        members: data.members.map((m) =>
+          m.id === c.memberId
+            ? { ...m, accessStatus: c.operation === 'resend' ? 'pending' : 'withdrawn' }
+            : m,
+        ),
+      };
     case 'studioClass': {
       const existing = data.studioClasses.find((s) => s.id === c.id);
       if (c.status === 'scheduled' && Date.parse(c.startsAt) <= Date.now())
@@ -287,10 +322,32 @@ export function applyDemoOperation(
         ),
       };
     }
-    case 'member':
+    case 'member': {
       if (c.email && data.members.some((m) => m.email === c.email && m.id !== c.id))
         throw new Error('A member with this email already exists.');
-      return { ...data, members: replace(data.members, { ...c, id: c.id || newId }) };
+      const previous = data.members.find((m) => m.id === c.id);
+      const next = {
+        ...data,
+        members: replace(data.members, {
+          ...previous,
+          ...c,
+          id: c.id || newId,
+          accessStatus: previous?.userId ? 'connected' : c.email ? 'pending' : 'no_email',
+        }),
+      };
+      return c.offerId
+        ? applyDemoOperation(
+            next,
+            {
+              action: 'term',
+              memberId: c.id || newId,
+              offerId: c.offerId,
+              startsOn: c.startsOn || studioToday(),
+            },
+            `${newId}-term`,
+          )
+        : next;
+    }
     case 'offer':
       return { ...data, offers: replace(data.offers, { ...c, id: c.id || newId }) };
     case 'staff':

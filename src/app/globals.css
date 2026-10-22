@@ -6596,3 +6596,34 @@ small {
 .coach-monitor .avatar {
   color: #172017;
 }
+
+.meeting-diagnostics {
+  color: #c4ccca;
+  background: #191f24;
+  padding: 8px 16px;
+  font-size: 11px;
+}
+.meeting-diagnostics summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.meeting-diagnostics > div {
+  padding: 12px 0;
+  line-height: 1.8;
+}
+.meeting-diagnostics button {
+  color: #d6ee9b;
+}
+@media (max-width: 600px) {
+  .meeting-controls {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .meeting-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .meeting-notice {
+    overflow-wrap: anywhere;
+  }
+}

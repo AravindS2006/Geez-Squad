@@ -6,7 +6,7 @@ afterEach(() => vi.resetAllMocks());
 describe('health readiness', () => {
   it('returns healthy for a compatible schema and never exposes query results', async () => {
     fixture.query.mockResolvedValue([]);
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/health'));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'ok' });
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -15,7 +15,7 @@ describe('health readiness', () => {
     fixture.query.mockRejectedValue(
       new Error('Studio.address missing; private connection details'),
     );
-    const response = await GET();
+    const response = await GET(new Request('http://localhost/api/health'));
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ status: 'unavailable' });
     expect(response.headers.get('cache-control')).toBe('no-store');

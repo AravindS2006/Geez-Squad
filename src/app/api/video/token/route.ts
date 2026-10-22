@@ -1,3 +1,5 @@
+import { loggedRoute } from '@/lib/request-log';
+import { requireParticipation } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
 import { AccessToken } from 'livekit-server-sdk';
 import { z } from 'zod';
@@ -11,12 +13,13 @@ import {
 } from '@/lib/security';
 import { classVideoGrant } from '@/lib/video-grants';
 import { existingVideoRoomName } from '@/lib/room-identity';
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const { classId } = z.object({ classId: z.string().max(100) }).parse(await readJson(request));
     await rateLimit(user.id, 'token', 10);
     const item = await requireClass(classId, user.id);
+    if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
     if (item.status !== 'live')
       throw new ApiError(409, 'The coach has not started this class, or it has ended.');
     if (
@@ -45,3 +48,5 @@ export async function POST(request: Request) {
     return safeError(error);
   }
 }
+
+export const POST = loggedRoute('/api/video/token', handlePOST);

@@ -48,7 +48,7 @@ describe('deferred email authentication', () => {
   });
   it('rejects invalid configuration rather than changing authentication behavior', () => {
     expect(() => getEmailPolicy({ VERCEL: '1', EMAIL_DELIVERY: 'false' })).toThrow(
-      'EMAIL_DELIVERY must be resend, disabled, or test.',
+      'EMAIL_DELIVERY must be resend, smtp, disabled, or test.',
     );
   });
 });

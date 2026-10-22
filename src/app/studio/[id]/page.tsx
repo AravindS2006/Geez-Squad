@@ -9,6 +9,8 @@ export default async function LiveStudio({ params }: { params: Promise<{ id: str
   try {
     user = await requireUser();
   } catch (error) {
+    if (error instanceof ApiError && error.code === 'EMAIL_VERIFICATION_REQUIRED')
+      redirect(`/login?mode=verify&next=${encodeURIComponent(`/studio/${id}`)}`);
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     redirect(`/login?next=${encodeURIComponent(`/studio/${id}`)}`);
   }

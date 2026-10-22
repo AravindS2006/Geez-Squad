@@ -1,9 +1,10 @@
+import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, readJson, safeError, rateLimit } from '@/lib/security';
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const { action } = z
@@ -80,3 +81,5 @@ export async function POST(request: Request) {
     return safeError(error);
   }
 }
+
+export const POST = loggedRoute('/api/billing', handlePOST);

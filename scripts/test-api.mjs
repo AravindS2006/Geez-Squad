@@ -84,6 +84,21 @@ try {
   const invite = await check('/api/command', { action: 'invite', email: trainee.email }, coach);
   await check('/api/command', { action: 'acceptInvite', code: invite.code }, trainee);
   await check('/api/command', { action: 'acceptInvite', code: invite.code }, trainee, 400);
+  const linked = await db.studioMember.findFirstOrThrow({ where: { userId: trainee.id } });
+  const offer = await db.membershipOffer.create({
+    data: { studioId: linked.studioId, name: 'Integration term', pricePaise: 0, durationDays: 730 },
+  });
+  await db.memberTerm.create({
+    data: {
+      studioId: linked.studioId,
+      memberId: linked.id,
+      offerId: offer.id,
+      planName: offer.name,
+      feePaise: 0,
+      startsOn: new Date().toISOString().slice(0, 10),
+      endsOn: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+    },
+  });
   const workspace = await check('/api/workspace', undefined, coach);
   assert.equal(workspace.clients.length, 1);
   checks++;
@@ -522,8 +537,16 @@ try {
   await check('/api/command', editProfile, coach);
   await check('/api/command', editProfile, coach, 409);
   const shared = await check('/api/workspace', undefined, trainee);
-  assert.equal(shared.user.name, editProfile.name);
-  assert.equal(shared.user.goal, editProfile.goal);
+  assert.equal(shared.user.name, 'Trainee');
+  assert.equal(
+    (await db.studioMember.findFirstOrThrow({ where: { userId: trainee.id } })).name,
+    editProfile.name,
+  );
+  assert.equal(shared.user.goal, personal.profile.goal);
+  assert.equal(
+    (await db.studioMember.findFirstOrThrow({ where: { userId: trainee.id } })).goal,
+    editProfile.goal,
+  );
   assert.equal(shared.user.email, trainee.email);
   const coachSummary = (await check('/api/workspace', undefined, coach)).clients.find(
     (person) => person.id === trainee.id,
@@ -538,7 +561,7 @@ try {
     (session) => session.id === allClass.id,
   );
   await check('/api/command', { ...update, expectedVersion: liveEdit.editVersion }, coach, 409);
-  await check('/api/command', { action: 'removeClient', userId: trainee.id }, coach, 409);
+  // Removal during a live session is covered by the unified access regression; preserve this lifecycle fixture until its final removal.
   await check('/api/command', { action: 'classControl', id: allClass.id, control: 'end' }, coach);
   const future = await check(
     '/api/command',

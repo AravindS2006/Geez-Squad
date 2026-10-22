@@ -9,6 +9,13 @@ import {
   type OperationsData,
 } from './studio-operations';
 import { writeMetrics } from './metrics-write';
+import {
+  requestMemberAccess,
+  reconcileBookings,
+  revokeIneligibleParticipants,
+} from './member-access';
+import { logEvent } from './logger';
+import { requestContext } from './request-log';
 
 export async function readOperations(studioId: string): Promise<OperationsData> {
   const [studio, members, offers, terms, payments, attendance, enquiries, staff, studioClasses] =
@@ -17,7 +24,11 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
         where: { id: studioId },
         select: { name: true, address: true, phone: true, hours: true },
       }),
-      db.studioMember.findMany({ where: { studioId }, orderBy: { createdAt: 'desc' } }),
+      db.studioMember.findMany({
+        where: { studioId },
+        include: { joinRequest: { select: { status: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
       db.membershipOffer.findMany({ where: { studioId }, orderBy: { pricePaise: 'asc' } }),
       db.memberTerm.findMany({ where: { studioId }, orderBy: { endsOn: 'desc' } }),
       db.studioPayment.findMany({ where: { studioId }, orderBy: { paidOn: 'desc' } }),
@@ -32,7 +43,14 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
     ]);
   return {
     studio,
-    members,
+    members: members.map(({ joinRequest, ...member }) => ({
+      ...member,
+      accessStatus: member.userId
+        ? 'connected'
+        : !member.email
+          ? 'no_email'
+          : (joinRequest?.status ?? 'withdrawn'),
+    })),
     offers,
     terms,
     payments,
@@ -44,7 +62,7 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
 }
 
 export async function mutateOperations(studioId: string, actorId: string, c: OperationsCommand) {
-  return writeMetrics(
+  const result = await writeMetrics(
     () =>
       db.$transaction(
         async (tx) => {
@@ -61,6 +79,27 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
             if (!row) throw new ApiError(404, 'This studio record is not available.');
           };
           switch (c.action) {
+            case 'memberAccess': {
+              const member = await tx.studioMember.findFirst({
+                where: { id: c.memberId, studioId },
+              });
+              if (!member || member.userId || !member.email || member.status === 'archived')
+                throw new ApiError(409, 'Choose an unlinked member with an email address.');
+              await tx.studioJoinRequest.upsert({
+                where: { memberId: member.id },
+                create: {
+                  memberId: member.id,
+                  email: member.email,
+                  status: c.operation === 'resend' ? 'pending' : 'withdrawn',
+                },
+                update: {
+                  email: member.email,
+                  status: c.operation === 'resend' ? 'pending' : 'withdrawn',
+                },
+              });
+              targetId = member.id;
+              break;
+            }
             case 'studioClass': {
               const { action, id, startsAt, ...fields } = c;
               const existing = id
@@ -156,7 +195,7 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
               break;
             }
             case 'member': {
-              const { action, id, ...fields } = c;
+              const { action, id, offerId, startsOn = studioToday(), ...fields } = c;
               if (id) await assertOwned('studioMember', id);
               if (
                 fields.email &&
@@ -165,11 +204,46 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
                 }))
               )
                 throw new ApiError(409, 'A member with this email already exists.');
-              targetId = (
-                id
-                  ? await tx.studioMember.update({ where: { id }, data: fields })
-                  : await tx.studioMember.create({ data: { ...fields, studioId } })
-              ).id;
+              const member = id
+                ? await tx.studioMember.update({ where: { id }, data: fields })
+                : await tx.studioMember.create({ data: { ...fields, studioId } });
+              targetId = member.id;
+              if (offerId) {
+                const offer = await tx.membershipOffer.findFirst({
+                  where: { id: offerId, studioId, active: true },
+                });
+                if (!offer || member.status !== 'active')
+                  throw new ApiError(400, 'Choose an active member and an available plan.');
+                const endsOn = addDays(startsOn, offer.durationDays - 1);
+                if (
+                  await tx.memberTerm.findFirst({
+                    where: {
+                      memberId: member.id,
+                      status: { not: 'cancelled' },
+                      startsOn: { lte: endsOn },
+                      endsOn: { gte: startsOn },
+                    },
+                  })
+                )
+                  throw new ApiError(409, 'This membership overlaps an existing term.');
+                await tx.memberTerm.create({
+                  data: {
+                    studioId,
+                    memberId: member.id,
+                    offerId,
+                    startsOn,
+                    endsOn,
+                    planName: offer.name,
+                    feePaise: offer.pricePaise,
+                  },
+                });
+              }
+              await requestMemberAccess(tx, member);
+              if (member.status === 'archived')
+                await tx.studioJoinRequest.updateMany({
+                  where: { memberId: member.id },
+                  data: { status: 'withdrawn' },
+                });
               break;
             }
             case 'offer': {
@@ -312,11 +386,25 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
               break;
             }
           }
+          const releasedBookings =
+            c.action === 'member' || c.action === 'cancelTerm'
+              ? await reconcileBookings(tx, studioId)
+              : 0;
           await tx.auditEvent.create({ data: { actorId, action: `studio.${c.action}`, targetId } });
-          return { ok: true, id: targetId };
+          return { ok: true, id: targetId, releasedBookings };
         },
         { isolationLevel: 'Serializable' as Prisma.TransactionIsolationLevel },
       ),
     process.env.DATABASE_PROVIDER !== 'postgresql',
   );
+  if (c.action === 'member' || c.action === 'cancelTerm')
+    await revokeIneligibleParticipants(studioId);
+  logEvent('info', 'studio_operation', {
+    ...requestContext.getStore(),
+    action: c.action,
+    studioId,
+    actorId,
+    targetId: result.id,
+  });
+  return result;
 }

@@ -27,10 +27,16 @@ export function validateProductionConfig(env) {
   try {
     deliveryEnabled = getEmailPolicy({ ...env, VERCEL: '1' }).deliveryEnabled;
   } catch {
-    errors.push('EMAIL_DELIVERY must be resend, disabled, or test.');
+    errors.push('EMAIL_DELIVERY must be resend, smtp, disabled, or test.');
   }
   const keys = deliveryEnabled
-    ? [...requiredProductionKeys, 'RESEND_API_KEY', 'EMAIL_FROM']
+    ? [
+        ...requiredProductionKeys,
+        ...(env.EMAIL_DELIVERY === 'smtp'
+          ? ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD']
+          : ['RESEND_API_KEY']),
+        'EMAIL_FROM',
+      ]
     : requiredProductionKeys;
   const missing = keys.filter((key) => !env[key]?.trim());
   if (missing.length) errors.push(`Missing required keys: ${missing.join(', ')}.`);
@@ -91,7 +97,16 @@ export function validateProductionConfig(env) {
     const sender = env.EMAIL_FROM.match(/^(?:[^<>]+<)?([^<>\s]+@[^<>\s]+\.[^<>\s]+)>?$/)?.[1];
     if (!sender || /@(resend\.dev|example\.(com|test|org))$/i.test(sender))
       errors.push('EMAIL_FROM must use an actual address on your verified sending domain.');
+    if (
+      env.EMAIL_DELIVERY === 'smtp' &&
+      sender?.toLowerCase() !== env.SMTP_USER?.trim().toLowerCase()
+    )
+      errors.push('SMTP EMAIL_FROM must match the authorized mailbox in SMTP_USER.');
   }
+  if (env.EMAIL_DELIVERY === 'smtp' && !['465', '587'].includes(env.SMTP_PORT || '465'))
+    errors.push('SMTP_PORT must be 465 or 587 with TLS.');
+  if (env.LOG_LEVEL && !['debug', 'info', 'warn', 'error'].includes(env.LOG_LEVEL))
+    errors.push('LOG_LEVEL must be debug, info, warn, or error.');
   const billingKeys = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_ID'];
   const billingConfigured = billingKeys.filter((key) => !!env[key]?.trim());
   if (billingConfigured.length && billingConfigured.length !== billingKeys.length)

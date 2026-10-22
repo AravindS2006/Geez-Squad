@@ -282,12 +282,27 @@ try {
     400,
     'future class cannot be completed',
   );
-  const invite = await a.call('/api/command', { action: 'invite', email: member.email });
-  check(invite.status, 200, 'invite linked account');
+  const pending = await db.studioJoinRequest.findUniqueOrThrow({ where: { memberId: first } });
   check(
-    (await member.call('/api/command', { action: 'acceptInvite', code: invite.data.code })).status,
+    (await member.call('/api/studio-join-requests', { requestId: pending.id, action: 'accept' }))
+      .status,
+    403,
+    'unverified identity cannot claim member data',
+  );
+  await db.user.update({ where: { id: ids[2] }, data: { emailVerified: true } });
+  const requests = await member.call('/api/studio-join-requests');
+  check(requests.data.requests.length, 1, 'member sees automatically created studio request');
+  check(
+    (await member.call('/api/studio-join-requests', { requestId: pending.id, action: 'accept' }))
+      .status,
     200,
-    'member accepts studio link',
+    'member accepts in app without coaching invitation',
+  );
+  check(
+    (await member.call('/api/studio-join-requests', { requestId: pending.id, action: 'accept' }))
+      .status,
+    200,
+    'acceptance retry is idempotent',
   );
   const self = await member.call('/api/my-membership');
   check(self.status, 200, 'member self view');
@@ -362,6 +377,87 @@ try {
     body: JSON.stringify(payment),
   });
   check(badOrigin.status, 403, 'cross-origin mutation rejected');
+  check(
+    (await member.call('/api/export')).data.studioRecords.length,
+    1,
+    'personal export includes linked studio records',
+  );
+  check(
+    (
+      await post({
+        action: 'member',
+        id: first,
+        name: 'Studio Test Member',
+        email: `contact-${key}@example.test`,
+        phone: '',
+        goal: 'Strength',
+        joinedOn: today,
+        status: 'active',
+      })
+    ).status,
+    200,
+    'linked contact email can change',
+  );
+  check(
+    (await member.call('/api/my-membership')).data.memberships[0].id,
+    first,
+    'contact email edit preserves account ownership',
+  );
+  const suspended = await post({
+    action: 'member',
+    id: second,
+    name: 'Second Studio Member',
+    email: `second-${key}@example.test`,
+    phone: '',
+    goal: 'Strength',
+    joinedOn: today,
+    status: 'paused',
+  });
+  check(suspended.status, 200, 'pause member');
+  check(suspended.data.releasedBookings, 1, 'pause releases future booking capacity');
+  const futureEmail = `studio-trainee-${agents.length}-${key}@example.test`;
+  const futureMember = await createMember('Future account', futureEmail);
+  const futureClient = await agent('Future account', 'trainee');
+  await db.user.update({ where: { email: futureEmail }, data: { emailVerified: true } });
+  let futureRequests = (await futureClient.call('/api/studio-join-requests')).data.requests;
+  check(futureRequests.length, 1, 'account created later discovers existing request');
+  check(
+    (
+      await futureClient.call('/api/studio-join-requests', {
+        requestId: futureRequests[0].id,
+        action: 'decline',
+      })
+    ).status,
+    200,
+    'client may decline',
+  );
+  check(
+    (await futureClient.call('/api/my-membership')).data.memberships.length,
+    0,
+    'declining exposes no membership history',
+  );
+  check(
+    (await post({ action: 'memberAccess', memberId: futureMember, operation: 'resend' })).status,
+    200,
+    'owner can explicitly resend',
+  );
+  futureRequests = (await futureClient.call('/api/studio-join-requests')).data.requests;
+  check(futureRequests.length, 1, 'resend restores one pending request');
+  check(
+    (await post({ action: 'memberAccess', memberId: futureMember, operation: 'withdraw' })).status,
+    200,
+    'owner can withdraw',
+  );
+  check(
+    (
+      await futureClient.call('/api/studio-join-requests', {
+        requestId: futureRequests[0].id,
+        action: 'accept',
+      })
+    ).status,
+    409,
+    'withdrawn request cannot be accepted',
+  );
   console.log(
     `PASS: ${checks} studio operations API checks, including membership lifecycle, concurrent payments, physical class capacity, owner isolation, and member self view.`,
   );

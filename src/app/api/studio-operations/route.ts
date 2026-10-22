@@ -1,10 +1,11 @@
+import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { operationsSchema } from '@/lib/studio-operations';
 import { readOperations, mutateOperations } from '@/lib/studio-operations-server';
 
-export async function GET() {
+async function handleGET() {
   try {
     const user = await requireUser();
     const studio = await db.studio.findUnique({ where: { ownerId: user.id } });
@@ -17,7 +18,7 @@ export async function GET() {
     return safeError(error);
   }
 }
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const studio = await db.studio.findUnique({ where: { ownerId: user.id } });
@@ -30,3 +31,7 @@ export async function POST(request: Request) {
     return safeError(error);
   }
 }
+
+export const GET = loggedRoute('/api/studio-operations', handleGET);
+
+export const POST = loggedRoute('/api/studio-operations', handlePOST);

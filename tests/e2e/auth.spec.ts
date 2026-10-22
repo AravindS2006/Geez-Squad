@@ -1,3 +1,4 @@
+import { grantStudioTerm } from './support/membership';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
@@ -19,6 +20,7 @@ test('a real coach account can onboard and persist a workout plan', async ({ pag
     await page.getByRole('button', { name: 'Create account', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'How do you want to move?' })).toBeVisible();
     await page.getByLabel('Your name', { exact: true }).fill('Browser Coach');
+    await page.getByRole('button', { name: /a coach/ }).click();
     await page.getByLabel('Studio name').fill('Browser test studio');
     await page.getByRole('checkbox', { name: /I am 18/ }).check();
     await page.getByRole('button', { name: 'Create my workspace' }).click();
@@ -152,11 +154,12 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     });
     expect(setup.ok()).toBe(true);
     await coach.goto('http://localhost:3000/app?view=clients');
-    await coach.getByRole('button', { name: 'Invite client', exact: true }).first().click();
-    await coach.getByLabel('Client’s email').fill(traineeEmail);
-    await coach.getByRole('button', { name: 'Create invite link' }).click();
-    const inviteUrl = await coach.getByLabel('Invitation link').inputValue();
-    await coach.getByRole('button', { name: 'Close dialog' }).click();
+    const legacyInvite = await coachContext.request.post('http://localhost:3000/api/command', {
+      headers,
+      data: { action: 'invite', email: traineeEmail },
+    });
+    expect(legacyInvite.ok()).toBe(true);
+    const inviteUrl = (await legacyInvite.json()).url;
     await trainee.goto(inviteUrl);
     await trainee.getByRole('button', { name: 'Create account', exact: true }).click();
     await trainee.getByLabel('Your name', { exact: true }).fill('Journey Trainee');
@@ -186,6 +189,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     ).toBeVisible();
     await coach.reload();
     await expect(coach.getByRole('heading', { name: 'Journey Trainee' })).toBeVisible();
+    await grantStudioTerm(db, traineeEmail);
     await coach.getByRole('link', { name: 'Live sessions', exact: true }).click();
     await coach.getByRole('button', { name: 'Schedule session', exact: true }).click();
     await coach.getByLabel('Session title').fill('A shared journey');

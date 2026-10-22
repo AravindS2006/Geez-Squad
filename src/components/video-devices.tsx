@@ -41,16 +41,24 @@ export function VideoDevices({
       capture.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
-  async function startPreview() {
+  function stopPreview() {
+    generation.current++;
+    capture.current?.getTracks().forEach((track) => track.stop());
+    capture.current = null;
+    if (video.current) video.current.srcObject = null;
+    setPreviewing(false);
+    setLoading(false);
+  }
+  async function startPreview(cameraId = preferences.cameraId) {
     const run = ++generation.current;
     capture.current?.getTracks().forEach((t) => t.stop());
     setError('');
     setLoading(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: preferences.cameraId
+        video: cameraId
           ? {
-              deviceId: { exact: preferences.cameraId },
+              deviceId: { exact: cameraId },
               width: { ideal: 1280 },
               height: { ideal: 720 },
               frameRate: { ideal: 30 },
@@ -71,8 +79,13 @@ export function VideoDevices({
       setPreviewing(true);
       setDevices(await navigator.mediaDevices.enumerateDevices());
     } catch {
-      if (run === generation.current)
+      if (run === generation.current) {
+        capture.current?.getTracks().forEach((track) => track.stop());
+        capture.current = null;
+        if (video.current) video.current.srcObject = null;
+        setPreviewing(false);
         setError('Camera preview could not start. Allow camera access or join with camera off.');
+      }
     } finally {
       if (run === generation.current) setLoading(false);
     }
@@ -93,13 +106,22 @@ export function VideoDevices({
             <Camera size={16} />
             {loading ? 'Opening camera…' : previewing ? 'Refresh preview' : 'Preview camera'}
           </button>
+          {(previewing || loading) && (
+            <button className="text-link" onClick={stopPreview}>
+              Stop preview
+            </button>
+          )}
         </>
       )}
       <label>
         Camera
         <select
           value={preferences.cameraId}
-          onChange={(e) => onChange({ ...preferences, cameraId: e.target.value })}
+          onChange={(e) => {
+            const id = e.target.value;
+            onChange({ ...preferences, cameraId: id });
+            if (previewing || loading) void startPreview(id);
+          }}
         >
           <option value="">Default camera</option>
           {devices

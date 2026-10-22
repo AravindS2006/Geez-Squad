@@ -1523,3 +1523,27 @@
     background: white;
   }
 }
+
+.studio-requests {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.studio-request {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+  border-top: 1px solid #e1e6dc;
+}
+.studio-request p {
+  max-width: 650px;
+  line-height: 1.6;
+  margin-top: 8px;
+}
+@media (max-width: 899px) {
+  .studio-request {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

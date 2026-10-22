@@ -1,3 +1,4 @@
+import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
@@ -10,8 +11,9 @@ import {
 } from '@/lib/security';
 import { workoutSetSchema } from '@/lib/validation';
 import { isHoldExercise } from '@/lib/exercise-profiles';
+import { requireParticipation } from '@/lib/member-access';
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const { ownerId, ...data } = workoutSetSchema.parse(await readJson(request));
@@ -40,6 +42,7 @@ export async function POST(request: Request) {
       const enrollment = item.enrollments.find((entry) => entry.userId === user.id);
       if (!enrollment?.consentAt || !['live', 'completed'].includes(item.status))
         throw new ApiError(403, 'Join and consent to this class before saving shared sets.');
+      if (item.status === 'live') await requireParticipation(item.studioId, user.id);
       if (
         !item.startedAt ||
         data.revision > item.revision ||
@@ -63,3 +66,5 @@ export async function POST(request: Request) {
     return safeError(error);
   }
 }
+
+export const POST = loggedRoute('/api/workout-sets', handlePOST);

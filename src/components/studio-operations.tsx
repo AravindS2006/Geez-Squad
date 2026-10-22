@@ -198,15 +198,17 @@ export function StudioOperations({
     lock.current = true;
     setBusy(true);
     setError('');
+    let releasedBookings = 0;
     try {
       const parsed = operationsSchema.parse(command);
       if (workspace.demo) setData(applyDemoOperation(data, parsed, crypto.randomUUID()));
       else {
-        await fetchJson('/api/studio-operations', {
+        const result = await fetchJson<{ releasedBookings?: number }>('/api/studio-operations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed),
         });
+        releasedBookings = result.releasedBookings || 0;
         try {
           setData(await fetchJson<OperationsData>('/api/studio-operations'));
         } catch {
@@ -216,7 +218,11 @@ export function StudioOperations({
         }
       }
       setEditor(null);
-      setNotice('Studio updated successfully.');
+      setNotice(
+        releasedBookings
+          ? `Studio updated. ${releasedBookings} ineligible future booking(s) cancelled and seats released.`
+          : 'Studio updated successfully.',
+      );
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Please check the fields and retry.');
@@ -391,6 +397,17 @@ export function StudioOperations({
                       <span>
                         <strong>{m.name}</strong>
                         <small>{m.email || m.phone || 'In-studio member'}</small>
+                        <small>
+                          {m.userId
+                            ? 'Connected'
+                            : !m.email
+                              ? 'No email'
+                              : m.accessStatus === 'pending' || (workspace.demo && !m.accessStatus)
+                                ? 'Pending confirmation'
+                                : m.accessStatus === 'declined'
+                                  ? 'Request declined'
+                                  : 'Request withdrawn'}
+                        </small>
                       </span>
                     </button>
                   </td>
@@ -456,6 +473,7 @@ export function StudioOperations({
         goal: str('goal'),
         joinedOn: str('joinedOn'),
         status: str('status') as 'active',
+        ...(str('offerId') ? { offerId: str('offerId'), startsOn: str('startsOn') } : {}),
       });
     if (kind === 'offer')
       await save({
@@ -1558,9 +1576,44 @@ export function StudioOperations({
               : 'Not yet'}
           </p>
           <p className="ops-context-note">
-            To enable online coaching, invite this member’s email from Coaching clients. Their
-            studio membership and coaching account are managed separately.
+            {selectedMember.userId
+              ? 'Connected to their account. Contact email edits do not change account access. Live participation requires an active membership.'
+              : selectedMember.email
+                ? 'This member can sign in with their personal email and accept the studio request. Their membership is saved immediately.'
+                : 'Add an email address to connect this member to their account. Walk-in memberships work without an account.'}
           </p>
+          {!selectedMember.userId &&
+            selectedMember.email &&
+            selectedMember.status !== 'archived' && (
+              <div className="form-actions">
+                <button
+                  className="button outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void save({
+                      action: 'memberAccess',
+                      memberId: selectedMember.id,
+                      operation: 'resend',
+                    })
+                  }
+                >
+                  Send studio request
+                </button>
+                <button
+                  className="text-link"
+                  disabled={busy}
+                  onClick={() =>
+                    void save({
+                      action: 'memberAccess',
+                      memberId: selectedMember.id,
+                      operation: 'withdraw',
+                    })
+                  }
+                >
+                  Withdraw request
+                </button>
+              </div>
+            )}
         </Modal>
       )}
       {editor && (
@@ -1586,8 +1639,8 @@ export function StudioOperations({
                   <div className="ops-form-note">
                     <Users size={18} />
                     <p>
-                      Create a member record, then assign a membership. A coaching account can be
-                      invited separately.
+                      Save your member and assign a membership. With an email address, they can sign
+                      in and accept the studio request. No separate coaching invitation is needed.
                     </p>
                   </div>
                   <Field label="Full name">
@@ -1625,6 +1678,25 @@ export function StudioOperations({
                       defaultValue={editMember?.goal}
                     />
                   </Field>
+                  {!editMember && (
+                    <div className="ops-form-grid">
+                      <Field label="Membership plan (optional)">
+                        <select name="offerId" defaultValue="">
+                          <option value="">Assign later</option>
+                          {data.offers
+                            .filter((offer) => offer.active)
+                            .map((offer) => (
+                              <option key={offer.id} value={offer.id}>
+                                {offer.name} · {money(offer.pricePaise)}
+                              </option>
+                            ))}
+                        </select>
+                      </Field>
+                      <Field label="Membership starts on">
+                        <input type="date" name="startsOn" defaultValue={today} required />
+                      </Field>
+                    </div>
+                  )}
                   <div className="ops-form-grid">
                     <Field label="Joined on">
                       <input

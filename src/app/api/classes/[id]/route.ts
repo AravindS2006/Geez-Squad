@@ -1,14 +1,16 @@
+import { loggedRoute } from '@/lib/request-log';
+import { participation, revokeIneligibleParticipants } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, safeError } from '@/lib/security';
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleGET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
     const { id } = await context.params;
     const item = await db.classSession.findUnique({
       where: { id },
       include: {
-        studio: { select: { ownerId: true } },
+        studio: { select: { id: true, ownerId: true } },
         plan: { select: { blocks: true } },
         _count: { select: { enrollments: true } },
       },
@@ -23,6 +25,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       orderBy: { createdAt: 'asc' },
     });
     if (!coach && !enrollments.length) throw new ApiError(404, 'This session is not available.');
+    const eligibility =
+      coach || ['completed', 'cancelled'].includes(item.status)
+        ? { allowed: true, reason: '' }
+        : await participation(item.studio.id, user.id);
+    if (item.status === 'live')
+      await revokeIneligibleParticipants(item.studio.id, coach ? undefined : user.id);
     const messages = await db.message.findMany({
       where: {
         classId: id,
@@ -34,6 +42,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     });
     return NextResponse.json(
       {
+        participationAllowed: eligibility.allowed,
+        participationReason: eligibility.reason,
         title: item.title,
         startsAt: item.startsAt,
         duration: item.duration,
@@ -77,3 +87,5 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return safeError(error);
   }
 }
+
+export const GET = loggedRoute('/api/classes/[id]', handleGET);

@@ -4,10 +4,13 @@ import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import { auth, emailPolicy } from './auth';
 import { db } from './db';
+import { errorContext, logEvent } from './logger';
+import { requestContext } from './request-log';
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -18,7 +21,11 @@ export async function requireUser() {
   const user = await db.user.findUnique({ where: { id: session.user.id } });
   if (!user) throw new ApiError(401, 'Your session has expired.');
   if (emailPolicy.requireVerification && !user.emailVerified)
-    throw new ApiError(401, 'Please verify your email, then sign in to continue.');
+    throw new ApiError(
+      403,
+      'Please verify your email, then sign in to continue.',
+      'EMAIL_VERIFICATION_REQUIRED',
+    );
   return user;
 }
 export function checkOrigin(request: Request) {
@@ -64,25 +71,26 @@ export async function rateLimit(userId: string, action: string, max = 60) {
   if (row.count > max) throw new ApiError(429, 'Please wait a minute before trying again.');
 }
 export function safeError(error: unknown) {
-  const requestId = crypto.randomUUID();
-  if (error instanceof ApiError)
-    return NextResponse.json({ error: error.message, requestId }, { status: error.status });
+  const context = requestContext.getStore();
+  const requestId = context?.requestId ?? crypto.randomUUID();
+  if (error instanceof ApiError) {
+    logEvent(error.status >= 500 ? 'error' : 'warn', 'api_rejected', {
+      ...context,
+      requestId,
+      status: error.status,
+      code: error.code,
+    });
+    return NextResponse.json(
+      { error: error.message, requestId, code: error.code },
+      { status: error.status },
+    );
+  }
   if (error instanceof ZodError)
     return NextResponse.json(
       { error: error.issues[0]?.message ?? 'Please check the fields.', requestId },
       { status: 400 },
     );
-  console.error(
-    JSON.stringify({
-      event: 'api_error',
-      requestId,
-      type: error instanceof Error ? error.name : 'unknown',
-      code:
-        error instanceof Error && 'code' in error && /^P\d{4}$/.test(String(error.code))
-          ? String(error.code)
-          : undefined,
-    }),
-  );
+  logEvent('error', 'api_error', { ...context, requestId, ...errorContext(error) });
   return NextResponse.json(
     { error: 'Something went wrong. Please retry.', requestId },
     { status: 500 },

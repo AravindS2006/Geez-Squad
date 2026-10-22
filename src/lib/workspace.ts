@@ -10,6 +10,12 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
   const studio = await db.studio.findFirst({
     where: { OR: [{ ownerId: userId }, { memberships: { some: { userId } } }] },
   });
+  const memberProfiles = studio
+    ? await db.studioMember.findMany({
+        where: { studioId: studio.id, userId: { not: null } },
+        select: { userId: true, name: true, goal: true },
+      })
+    : [];
   const visibleUser =
     studio && user.role === 'coach'
       ? { OR: [{ id: userId }, { memberships: { some: { studioId: studio.id } } }] }
@@ -146,10 +152,10 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     studio: studio ? { id: studio.id, name: studio.name } : null,
     clients: members.map((m) => ({
       id: m.userId,
-      name: m.user.name,
+      name: memberProfiles.find((p) => p.userId === m.userId)?.name ?? m.user.name,
       email: m.user.email,
       role: m.user.role,
-      goal: m.user.goal,
+      goal: memberProfiles.find((p) => p.userId === m.userId)?.goal ?? m.user.goal,
       joinedAt: m.createdAt.toISOString(),
       coachNote: m.coachNote,
       latestCheckIn: m.user.checkIns[0]
@@ -200,7 +206,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
         process.env.STRIPE_PRICE_ID &&
         process.env.STRIPE_WEBHOOK_SECRET
       ),
-      email: !!process.env.RESEND_API_KEY,
+      email: ['smtp', 'resend'].includes(process.env.EMAIL_DELIVERY || ''),
     },
   };
 }

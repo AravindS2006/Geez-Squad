@@ -1,10 +1,12 @@
+import { loggedRoute } from '@/lib/request-log';
+import { requireParticipation } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
 import { metricElapsedSeconds } from '@/lib/metric-policy';
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const data = metricSchema.parse(await readJson(request));
@@ -26,6 +28,7 @@ export async function POST(request: Request) {
               item.exercise !== data.exercise
             )
               throw new ApiError(409, 'This exercise has changed or paused.');
+            await requireParticipation(item.studioId, user.id, undefined, tx);
             const previous = enrollment.metric;
             if (previous?.revision === data.revision && data.reps < previous.reps)
               throw new ApiError(409, 'Stale rep count.');
@@ -94,3 +97,5 @@ export async function POST(request: Request) {
     return safeError(error);
   }
 }
+
+export const POST = loggedRoute('/api/metrics', handlePOST);

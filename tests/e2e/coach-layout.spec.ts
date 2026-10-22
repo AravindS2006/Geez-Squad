@@ -1,3 +1,4 @@
+import { grantStudioTerm } from './support/membership';
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
@@ -57,6 +58,7 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     });
     expect(accepted.ok()).toBe(true);
     const trainee = await db.user.findUniqueOrThrow({ where: { email: traineeEmail } });
+    await grantStudioTerm(db, traineeEmail);
     const created = await coach.request.post(`${origin}/api/command`, {
       headers,
       data: {

@@ -43,6 +43,8 @@ Test coach and trainee accounts on two physical devices over separate networks. 
 
 ## 3. Identity and email
 
+The current no-domain option is free Gmail SMTP with the existing mailbox. See [account upgrade deployment instructions](ACCOUNT_MEMBERSHIP_UPGRADE.md#free-gmail-sending). Configure `EMAIL_DELIVERY=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and matching `EMAIL_FROM`; test verification and recovery before release. The Resend/domain instructions below describe the retained alternative transport.
+
 Set a unique random `BETTER_AUTH_SECRET` of at least 32 characters and the exact HTTPS `BETTER_AUTH_URL`. Production verification is required unless the operator explicitly selects testing mode. Configure Resend using a verified sending domain and `RESEND_API_KEY`/`EMAIL_FROM`; test verification and password-reset delivery. Invite links are generated for manual sharing and require both their secret link and the matching invited email address.
 
 The two generated secrets are independent and stored as sensitive Production variables. The app origin is `https://geez-squad.vercel.app` unless a custom domain is explicitly configured later.

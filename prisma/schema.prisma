@@ -26,6 +26,7 @@ model User {
   workoutSets WorkoutSet[]
   checkIns CheckIn[]
   assignments PlanAssignment[]
+  studioMembers StudioMember[]
 }
 model Session {
   id String @id
@@ -99,6 +100,7 @@ model Studio {
 model StudioMember {
   id String @id @default(cuid())
   studioId String
+  userId String?
   name String
   email String @default("")
   phone String @default("")
@@ -107,10 +109,24 @@ model StudioMember {
   joinedOn String
   createdAt DateTime @default(now())
   studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  joinRequest StudioJoinRequest?
   terms MemberTerm[]
   attendance StudioAttendance[]
   bookings StudioBooking[]
   @@index([studioId, status])
+  @@unique([studioId, userId])
+}
+
+model StudioJoinRequest {
+  id String @id @default(cuid())
+  memberId String @unique
+  email String
+  status String @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@index([email, status])
 }
 
 model MembershipOffer {

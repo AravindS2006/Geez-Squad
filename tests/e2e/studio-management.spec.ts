@@ -1,3 +1,4 @@
+import { grantStudioTerm } from './support/membership';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
@@ -68,6 +69,7 @@ test('coach reschedules a class, changes its roster, manages a profile, and remo
         ).toBe(true);
       }
     }
+    for (const clientId of ids.slice(1)) await grantStudioTerm(db, clientId);
     const created = await coach.request.post(`${origin}/api/command`, {
       headers,
       data: {
@@ -131,7 +133,12 @@ test('coach reschedules a class, changes its roster, manages a profile, and remo
       coach.getByRole('status').filter({ hasText: 'Trainee profile saved.' }),
     ).toBeVisible();
     await second.goto('/app');
-    await expect(second.getByText('Build strength twice a week', { exact: true })).toBeVisible();
+    expect((await db.user.findUniqueOrThrow({ where: { id: ids[2] } })).goal).not.toBe(
+      'Build strength twice a week',
+    );
+    expect((await db.studioMember.findFirstOrThrow({ where: { userId: ids[2] } })).goal).toBe(
+      'Build strength twice a week',
+    );
     await coach.getByText('Studio membership', { exact: true }).click();
     await coach.getByRole('button', { name: 'Remove from studio', exact: true }).click();
     await coach.getByRole('button', { name: 'Confirm removal', exact: true }).click();

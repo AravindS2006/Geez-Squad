@@ -25,7 +25,7 @@ The dashboard derives all operational numbers from saved data: active membership
 
 ## Member accounts and access
 
-Physical members do not need app accounts. To give a member coaching access, invite their exact email through Coaching clients and have them accept the invitation. Their signed-in personal dashboard can then show their own studio membership, balance and recent visits. The personal membership endpoint requires both the matching account email and accepted studio membership; email matching alone never grants access.
+Physical members do not need app accounts. Adding a member with an email creates an in-app request automatically. After signing up with a personal email and verifying it, the client accepts once to connect their membership and coaching access. Contact email edits do not transfer account ownership. See [account and membership upgrade](ACCOUNT_MEMBERSHIP_UPGRADE.md) for migration, email, and participation rules.
 
 Operations reads and writes require the authenticated owner of that studio. Every referenced member, plan, term, staff record, enquiry and class is checked within that studio. Members cannot fetch the owner dashboard. Mutations use origin checking, bounded JSON bodies, input validation, rate limits and audit events. Financial and capacity changes run in serializable transactions with the existing SQLite queue and PostgreSQL conflict retry helper.
 

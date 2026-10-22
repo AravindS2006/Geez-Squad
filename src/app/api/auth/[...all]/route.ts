@@ -1,3 +1,6 @@
+import { loggedRoute } from '@/lib/request-log';
 import { auth } from '@/lib/auth';
 import { toNextJsHandler } from 'better-auth/next-js';
-export const { GET, POST } = toNextJsHandler(auth);
+const handlers = toNextJsHandler(auth);
+export const GET = loggedRoute('/api/auth/[...all]', handlers.GET);
+export const POST = loggedRoute('/api/auth/[...all]', handlers.POST);

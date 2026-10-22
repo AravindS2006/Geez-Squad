@@ -1,3 +1,4 @@
+import { grantStudioTerm } from './support/membership';
 import { test, expect, chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
@@ -59,6 +60,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
         })
       ).ok(),
     ).toBe(true);
+    await grantStudioTerm(db, emails[1]);
     const createdPlan = await coach.request.post(`${origin}/api/command`, {
       headers,
       data: {

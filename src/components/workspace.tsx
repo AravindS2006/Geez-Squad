@@ -63,6 +63,7 @@ import { CoachingFollowUps } from './coaching-follow-ups';
 import { coachingOverview } from '@/lib/coaching-insights';
 import { compareSessions } from '@/lib/session-timing';
 import { StudioOperations } from './studio-operations';
+import { StudioJoinRequests } from './studio-join-requests';
 import { MemberMembership } from './member-membership';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
@@ -640,6 +641,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </div>
         )}
         <main className={`workspace-content ${activeView === 'studio' ? 'studio-content' : ''}`}>
+          {!data.demo && data.user.role === 'trainee' && <StudioJoinRequests />}
           {syncWarning && (
             <p className="inline-notice" role="status">
               {syncWarning}
@@ -891,10 +893,10 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     ) : (
                       <EmptyState
                         title="Build your circle."
-                        text="Invite your first client and help them find their stride."
+                        text="Add your first member and assign their membership."
                         action={
-                          <button className="button lime" onClick={() => show('invite')}>
-                            Invite a client
+                          <button className="button lime" onClick={() => go('members')}>
+                            Add a member
                           </button>
                         }
                       />
@@ -947,8 +949,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 title="People make the progress."
                 text="A clear view of every person you coach."
                 action={
-                  <button className="button dark" onClick={() => show('invite')}>
-                    <Plus size={17} /> Invite client
+                  <button className="button dark" onClick={() => go('members')}>
+                    <Plus size={17} /> Add member
                   </button>
                 }
               />
@@ -1009,8 +1011,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                       : 'Start with an invitation, then build something stronger together.'
                   }
                   action={
-                    <button className="button lime" onClick={() => show('invite')}>
-                      Invite client
+                    <button className="button lime" onClick={() => go('members')}>
+                      Add member
                     </button>
                   }
                 />
@@ -2024,7 +2026,7 @@ function Onboarding({
   error: string;
   onSubmit: (c: Command) => void;
 }) {
-  const [role, setRole] = useState(invited ? 'trainee' : 'coach');
+  const [role, setRole] = useState('trainee');
   const dialog = useRef<HTMLDialogElement>(null);
   const headingId = useId();
   useEffect(() => {

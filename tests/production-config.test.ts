@@ -15,6 +15,32 @@ const valid = {
   CRON_SECRET: 'b'.repeat(43),
 };
 describe('production deployment guard', () => {
+  it('accepts a free Gmail sender with SMTP instead of requiring a sending domain', () => {
+    expect(
+      validateProductionConfig({
+        ...valid,
+        EMAIL_DELIVERY: 'smtp',
+        RESEND_API_KEY: undefined,
+        EMAIL_FROM: 'Geez Squad <studio@gmail.com>',
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'studio@gmail.com',
+        SMTP_PASSWORD: 'test-app-password',
+        SMTP_PORT: '465',
+      }),
+    ).toEqual([]);
+  });
+  it('rejects insecure SMTP ports and a sender different from the authorized mailbox', () => {
+    const result = validateProductionConfig({
+      ...valid,
+      EMAIL_DELIVERY: 'smtp',
+      SMTP_HOST: 'smtp.gmail.com',
+      SMTP_USER: 'studio@gmail.com',
+      SMTP_PASSWORD: 'test-app-password',
+      SMTP_PORT: '25',
+    }).join(' ');
+    expect(result).toContain('SMTP_PORT');
+    expect(result).toContain('SMTP_USER');
+  });
   it('accepts complete configuration with billing disabled', () => {
     expect(validateProductionConfig(valid)).toEqual([]);
   });
@@ -56,7 +82,7 @@ describe('production deployment guard', () => {
   });
   it('rejects unknown delivery modes rather than silently disabling email', () => {
     expect(validateProductionConfig({ ...valid, EMAIL_DELIVERY: 'disable' })).toContain(
-      'EMAIL_DELIVERY must be resend, disabled, or test.',
+      'EMAIL_DELIVERY must be resend, smtp, disabled, or test.',
     );
   });
   it('reports missing services using key names only', () => {

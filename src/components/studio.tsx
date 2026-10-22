@@ -31,6 +31,7 @@ import type { Room, Participant, Track } from 'livekit-client';
 import type { Analysis } from '@/lib/pose-engine';
 import type { ClassView, MessageView, Person, WorkspaceData } from '@/lib/types';
 import { apiCommand, fetchJson } from '@/lib/client';
+import { enableJoinDevices } from '@/lib/join-devices';
 import { exercises, exerciseName } from '@/lib/catalog';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { Avatar, EmptyState, Modal } from './ui';
@@ -66,6 +67,8 @@ type LiveState = Pick<
   | 'participants'
 > & {
   messages: MessageView[];
+  participationAllowed: boolean;
+  participationReason: string;
 };
 type CoachVideoLayout = {
   size: 'small' | 'medium' | 'large';
@@ -108,6 +111,10 @@ export function Studio({
     [now, setNow] = useState(() => Date.now()),
     [connectionState, setConnectionState] = useState('Not connected'),
     [analysisWarning, setAnalysisWarning] = useState('');
+  const [syncWarning, setSyncWarning] = useState('');
+  const [participationReason, setParticipationReason] = useState('');
+  const [diagnostics, setDiagnostics] = useState(false);
+  const [diagnosticsNotice, setDiagnosticsNotice] = useState('');
   const [devicesOpen, setDevicesOpen] = useState(false);
   const { dateLabel, timeLabel, timeZone } = useTimeFormat();
   const [linkMessage, setLinkMessage] = useState('');
@@ -239,6 +246,12 @@ export function Studio({
         }
         setItem((p) => (p ? { ...p, ...state } : p));
         setMessages(state.messages);
+        setParticipationReason(state.participationAllowed ? '' : state.participationReason);
+        if (!state.participationAllowed && !coach) {
+          joinGeneration.current++;
+          setShowConsent(false);
+          void room.current?.disconnect();
+        }
         if (state.status === 'completed' || state.status === 'cancelled') {
           joinGeneration.current++;
           setShowConsent(false);
@@ -246,11 +259,15 @@ export function Studio({
           setConnected(false);
           setStream(null);
         }
-        setAnalysisWarning('');
-      } catch {
+        setSyncWarning('');
+      } catch (err) {
         if (active) {
           failures++;
-          setAnalysisWarning('Session updates are delayed. Reconnecting…');
+          setSyncWarning(
+            err instanceof Error
+              ? `Session updates: ${err.message}`
+              : 'Session updates are delayed. Reconnecting…',
+          );
         }
       }
       if (active) timer = setTimeout(poll, Math.min(15000, 3000 * (failures + 1)));
@@ -468,6 +485,12 @@ export function Studio({
           setStream(null);
           setCamera(false);
           setMic(false);
+          setRemote([]);
+          setFocus(null);
+          setAudioBlocked(false);
+          setPresenting(false);
+          setConnectionState('Not connected');
+          room.current = null;
         }
       });
       await instance.connect(credentials.url, credentials.token, { autoSubscribe: false });
@@ -485,18 +508,16 @@ export function Studio({
         await instance.disconnect();
         return;
       }
-      await instance.localParticipant.setCameraEnabled(preferences.cameraOn);
+      const deviceErrors = await enableJoinDevices(
+        instance.localParticipant,
+        preferences,
+        () => mounted.current && joinGeneration.current === run,
+      );
       if (!mounted.current || joinGeneration.current !== run) {
         await instance.disconnect();
         return;
       }
-      await instance.localParticipant.setMicrophoneEnabled(preferences.microphoneOn);
-      if (!mounted.current || joinGeneration.current !== run) {
-        await instance.disconnect();
-        return;
-      }
-      setCamera(preferences.cameraOn);
-      setMic(preferences.microphoneOn);
+      if (deviceErrors.length) setError(deviceErrors.join(' '));
       update();
     } catch (err) {
       if (mounted.current && joinGeneration.current === run) {
@@ -825,6 +846,17 @@ export function Studio({
           {analysisWarning}
         </p>
       )}
+      {syncWarning && (
+        <p className="inline-notice meeting-notice" role="status">
+          {syncWarning}
+        </p>
+      )}
+      {participationReason && !coach && (
+        <p className="inline-notice meeting-notice" role="status">
+          {participationReason}
+        </p>
+      )}
+
       {audioBlocked && connected && (
         <p className="inline-notice meeting-notice" role="status">
           Class audio is paused by your browser.
@@ -1348,6 +1380,47 @@ export function Studio({
         <Modal title="Meeting options" onClose={() => setDevicesOpen(false)}>
           {item.status === 'live' && sessionDetails}
           <div className="form-stack">
+            <details
+              className="meeting-diagnostics"
+              onToggle={(event) => setDiagnostics(event.currentTarget.open)}
+            >
+              <summary>Connection diagnostics</summary>
+              {diagnostics && (
+                <div>
+                  <p>
+                    Connection: {connectionState} · Camera: {camera ? 'on' : 'off'} · Microphone:{' '}
+                    {mic ? 'on' : 'off'}
+                  </p>
+                  <button
+                    className="text-link"
+                    onClick={async () => {
+                      const report = JSON.stringify(
+                        {
+                          connection: connectionState,
+                          camera,
+                          microphone: mic,
+                          audioBlocked,
+                          sessionSync: Boolean(syncWarning),
+                          summarySharing: Boolean(analysisWarning),
+                          timestamp: new Date().toISOString(),
+                        },
+                        null,
+                        2,
+                      );
+                      try {
+                        await navigator.clipboard.writeText(report);
+                        setDiagnosticsNotice('Diagnostics copied.');
+                      } catch {
+                        setDiagnosticsNotice('Copy is unavailable in this browser.');
+                      }
+                    }}
+                  >
+                    Copy diagnostics
+                  </button>
+                  <p role="status">{diagnosticsNotice}</p>
+                </div>
+              )}
+            </details>
             {connected && (
               <fieldset disabled={deviceBusy}>
                 <VideoDevices
@@ -1527,7 +1600,7 @@ export function Studio({
             </label>
             <button
               className="button lime full"
-              disabled={!consent || connecting}
+              disabled={!consent || connecting || Boolean(participationReason)}
               onClick={() => void connect()}
             >
               <Video size={17} />

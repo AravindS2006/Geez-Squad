@@ -53,7 +53,7 @@ for (const path of [
 }
 for (const [path, button] of [
   ['/demo?view=plans', 'Create plan'],
-  ['/demo?view=clients', 'Invite client'],
+  ['/demo?view=members', 'Add member'],
   ['/demo?view=sessions', 'Schedule session'],
 ]) {
   await page.goto(`http://localhost:3000${path}`);

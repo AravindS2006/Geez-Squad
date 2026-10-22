@@ -223,7 +223,8 @@ export function ScheduleForm({
       </div>
       {!data.clients.length && (
         <p className="inline-notice">
-          Invite clients to your studio to add them. You can schedule a solo rehearsal now.
+          Add clients in Members and ask them to accept their studio request. You can schedule a
+          solo rehearsal now.
         </p>
       )}
       {selectedCount > capacity && (

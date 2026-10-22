@@ -1008,7 +1008,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   text={
                     search || followUpOnly
                       ? 'Try another name or email, or turn off the follow-up filter.'
-                      : 'Start with an invitation, then build something stronger together.'
+                      : 'Add a member and connect their account to start coaching together.'
                   }
                   action={
                     <button className="button lime" onClick={() => go('members')}>

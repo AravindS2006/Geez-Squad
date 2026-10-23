@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { loggedRoute } from '@/lib/request-log';
 import {
   linkAcceptedMember,
@@ -25,6 +26,13 @@ import {
   requireClass,
 } from '@/lib/security';
 import { RoomServiceClient, TrackSource } from 'livekit-server-sdk';
+import {
+  studioAccess,
+  requireTraineeAccess,
+  classPermissions,
+  grantTrainee,
+  requireStudio,
+} from '@/lib/studio-access';
 async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
@@ -35,18 +43,40 @@ async function handlePOST(request: Request) {
       actorId: user.id,
     });
     await rateLimit(user.id, 'command');
-    const studio = await db.studio.findUnique({ where: { ownerId: user.id } });
+    const access = await studioAccess(user.id);
+    const studio = access?.studio;
     const requireCoach = () => {
-      if (user.role !== 'coach' || !studio)
-        throw new ApiError(403, 'Only your studio coach can do this.');
+      if (!access?.coach || !studio)
+        throw new ApiError(403, 'An active coaching role is required.');
       return studio;
+    };
+    const requireAdmin = () => {
+      if (!access?.admin || !studio) throw new ApiError(403, 'Studio admin access is required.');
+      return studio;
+    };
+    const assertPlan = async (id: string, store: Prisma.TransactionClient = db) => {
+      const owned = requireCoach();
+      const actor = await requireStudio(user.id, 'coach', owned.id, store);
+      const plan = await store.workoutPlan.findFirst({ where: { id, studioId: owned.id } });
+      if (!plan || (!actor.admin && plan.createdById !== user.id))
+        throw new ApiError(404, 'This plan is not editable by you.');
+      return plan;
+    };
+    const selectHost = async (hostId?: string) => {
+      const owned = requireCoach();
+      const selected = hostId ?? user.id;
+      if (!access?.admin && selected !== user.id)
+        throw new ApiError(403, 'Only admins can appoint another host.');
+      await requireStudio(selected, 'coach', owned.id);
+      return selected;
     };
     let result: Record<string, unknown> = { ok: true };
     switch (data.action) {
       case 'muteParticipants': {
         requireCoach();
         const item = await requireClass(data.id, user.id);
-        if (item.studio.ownerId !== user.id)
+        const permissions = await classPermissions(item, user.id);
+        if (!permissions.canManage)
           throw new ApiError(403, 'Only this session’s coach can mute participants.');
         if (item.status !== 'live')
           throw new ApiError(409, 'Start this class before managing microphones.');
@@ -94,20 +124,13 @@ async function handlePOST(request: Request) {
               data: { name: data.name, role: data.role, consentVersion: 'adult-wellness-v1' },
             });
             if (!updated.count) throw new ApiError(409, 'Your account is already set up.');
-            if (data.role === 'coach')
-              await tx.studio.create({
-                data: {
-                  ownerId: user.id,
-                  name: data.studioName?.trim() || `${data.name}'s studio`,
-                },
-              });
           },
           { isolationLevel: 'Serializable' },
         );
         break;
       }
       case 'invite': {
-        const owned = requireCoach();
+        const owned = requireAdmin();
         const code = randomBytes(24).toString('base64url');
         await db.invitation.create({
           data: {
@@ -126,7 +149,7 @@ async function handlePOST(request: Request) {
         break;
       }
       case 'acceptInvite': {
-        if (user.role !== 'trainee')
+        if (user.role === 'unset')
           throw new ApiError(403, 'Set up a trainee account to accept this invitation.');
         const invitation = await db.invitation.findUnique({
           where: { codeHash: createHash('sha256').update(data.code).digest('hex') },
@@ -143,6 +166,9 @@ async function handlePOST(request: Request) {
           );
         await db.$transaction(
           async (tx) => {
+            const currentAccess = await studioAccess(user.id, undefined, tx);
+            if (currentAccess && currentAccess.studio.id !== invitation.studioId)
+              throw new ApiError(409, 'Your account already belongs to another studio.');
             if (await tx.membership.findFirst({ where: { userId: user.id } }))
               throw new ApiError(409, 'You already belong to a studio.');
             const claimed = await tx.invitation.updateMany({
@@ -154,6 +180,7 @@ async function handlePOST(request: Request) {
               data: { studioId: invitation.studioId, userId: user.id },
             });
             await linkAcceptedMember(tx, invitation.studioId, user);
+            await grantTrainee(tx, invitation.studioId, user.id);
             await tx.studioJoinRequest.updateMany({
               where: { email: user.email.toLowerCase(), member: { studioId: invitation.studioId } },
               data: { status: 'accepted' },
@@ -165,34 +192,38 @@ async function handlePOST(request: Request) {
       }
       case 'savePlan': {
         const owned = requireCoach();
-        if (data.id) {
-          const exists = await db.workoutPlan.findFirst({
-            where: { id: data.id, studioId: owned.id },
-          });
-          if (!exists) throw new ApiError(404, 'Plan not found.');
-        }
-        const plan = data.id
-          ? await db.workoutPlan.update({
-              where: { id: data.id },
-              data: { name: data.name, description: data.description, blocks: data.blocks },
-            })
-          : await db.workoutPlan.create({
-              data: {
-                studioId: owned.id,
-                name: data.name,
-                description: data.description,
-                blocks: data.blocks,
+        const plan = await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                await requireStudio(user.id, 'coach', owned.id, tx);
+                if (data.id) await assertPlan(data.id, tx);
+                const fields = {
+                  name: data.name,
+                  description: data.description,
+                  blocks: data.blocks,
+                };
+                return data.id
+                  ? tx.workoutPlan.update({ where: { id: data.id }, data: fields })
+                  : tx.workoutPlan.create({
+                      data: { ...fields, studioId: owned.id, createdById: user.id },
+                    });
               },
-            });
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
         result.id = plan.id;
         break;
       }
       case 'assignPlan': {
         const owned = requireCoach();
+        await requireTraineeAccess(user.id, owned.id, data.userId);
         await writeTransaction(
           () =>
             db.$transaction(
               async (tx) => {
+                await requireTraineeAccess(user.id, owned.id, data.userId, tx);
                 const member = await tx.membership.findUnique({
                   where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
                 });
@@ -221,15 +252,30 @@ async function handlePOST(request: Request) {
       }
       case 'coachNote': {
         const owned = requireCoach();
-        const changed = await db.membership.updateMany({
-          where: { studioId: owned.id, userId: data.userId },
-          data: { coachNote: data.note },
-        });
-        if (!changed.count) throw new ApiError(404, 'Choose a client from your own studio.');
+        await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                const target = await requireTraineeAccess(user.id, owned.id, data.userId, tx);
+                if (target.access.admin)
+                  await tx.membership.update({
+                    where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
+                    data: { coachNote: data.note },
+                  });
+                else
+                  await tx.primaryCoachAssignment.update({
+                    where: { memberId: target.member.id },
+                    data: { note: data.note },
+                  });
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
         break;
       }
       case 'checkIn': {
-        if (user.role !== 'trainee') throw new ApiError(403, 'Check-ins are for trainee accounts.');
+        if (user.role === 'unset') throw new ApiError(403, 'Complete your personal profile first.');
         await rateLimit(user.id, 'check-in', 5);
         const { action: _action, ...values } = data;
         await db.checkIn.create({ data: { ...values, userId: user.id } });
@@ -237,22 +283,46 @@ async function handlePOST(request: Request) {
       }
       case 'deletePlan': {
         const owned = requireCoach();
-        const removed = await db.workoutPlan.deleteMany({
-          where: { id: data.id, studioId: owned.id },
-        });
-        if (!removed.count) throw new ApiError(404, 'Plan not found.');
+        await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                await assertPlan(data.id, tx);
+                await tx.workoutPlan.delete({ where: { id: data.id } });
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          process.env.DATABASE_PROVIDER !== 'postgresql',
+        );
         break;
       }
       case 'createClass': {
         const owned = requireCoach();
+        const hostId = await selectHost(data.hostId);
         const item = await writeTransaction(
           () =>
             db.$transaction(
               async (tx) => {
+                const actorAccess = await requireStudio(user.id, 'coach', owned.id, tx);
+                await requireStudio(hostId, 'coach', owned.id, tx);
                 const ids = data.includeAllClients
                   ? (
                       await tx.membership.findMany({
-                        where: { studioId: owned.id },
+                        where: {
+                          studioId: owned.id,
+                          ...(!actorAccess.admin
+                            ? {
+                                user: {
+                                  studioMembers: {
+                                    some: {
+                                      studioId: owned.id,
+                                      primaryCoach: { coachId: user.id },
+                                    },
+                                  },
+                                },
+                              }
+                            : {}),
+                        },
                         select: { userId: true },
                       })
                     ).map((member) => member.userId)
@@ -271,6 +341,8 @@ async function handlePOST(request: Request) {
                 if (members !== ids.length)
                   throw new ApiError(403, 'Select clients from your own studio.');
                 for (const clientId of ids)
+                  if (!access?.admin) await requireTraineeAccess(user.id, owned.id, clientId, tx);
+                for (const clientId of ids)
                   await requireParticipation(
                     owned.id,
                     clientId,
@@ -286,6 +358,7 @@ async function handlePOST(request: Request) {
                 return tx.classSession.create({
                   data: {
                     studioId: owned.id,
+                    hostId,
                     title: data.title,
                     startsAt: new Date(data.startsAt),
                     duration: data.duration,
@@ -304,12 +377,22 @@ async function handlePOST(request: Request) {
       }
       case 'updateClass': {
         const owned = requireCoach();
+        const existingHost = await db.classSession.findUnique({ where: { id: data.id } });
+        if (
+          !existingHost ||
+          existingHost.studioId !== owned.id ||
+          (!access?.admin && existingHost.hostId !== user.id)
+        )
+          throw new ApiError(404, 'Session not available.');
+        const hostId = await selectHost(data.hostId ?? existingHost.hostId ?? owned.ownerId);
         if (Date.parse(data.startsAt) < Date.now() - 60000)
           throw new ApiError(400, 'Choose a future start time.');
         await writeTransaction(
           () =>
             db.$transaction(
               async (tx) => {
+                const actorAccess = await requireStudio(user.id, 'coach', owned.id, tx);
+                await requireStudio(hostId, 'coach', owned.id, tx);
                 const item = await tx.classSession.findFirst({
                   where: { id: data.id, studioId: owned.id },
                   include: { enrollments: true },
@@ -327,8 +410,18 @@ async function handlePOST(request: Request) {
                   select: { userId: true },
                 });
                 const allowed = new Set(members.map((member) => member.userId));
+                const assignedIds = actorAccess.admin
+                  ? []
+                  : (
+                      await tx.studioMember.findMany({
+                        where: { studioId: owned.id, primaryCoach: { coachId: user.id } },
+                        select: { userId: true },
+                      })
+                    ).map((m) => m.userId);
                 const ids = data.includeAllClients
-                  ? [...allowed]
+                  ? members
+                      .filter((m) => actorAccess.admin || assignedIds.includes(m.userId))
+                      .map((m) => m.userId)
                   : [...new Set(data.participantIds)];
                 if (
                   (!data.includeAllClients && ids.length !== data.participantIds.length) ||
@@ -353,6 +446,11 @@ async function handlePOST(request: Request) {
                   }))
                 )
                   throw new ApiError(404, 'Plan not found.');
+                if (!access?.admin)
+                  for (const clientId of ids.filter(
+                    (id) => !item.enrollments.some((e) => e.userId === id),
+                  ))
+                    await requireTraineeAccess(user.id, owned.id, clientId, tx);
                 const updated = await tx.classSession.updateMany({
                   where: {
                     id: item.id,
@@ -361,6 +459,7 @@ async function handlePOST(request: Request) {
                   },
                   data: {
                     title: data.title,
+                    hostId,
                     startsAt: new Date(data.startsAt),
                     duration: data.duration,
                     capacity: data.capacity,
@@ -389,6 +488,7 @@ async function handlePOST(request: Request) {
       }
       case 'clientProfile': {
         const owned = requireCoach();
+        await requireTraineeAccess(user.id, owned.id, data.userId);
         if (
           !(await db.membership.findUnique({
             where: { studioId_userId: { studioId: owned.id, userId: data.userId } },
@@ -416,7 +516,7 @@ async function handlePOST(request: Request) {
         break;
       }
       case 'removeClient': {
-        const owned = requireCoach();
+        const owned = requireAdmin();
         await writeTransaction(
           () =>
             db.$transaction(
@@ -463,6 +563,26 @@ async function handlePOST(request: Request) {
                   },
                 });
                 await tx.membership.delete({ where: { id: member.id } });
+                await tx.studioRoleGrant.updateMany({
+                  where: { studioId: owned.id, userId: data.userId, role: 'trainee' },
+                  data: { status: 'revoked' },
+                });
+                const previousAssignments = await tx.primaryCoachAssignment.findMany({
+                  where: { member: { studioId: owned.id, userId: data.userId } },
+                });
+                for (const a of previousAssignments)
+                  await tx.coachAssignmentHistory.create({
+                    data: {
+                      memberId: a.memberId,
+                      studioId: owned.id,
+                      coachId: a.coachId,
+                      assignedAt: a.assignedAt,
+                      note: a.note,
+                    },
+                  });
+                await tx.primaryCoachAssignment.deleteMany({
+                  where: { member: { studioId: owned.id, userId: data.userId } },
+                });
                 await tx.studioMember.updateMany({
                   where: { studioId: owned.id, userId: data.userId },
                   data: { status: 'paused' },
@@ -486,11 +606,13 @@ async function handlePOST(request: Request) {
       case 'classControl': {
         requireCoach();
         const item = await requireClass(data.id, user.id);
-        if (item.studio.ownerId !== user.id)
+        const permissions = await classPermissions(item, user.id);
+        if (!permissions.canManage)
           throw new ApiError(403, 'Only this class coach can control it.');
         if (data.control === 'end' && item.status === 'completed') {
           await deleteRoom(existingVideoRoomName(item), [
             item.studio.ownerId,
+            permissions.hostId,
             ...item.enrollments.map((e) => e.userId),
           ]);
           break;
@@ -501,7 +623,7 @@ async function handlePOST(request: Request) {
           throw new ApiError(409, 'The session state has changed. Refresh and retry.');
         if (data.control === 'exercise' && !data.exercise)
           throw new ApiError(400, 'Choose an exercise.');
-        if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 1);
+        if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
         const change =
           data.control === 'start'
             ? {
@@ -518,7 +640,7 @@ async function handlePOST(request: Request) {
                   ? { exercise: data.exercise, revision: { increment: 1 } }
                   : { paused: data.control === 'pause' };
         const updated = await db.classSession.updateMany({
-          where: { id: item.id, status: allowed, revision: item.revision },
+          where: { id: item.id, status: allowed, revision: item.revision, hostId: item.hostId },
           data: change,
         });
         if (!updated.count)
@@ -529,15 +651,17 @@ async function handlePOST(request: Request) {
         if (data.control === 'end')
           await deleteRoom(existingVideoRoomName(item), [
             item.studio.ownerId,
+            permissions.hostId,
             ...item.enrollments.map((e) => e.userId),
           ]);
         break;
       }
       case 'consent': {
         const item = await requireClass(data.id, user.id);
-        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
+        const permissions = await classPermissions(item, user.id);
+        if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
-        if (item.studio.ownerId !== user.id)
+        if (!permissions.canManage)
           await db.enrollment.updateMany({
             where: { classId: item.id, userId: user.id, consentAt: null },
             data: { consentAt: new Date() },
@@ -546,10 +670,11 @@ async function handlePOST(request: Request) {
       }
       case 'help': {
         const item = await requireClass(data.id, user.id);
-        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
+        const permissions = await classPermissions(item, user.id);
+        if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         const target = data.userId ?? user.id;
-        if (target !== user.id && (item.studio.ownerId !== user.id || data.requested))
+        if (target !== user.id && (!permissions.canManage || data.requested))
           throw new ApiError(403, 'Only the trainee can request help.');
         if (!item.enrollments.some((e) => e.userId === target))
           throw new ApiError(404, 'Participant not found.');
@@ -561,19 +686,26 @@ async function handlePOST(request: Request) {
       }
       case 'message': {
         const item = await requireClass(data.id, user.id);
-        if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
+        const permissions = await classPermissions(item, user.id);
+        if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
         if (item.status !== 'live')
           throw new ApiError(409, 'Messages are available during a live class.');
-        if (data.kind === 'cue' && item.studio.ownerId !== user.id)
+        if (data.kind === 'cue' && !permissions.canManage)
           throw new ApiError(403, 'Only the coach can send form cues.');
         const target = data.recipientId;
         if (
           target &&
+          target !== permissions.hostId &&
           target !== item.studio.ownerId &&
           !item.enrollments.some((e) => e.userId === target)
         )
           throw new ApiError(400, 'Recipient is not in this class.');
-        if (item.studio.ownerId !== user.id && target && target !== item.studio.ownerId)
+        if (
+          !permissions.canManage &&
+          target &&
+          target !== permissions.hostId &&
+          target !== item.studio.ownerId
+        )
           throw new ApiError(403, 'Private trainee messages can only go to the coach.');
         await rateLimit(user.id, 'message', 20);
         await db.message.create({

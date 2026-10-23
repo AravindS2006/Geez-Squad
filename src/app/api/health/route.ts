@@ -10,10 +10,13 @@ async function handleGET() {
     await db.$queryRaw`
       SELECT s."address", s."hours", s."phone", m."joinedOn", o."pricePaise",
         t."endsOn", p."amountPaise", a."date", e."followUpOn", f."role",
-        c."startsAt", b."status", m."userId", j."status"
+        c."startsAt", b."status", m."userId", j."status", j."targetUserId",
+        r."role", r."status", pc."assignedAt", pc."note", tr."expiresAt", ls."hostId", wp."createdById", ah."endedAt"
       FROM "Studio" s, "StudioMember" m, "MembershipOffer" o, "MemberTerm" t,
         "StudioPayment" p, "StudioAttendance" a, "StudioEnquiry" e,
-        "StudioStaff" f, "StudioClass" c, "StudioBooking" b, "StudioJoinRequest" j
+        "StudioStaff" f, "StudioClass" c, "StudioBooking" b, "StudioJoinRequest" j,
+        "StudioRoleGrant" r, "PrimaryCoachAssignment" pc, "StudioTeamRequest" tr,
+        "ClassSession" ls, "WorkoutPlan" wp, "CoachAssignmentHistory" ah
       WHERE 1 = 0
     `;
     return NextResponse.json({ status: 'ok' }, { headers: { 'Cache-Control': 'no-store' } });

@@ -6,6 +6,7 @@ import { auth, emailPolicy } from './auth';
 import { db } from './db';
 import { errorContext, logEvent } from './logger';
 import { requestContext } from './request-log';
+import { classPermissions } from './studio-access';
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -108,7 +109,8 @@ export async function requireClass(id: string, userId: string) {
   });
   if (
     !item ||
-    (item.studio.ownerId !== userId && !item.enrollments.some((e) => e.userId === userId))
+    (!(await classPermissions(item, userId)).canManage &&
+      !item.enrollments.some((e) => e.userId === userId))
   )
     throw new ApiError(404, 'This session is not available.');
   return item;

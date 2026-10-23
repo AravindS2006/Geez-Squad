@@ -1,3 +1,4 @@
+import { grantTrainee, studioAccess } from '@/lib/studio-access';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
@@ -16,7 +17,11 @@ export const GET = loggedRoute('/api/studio-join-requests', async () => {
       where: {
         email: user.email.toLowerCase(),
         status: 'pending',
-        member: { userId: null, status: { not: 'archived' } },
+        OR: [
+          { targetUserId: null, member: { userId: null } },
+          { targetUserId: user.id, member: { userId: user.id } },
+        ],
+        member: { status: { not: 'archived' } },
       },
       select: {
         id: true,
@@ -49,7 +54,7 @@ export const POST = loggedRoute('/api/studio-join-requests', async (request) => 
         'Verify your email before accepting a studio request.',
         'EMAIL_VERIFICATION_REQUIRED',
       );
-    if (user.role !== 'trainee')
+    if (user.role === 'unset')
       throw new ApiError(409, 'Complete your client profile before accepting a studio request.');
     const data = z
       .object({ requestId: z.string().min(1).max(100), action: z.enum(['accept', 'decline']) })
@@ -71,9 +76,17 @@ export const POST = loggedRoute('/api/studio-join-requests', async (request) => 
               data.action === 'accept'
             )
               return;
-            if (row.status !== 'pending' || row.member.userId || row.member.email !== row.email)
+            if (
+              row.status !== 'pending' ||
+              (row.targetUserId
+                ? row.targetUserId !== user.id || row.member.userId !== user.id
+                : row.member.userId !== null || row.member.email !== row.email)
+            )
               throw new ApiError(409, 'This request has changed. Refresh to continue.');
             if (data.action === 'accept') {
+              const access = await studioAccess(user.id, undefined, tx);
+              if (access && access.studio.id !== row.member.studioId)
+                throw new ApiError(409, 'Your account already belongs to another studio.');
               const memberships = await tx.membership.findMany({ where: { userId: user.id } });
               if (memberships.some((m) => m.studioId !== row.member.studioId))
                 throw new ApiError(
@@ -92,6 +105,7 @@ export const POST = loggedRoute('/api/studio-join-requests', async (request) => 
                 where: { id: row.memberId },
                 data: { userId: user.id },
               });
+              await grantTrainee(tx, row.member.studioId, user.id);
               await tx.membership.upsert({
                 where: { studioId_userId: { studioId: row.member.studioId, userId: user.id } },
                 create: { studioId: row.member.studioId, userId: user.id },

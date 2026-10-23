@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -41,9 +42,10 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
         data: { name, email, password: 'Local-Integration-Only-12345' },
       });
       expect(signup.ok()).toBe(true);
+      if (role === 'coach') await provisionTestAdmin(db, email);
       const setup = await request.post(`${origin}/api/command`, {
         headers,
-        data: { action: 'onboard', name, role, adult: true },
+        data: { action: 'onboard', name, role: 'trainee', adult: true },
       });
       expect(setup.ok()).toBe(true);
     }

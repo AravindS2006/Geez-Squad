@@ -9,6 +9,7 @@ type EditableSession = {
   status: string;
   revision: number;
   planId: string | null;
+  hostId?: string | null;
   enrollments: { userId: string }[];
 };
 
@@ -25,6 +26,7 @@ export function sessionEditVersion(item: EditableSession) {
         item.status,
         item.revision,
         item.planId,
+        item.hostId ?? null,
         item.enrollments.map((entry) => entry.userId).sort(),
       ]),
     )

@@ -3,10 +3,13 @@ import type { Prisma } from '@prisma/client';
 import { db } from './db';
 import { ApiError } from './security';
 import { studioToday } from './studio-operations';
-import { RoomServiceClient } from 'livekit-server-sdk';
+import { RoomServiceClient, TrackSource } from 'livekit-server-sdk';
 import { existingVideoRoomName } from './room-identity';
 import { errorContext, logEvent } from './logger';
-type Store = Pick<Prisma.TransactionClient, 'studioMember' | 'membership' | 'memberTerm'>;
+type Store = Pick<
+  Prisma.TransactionClient,
+  'studioMember' | 'membership' | 'memberTerm' | 'studioRoleGrant'
+>;
 export async function participation(
   studioId: string,
   userId: string,
@@ -19,7 +22,10 @@ export async function participation(
   const accepted = await store.membership.findUnique({
     where: { studioId_userId: { studioId, userId } },
   });
-  if (!member || !accepted)
+  const grant = await store.studioRoleGrant.findUnique({
+    where: { studioId_userId_role: { studioId, userId, role: 'trainee' } },
+  });
+  if (!member || !accepted || (grant && grant.status !== 'active'))
     return { allowed: false, reason: 'Accept your studio request to participate.' };
   if (member.status !== 'active')
     return {
@@ -114,22 +120,71 @@ export async function revokeIneligibleParticipants(studioId: string, onlyUserId?
     if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET)
       return;
     const sessions = await db.classSession.findMany({
-      where: { studioId, status: 'live' },
-      include: { enrollments: { where: onlyUserId ? { userId: onlyUserId } : {} } },
+      where: {
+        studioId,
+        status: 'live',
+        ...(onlyUserId ? { enrollments: { some: { userId: onlyUserId } } } : {}),
+      },
+      include: { enrollments: { select: { userId: true } } },
     });
     const service = new RoomServiceClient(
       process.env.LIVEKIT_URL.replace(/^ws/, 'http'),
       process.env.LIVEKIT_API_KEY,
       process.env.LIVEKIT_API_SECRET,
     );
+    const date = studioToday();
+    const [studio, grants, eligibleMembers] = await Promise.all([
+      db.studio.findUniqueOrThrow({ where: { id: studioId }, select: { ownerId: true } }),
+      db.studioRoleGrant.findMany({
+        where: { studioId, status: 'active', role: { in: ['admin', 'coach'] } },
+        select: { userId: true, role: true },
+      }),
+      db.studioMember.findMany({
+        where: {
+          studioId,
+          status: 'active',
+          userId: { in: [...new Set(sessions.flatMap((s) => s.enrollments.map((e) => e.userId)))] },
+          terms: { some: { status: 'active', startsOn: { lte: date }, endsOn: { gte: date } } },
+          user: {
+            memberships: { some: { studioId } },
+            NOT: {
+              studioRoles: { some: { studioId, role: 'trainee', status: { not: 'active' } } },
+            },
+          },
+        },
+        select: { userId: true },
+      }),
+    ]);
+    const eligible = new Set(eligibleMembers.map((m) => m.userId));
     for (const session of sessions) {
-      const invalid = [];
-      for (const enrollment of session.enrollments)
-        if (!(await participation(studioId, enrollment.userId)).allowed)
-          invalid.push(enrollment.userId);
+      const hostId = session.hostId ?? studio.ownerId;
+      const managers = new Set([
+        studio.ownerId,
+        ...grants.filter((g) => g.role === 'admin' || g.userId === hostId).map((g) => g.userId),
+      ]);
+      const invalid = session.enrollments
+        .filter((e) => !managers.has(e.userId) && !eligible.has(e.userId))
+        .map((e) => e.userId);
+      // Also revoke former hosts, including after a failed immediate removal.
+      const connected = await service
+        .listParticipants(existingVideoRoomName(session))
+        .catch((error) => {
+          if (error && typeof error === 'object' && 'status' in error && error.status === 404)
+            return [];
+          throw error;
+        });
+      for (const peer of connected) {
+        if (managers.has(peer.identity)) continue;
+        if (
+          !session.enrollments.some((e) => e.userId === peer.identity) ||
+          !eligible.has(peer.identity) ||
+          peer.permission?.canPublishSources.includes(TrackSource.SCREEN_SHARE)
+        )
+          invalid.push(peer.identity);
+      }
       if (!invalid.length) continue;
       await Promise.all(
-        invalid.map(async (identity) => {
+        [...new Set(invalid)].map(async (identity) => {
           try {
             await service.removeParticipant(existingVideoRoomName(session), identity, {
               revokeTokenTs: BigInt(Math.floor(Date.now() / 1000) + 1),
@@ -147,6 +202,30 @@ export async function revokeIneligibleParticipants(studioId: string, onlyUserId?
     }
   } catch (error) {
     logEvent('error', 'participant_revocation_retry_needed', { studioId, ...errorContext(error) });
+  }
+}
+export async function revokeStaffVideo(studioId: string, userId: string) {
+  if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET)
+    return;
+  const service = new RoomServiceClient(
+    process.env.LIVEKIT_URL.replace(/^ws/, 'http'),
+    process.env.LIVEKIT_API_KEY,
+    process.env.LIVEKIT_API_SECRET,
+  );
+  const sessions = await db.classSession.findMany({ where: { studioId, status: 'live' } });
+  for (const session of sessions) {
+    try {
+      await service.removeParticipant(existingVideoRoomName(session), userId, {
+        revokeTokenTs: BigInt(Math.floor(Date.now() / 1000) + 1),
+      });
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'status' in error && error.status === 404))
+        logEvent('error', 'staff_video_revocation_failed', {
+          studioId,
+          targetId: session.id,
+          ...errorContext(error),
+        });
+    }
   }
 }
 export async function reconcileBookings(tx: Prisma.TransactionClient, studioId: string) {
@@ -171,6 +250,14 @@ export async function reconcileBookings(tx: Prisma.TransactionClient, studioId: 
     await tx.studioBooking.updateMany({
       where: { id: { in: invalid.map((b) => b.id) } },
       data: { status: 'cancelled' },
+    });
+  for (const booking of invalid)
+    await tx.auditEvent.create({
+      data: {
+        actorId: 'system:membership',
+        action: 'booking.membershipInvalidated',
+        targetId: booking.id,
+      },
     });
   return invalid.length;
 }

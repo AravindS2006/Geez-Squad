@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { expect, test } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
@@ -25,9 +26,10 @@ for (const traineeCount of [8, 30, 48]) {
         data: { name: 'Gallery Coach', email, password: 'Local-Integration-Only-12345' },
       });
       expect(signup.ok()).toBe(true);
+      await provisionTestAdmin(db, email);
       const setup = await page.request.post('/api/command', {
         headers,
-        data: { action: 'onboard', name: 'Gallery Coach', role: 'coach', adult: true },
+        data: { action: 'onboard', name: 'Gallery Coach', role: 'trainee', adult: true },
       });
       expect(setup.ok()).toBe(true);
       const coach = await db.user.findUniqueOrThrow({ where: { email } });

@@ -157,6 +157,7 @@ export function StudioSchedule({
                 id: item?.id,
                 title: String(f.get('title')),
                 trainer: String(f.get('trainer')),
+                hostId: String(f.get('hostId') || '') || undefined,
                 location: String(f.get('location')),
                 startsAt: new Date(`${f.get('startsAt')}+05:30`).toISOString(),
                 duration: Number(f.get('duration')),
@@ -175,6 +176,16 @@ export function StudioSchedule({
                 maxLength={160}
                 defaultValue={item?.title}
               />
+            </label>
+            <label>
+              Class host
+              <select name="hostId" defaultValue={item?.hostId ?? data.coaches?.[0]?.id ?? ''}>
+                {data.coaches?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Trainer

@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
@@ -20,10 +21,18 @@ test('a real coach account can onboard and persist a workout plan', async ({ pag
     await page.getByRole('button', { name: 'Create account', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'How do you want to move?' })).toBeVisible();
     await page.getByLabel('Your name', { exact: true }).fill('Browser Coach');
-    await page.getByRole('button', { name: /a coach/ }).click();
-    await page.getByLabel('Studio name').fill('Browser test studio');
+    await expect(page.getByRole('button', { name: /a coach/ })).toHaveCount(0);
     await page.getByRole('checkbox', { name: /I am 18/ }).check();
-    await page.getByRole('button', { name: 'Create my workspace' }).click();
+    await Promise.all([
+      page.waitForEvent('framenavigated', (f) => f === page.mainFrame()),
+      page.getByRole('button', { name: 'Create my workspace' }).click(),
+    ]);
+    await page.waitForLoadState('domcontentloaded');
+    await expect(
+      page.getByRole('heading', { name: 'Your next chapter starts here.' }),
+    ).toBeVisible();
+    await provisionTestAdmin(db, email);
+    await page.reload();
     await expect(
       page.getByRole('heading', { name: 'A stronger studio starts here.' }),
     ).toBeVisible();
@@ -64,9 +73,10 @@ test('session controls wait for delayed client scripts before accepting a click'
       data: { name: 'Loading Coach', email, password: 'Local-Integration-Only-12345' },
     });
     expect(signup.ok()).toBe(true);
+    await provisionTestAdmin(db, email);
     const setup = await page.request.post('http://localhost:3000/api/command', {
       headers,
-      data: { action: 'onboard', name: 'Loading Coach', role: 'coach', adult: true },
+      data: { action: 'onboard', name: 'Loading Coach', role: 'trainee', adult: true },
     });
     expect(setup.ok()).toBe(true);
     const scheduled = await page.request.post('http://localhost:3000/api/command', {
@@ -142,12 +152,13 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
       data: { name: 'Journey Coach', email: coachEmail, password: 'Local-Integration-Only-12345' },
     });
     expect(signup.ok()).toBe(true);
+    await provisionTestAdmin(db, coachEmail);
     const setup = await coachContext.request.post('http://localhost:3000/api/command', {
       headers,
       data: {
         action: 'onboard',
         name: 'Journey Coach',
-        role: 'coach',
+        role: 'trainee',
         studioName: 'Journey studio',
         adult: true,
       },
@@ -166,11 +177,8 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     await trainee.getByLabel('Email address').fill(traineeEmail);
     await trainee.getByLabel('Password', { exact: true }).fill('Local-Integration-Only-12345');
     await trainee.getByRole('button', { name: 'Create account', exact: true }).click();
-    await trainee.getByRole('button', { name: /I’m a trainee/ }).click();
-    await expect(trainee.getByRole('button', { name: /I’m a trainee/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(trainee.getByRole('heading', { name: 'How do you want to move?' })).toBeVisible();
+    await expect(trainee.getByRole('button', { name: /a coach/ })).toHaveCount(0);
     const setupAccessibility = await new AxeBuilder({ page: trainee })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
       .analyze();

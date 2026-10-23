@@ -6627,3 +6627,25 @@ small {
     overflow-wrap: anywhere;
   }
 }
+/* Completion is persistent and intentionally has no entrance motion. */
+.set-completion {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  margin-bottom: 12px;
+  border: 1px solid #638b3a;
+  border-radius: 16px;
+  background: #edf6e3;
+  color: #23341b;
+}
+.set-completion svg {
+  flex: 0 0 auto;
+}
+.set-completion strong {
+  font-size: clamp(1rem, 2.4vw, 1.2rem);
+}
+.set-completion p {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}

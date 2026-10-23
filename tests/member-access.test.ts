@@ -12,6 +12,7 @@ vi.mock('@/lib/security', () => ({
   },
 }));
 const fixture = vi.hoisted(() => ({
+  studioRoleGrant: { findUnique: vi.fn() },
   studioMember: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
   membership: { findUnique: vi.fn() },
   memberTerm: { findFirst: vi.fn() },

@@ -63,6 +63,7 @@ export function ScheduleForm({
             ? { id: session.id, expectedVersion: session.editVersion ?? '0'.repeat(64) }
             : {}),
           title: form.get('title'),
+          hostId: form.get('hostId') || undefined,
           startsAt,
           duration,
           capacity,
@@ -73,6 +74,18 @@ export function ScheduleForm({
       }}
     >
       <div className="form-two">
+        {data.permissions?.admin && (
+          <label>
+            Session host
+            <select name="hostId" defaultValue={session?.coachId ?? data.user.id}>
+              {data.coaches?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Session title
           <input

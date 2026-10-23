@@ -1547,3 +1547,42 @@
     align-items: stretch;
   }
 }
+.team-access,
+.my-bookings,
+.hosted-classes {
+  padding: clamp(18px, 3vw, 30px);
+  margin-bottom: 24px;
+}
+.team-access h2,
+.team-access h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-access .form-stack {
+  max-width: 560px;
+  margin: 24px 0;
+}
+.team-access .studio-request > div,
+.my-bookings .studio-request > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.team-access .studio-request label {
+  width: min(100%, 320px);
+}
+.team-access .status-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #edf3e8;
+  font-size: 0.8rem;
+}
+.team-access > h3,
+.my-bookings > h3 {
+  margin-top: 28px;
+}
+.my-bookings ul {
+  padding-left: 20px;
+  line-height: 2;
+}

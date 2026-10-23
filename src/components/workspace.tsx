@@ -64,6 +64,9 @@ import { coachingOverview } from '@/lib/coaching-insights';
 import { compareSessions } from '@/lib/session-timing';
 import { StudioOperations } from './studio-operations';
 import { StudioJoinRequests } from './studio-join-requests';
+import { InPersonTrainees } from './in-person-trainees';
+import { HostedClasses } from './hosted-classes';
+import { MyBookings } from './my-bookings';
 import { MemberMembership } from './member-membership';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
@@ -198,31 +201,43 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     [filter, setFilter] = useState('upcoming'),
     [progressClient, setProgressClient] = useState('all');
   const base = data.demo ? '/demo' : '/app',
-    coach = data.user.role === 'coach';
+    coach = data.permissions?.coach ?? data.user.role === 'coach',
+    admin = data.permissions?.admin ?? (data.demo && coach);
+  const allowedViews = admin
+    ? nav.map((n) => n.id)
+    : coach
+      ? ['coaching', 'clients', 'sessions', 'classes', 'plans', 'analytics']
+      : ['dashboard', 'sessions', 'plans', 'analytics'];
   const currentClient = data.clients.find((person) => person.id === selectedClient?.id);
   const overview = coachingOverview(data, timeZone);
-  const activeView = [
-    'dashboard',
-    'clients',
-    'sessions',
-    'plans',
-    'analytics',
-    'settings',
-    'studio',
-    'practice',
-    'setup',
-    'members',
-    'memberships',
-    'attendance',
-    'payments',
-    'enquiries',
-    'staff',
-    'studio-details',
-    'coaching',
-    'classes',
-  ].includes(view)
-    ? view
-    : 'dashboard';
+  const activeView =
+    [
+      'dashboard',
+      'clients',
+      'sessions',
+      'plans',
+      'analytics',
+      'settings',
+      'studio',
+      'practice',
+      'setup',
+      'members',
+      'memberships',
+      'attendance',
+      'payments',
+      'enquiries',
+      'staff',
+      'studio-details',
+      'coaching',
+      'classes',
+      'benefits',
+    ].includes(view) &&
+    (allowedViews.includes(view) ||
+      ['settings', 'studio', 'practice', 'setup', 'benefits'].includes(view))
+      ? view
+      : coach && !admin
+        ? 'coaching'
+        : 'dashboard';
   const upcoming = data.classes
     .filter((c) => c.status === 'scheduled' || c.status === 'live')
     .sort(compareSessions);
@@ -523,15 +538,26 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           <span>
             <strong>{data.studio?.name || 'Your studio'}</strong>
             <small>
-              {data.demo ? 'Sample studio' : coach ? 'Studio management' : 'Member workspace'}
+              {data.demo
+                ? 'Sample studio'
+                : admin
+                  ? 'Studio management'
+                  : coach
+                    ? 'Coaching workspace'
+                    : 'Member workspace'}
             </small>
           </span>
           <ChevronDown size={14} />
         </button>
+        {!data.demo && (
+          <button className="text-action" onClick={() => go('benefits')}>
+            My membership &amp; classes
+          </button>
+        )}
         <span className="nav-label">{coach ? 'YOUR STUDIO' : 'YOUR TRAINING'}</span>
         <nav>
           {nav
-            .filter((n) => coach || ['dashboard', 'sessions', 'plans', 'analytics'].includes(n.id))
+            .filter((n) => allowedViews.includes(n.id))
             .map((n) => (
               <Link
                 key={n.id}
@@ -576,7 +602,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <Avatar name={data.user.name} small />
             <span>
               <strong>{data.user.name}</strong>
-              <small>{coach ? 'Studio owner' : 'Member'}</small>
+              <small>{admin ? 'Admin' : coach ? 'Coach' : 'Trainee'}</small>
             </span>
             <Settings2 size={16} />
           </button>
@@ -641,7 +667,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </div>
         )}
         <main className={`workspace-content ${activeView === 'studio' ? 'studio-content' : ''}`}>
-          {!data.demo && data.user.role === 'trainee' && <StudioJoinRequests />}
+          {!data.demo && (
+            <>
+              <StudioJoinRequests />
+              <StudioJoinRequests kind="coach" />
+            </>
+          )}
           {syncWarning && (
             <p className="inline-notice" role="status">
               {syncWarning}
@@ -705,7 +736,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 )}
               </div>
             )}
-          {coach && data.studio && (
+          {admin && data.studio && (
             <StudioOperations
               view={activeView}
               workspace={data}
@@ -713,6 +744,13 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               onNavigate={go}
               onSchedule={() => show('schedule')}
             />
+          )}
+          {coach && !admin && activeView === 'classes' && <HostedClasses />}
+          {activeView === 'benefits' && !data.demo && (
+            <>
+              <MemberMembership />
+              <MyBookings />
+            </>
           )}
           {(activeView === 'coaching' || (activeView === 'dashboard' && !coach)) && (
             <>
@@ -737,7 +775,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   {coach ? 'Schedule session' : 'Camera practice'}
                 </button>
               </div>
-              {!coach && !data.demo && <MemberMembership />}
+              {!coach && !data.demo && (
+                <>
+                  <MemberMembership />
+                  <MyBookings />
+                </>
+              )}
               {!coach && (
                 <section className="panel trainee-coaching-overview">
                   <div>
@@ -893,11 +936,17 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     ) : (
                       <EmptyState
                         title="Build your circle."
-                        text="Add your first member and assign their membership."
+                        text={
+                          admin
+                            ? 'Add your first member and assign their membership.'
+                            : 'An admin can assign trainees to you from Team. You can still prepare plans and host appointed classes.'
+                        }
                         action={
-                          <button className="button lime" onClick={() => go('members')}>
-                            Add a member
-                          </button>
+                          admin ? (
+                            <button className="button lime" onClick={() => go('members')}>
+                              Add a member
+                            </button>
+                          ) : undefined
                         }
                       />
                     )
@@ -942,6 +991,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               </div>
             </>
           )}
+          {coach && !data.demo && activeView === 'clients' && <InPersonTrainees />}
           {activeView === 'clients' && (
             <>
               <PageHeading
@@ -949,9 +999,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 title="People make the progress."
                 text="A clear view of every person you coach."
                 action={
-                  <button className="button dark" onClick={() => go('members')}>
-                    <Plus size={17} /> Add member
-                  </button>
+                  admin ? (
+                    <button className="button dark" onClick={() => go('members')}>
+                      <Plus size={17} /> Add member
+                    </button>
+                  ) : undefined
                 }
               />
               <div className="list-toolbar">
@@ -1008,12 +1060,16 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   text={
                     search || followUpOnly
                       ? 'Try another name or email, or turn off the follow-up filter.'
-                      : 'Add a member and connect their account to start coaching together.'
+                      : admin
+                        ? 'Add a member and connect their account to start coaching together.'
+                        : 'An admin can connect and assign trainees to you from Team.'
                   }
                   action={
-                    <button className="button lime" onClick={() => go('members')}>
-                      Add member
-                    </button>
+                    admin ? (
+                      <button className="button lime" onClick={() => go('members')}>
+                        Add member
+                      </button>
+                    ) : undefined
                   }
                 />
               )}
@@ -1284,47 +1340,49 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     </a>
                   )}
                 </section>
-                <section className="panel">
-                  <SectionTitle
-                    title="Studio membership"
-                    action={<span className="pill">{data.billing}</span>}
-                  />
-                  <p>
-                    Payment services are{' '}
-                    {data.services.billing
-                      ? 'configured for your studio.'
-                      : 'not connected yet. No payment is required for this local build.'}
-                  </p>
-                  <button
-                    className="button outline"
-                    disabled={!data.services.billing || data.demo}
-                    onClick={async () => {
-                      try {
-                        const r = await fetchJson<{ url: string }>('/api/billing', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            action: data.billing === 'active' ? 'portal' : 'checkout',
-                          }),
-                        });
-                        window.location.href = r.url;
-                      } catch (err) {
-                        notify(err instanceof Error ? err.message : 'Please retry.');
-                      }
-                    }}
-                  >
-                    {data.billing === 'active'
-                      ? 'Manage subscription'
-                      : 'View subscription checkout'}
-                    <ArrowUpRight size={16} />
-                  </button>
-                </section>
+                {admin && (
+                  <section className="panel">
+                    <SectionTitle
+                      title="Studio membership"
+                      action={<span className="pill">{data.billing}</span>}
+                    />
+                    <p>
+                      Payment services are{' '}
+                      {data.services.billing
+                        ? 'configured for your studio.'
+                        : 'not connected yet. Contact the studio admin for payment options.'}
+                    </p>
+                    <button
+                      className="button outline"
+                      disabled={!data.services.billing || data.demo}
+                      onClick={async () => {
+                        try {
+                          const r = await fetchJson<{ url: string }>('/api/billing', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              action: data.billing === 'active' ? 'portal' : 'checkout',
+                            }),
+                          });
+                          window.location.href = r.url;
+                        } catch (err) {
+                          notify(err instanceof Error ? err.message : 'Please retry.');
+                        }
+                      }}
+                    >
+                      {data.billing === 'active'
+                        ? 'Manage subscription'
+                        : 'View subscription checkout'}
+                      <ArrowUpRight size={16} />
+                    </button>
+                  </section>
+                )}
                 <section className="panel">
                   <SectionTitle title="Account" />
                   <p>
                     {data.demo
                       ? 'You’re exploring the sample studio. Create an account for your own workspace.'
-                      : 'Your account role is set during onboarding. Contact the studio operator for role or deletion requests.'}
+                      : 'Your personal profile is separate from studio permissions. An admin manages coach invitations and assignments.'}
                   </p>
                   {data.demo ? (
                     <Link href="/login" className="button lime">
@@ -1504,7 +1562,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {modal === 'plan' && (
             <PlanForm
               plan={selectedPlan}
-              editable={coach}
+              editable={coach && selectedPlan?.canEdit !== false}
               busy={busy}
               onSubmit={async (payload) => {
                 try {
@@ -1733,7 +1791,7 @@ function SessionRows({
                 : 'Open studio'}
             <ArrowUpRight size={15} />
           </button>
-          {c.status === 'scheduled' && onEdit && (
+          {c.status === 'scheduled' && onEdit && c.permissions?.canManage !== false && (
             <button
               className="button outline small-button"
               onClick={() => onEdit(c)}
@@ -1743,7 +1801,7 @@ function SessionRows({
               Edit
             </button>
           )}
-          {c.status === 'scheduled' && onCancel && (
+          {c.status === 'scheduled' && onCancel && c.permissions?.canManage !== false && (
             <button
               className="icon-button"
               aria-label={`Cancel ${c.title}`}
@@ -2026,7 +2084,7 @@ function Onboarding({
   error: string;
   onSubmit: (c: Command) => void;
 }) {
-  const [role, setRole] = useState('trainee');
+  const role = 'trainee';
   const dialog = useRef<HTMLDialogElement>(null);
   const headingId = useId();
   useEffect(() => {
@@ -2048,29 +2106,8 @@ function Onboarding({
         <p>
           {invited
             ? 'Your coach invited you as a trainee. Set up your profile to join.'
-            : 'Choose your role to set up your workspace.'}
+            : 'Create your personal training profile. Coaches receive an invitation from a studio admin.'}
         </p>
-        <div className="role-picker">
-          <button
-            disabled={invited}
-            aria-pressed={role === 'coach'}
-            className={role === 'coach' ? 'selected' : ''}
-            onClick={() => setRole('coach')}
-          >
-            <Users size={24} />
-            <strong>I’m a coach</strong>
-            <span>Build a studio. Guide your people.</span>
-          </button>
-          <button
-            aria-pressed={role === 'trainee'}
-            className={role === 'trainee' ? 'selected' : ''}
-            onClick={() => setRole('trainee')}
-          >
-            <Dumbbell size={24} />
-            <strong>I’m a trainee</strong>
-            <span>Join your coach. Find your stride.</span>
-          </button>
-        </div>
         <form
           className="form-stack"
           onSubmit={(e) => {
@@ -2089,18 +2126,13 @@ function Onboarding({
             Your name
             <input name="name" defaultValue={userName} required minLength={2} maxLength={80} />
           </label>
-          {role === 'coach' && (
-            <label>
-              Studio name
-              <input name="studioName" placeholder="The Movement Studio" maxLength={80} />
-            </label>
-          )}
           <label className="checkbox-label">
             <input type="checkbox" name="adult" required />I am 18 or older. I understand this is
             general fitness coaching.
           </label>
           <p className="microcopy">
-            Your role is set once. Camera use and sharing have their own consent step.
+            Your personal profile stays yours. Studio access is granted separately. Camera use and
+            sharing have their own consent step.
           </p>
           {error && (
             <p className="inline-error" role="alert">

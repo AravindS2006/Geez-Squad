@@ -13,7 +13,7 @@ const block = z.object({
 export const commandSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('onboard'),
-    role: z.enum(['coach', 'trainee']),
+    role: z.literal('trainee'),
     name: z.string().trim().min(2).max(80),
     studioName: z.string().trim().max(80).optional(),
     adult: z.literal(true),
@@ -51,6 +51,7 @@ export const commandSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('createClass'),
+    hostId: identifier.optional(),
     title: z.string().trim().min(2).max(80),
     startsAt: z.iso.datetime(),
     duration: z.number().int().min(10).max(120),
@@ -61,6 +62,7 @@ export const commandSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('updateClass'),
+    hostId: identifier.optional(),
     id: identifier,
     expectedVersion: z.string().regex(/^[a-f0-9]{64}$/),
     title: z.string().trim().min(2).max(80),

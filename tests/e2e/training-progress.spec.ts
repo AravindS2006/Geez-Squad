@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { test, expect, chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -39,11 +40,12 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
       });
       expect(signup.ok()).toBe(true);
       users.push((await signup.json()).user.id);
+      if (role === 'coach') await provisionTestAdmin(db, email);
       expect(
         (
           await page.request.post(`${origin}/api/command`, {
             headers,
-            data: { action: 'onboard', name, role, adult: true },
+            data: { action: 'onboard', name, role: 'trainee', adult: true },
           })
         ).ok(),
       ).toBe(true);
@@ -134,6 +136,8 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await moveThroughAngles(trainee, [105, 120, 135, 150, 165, 180]);
     await expect(trainee.getByTestId('cumulative-reps')).toHaveText('01');
     await expect(trainee.getByRole('button', { name: 'Retry saving', exact: true })).toBeVisible();
+    await expect(trainee.locator('.set-completion')).toContainText('Set 1 complete · 1/1 reps');
+    const completionText = await trainee.locator('.set-completion strong').textContent();
     expect(
       await trainee.evaluate(
         () => JSON.parse(localStorage.getItem('geez-squad:pending-sets:v1') ?? '[]').length,
@@ -141,6 +145,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     ).toBe(1);
     await trainee.getByRole('button', { name: 'Retry saving', exact: true }).click();
     await expect(trainee.getByRole('status').filter({ hasText: 'Workout saved' })).toBeVisible();
+    await expect(trainee.locator('.set-completion strong')).toHaveText(completionText!);
     await trainee.goto('/app?view=analytics');
     await expect(trainee.getByText('Recent workout sets', { exact: true })).toBeVisible();
     await trainee.reload();

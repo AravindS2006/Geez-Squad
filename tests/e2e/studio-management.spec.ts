@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -45,11 +46,12 @@ test('coach reschedules a class, changes its roster, manages a profile, and remo
       });
       expect(signup.ok()).toBe(true);
       ids.push((await signup.json()).user.id);
+      if (role === 'coach') await provisionTestAdmin(db, ids[ids.length - 1]);
       expect(
         (
           await page.request.post(`${origin}/api/command`, {
             headers,
-            data: { action: 'onboard', name, role, adult: true },
+            data: { action: 'onboard', name, role: 'trainee', adult: true },
           })
         ).ok(),
       ).toBe(true);

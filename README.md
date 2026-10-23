@@ -2,7 +2,7 @@
 
 A fitness studio management and coaching product built with Next.js, Better Auth, Prisma, LiveKit, and MediaPipe. Includes a public landing page, operations dashboard, member register, membership plans and renewals, payment ledger and receipts, physical attendance, in-studio class booking rosters, enquiry follow-ups, staff directory, and studio details, alongside the existing coach and trainee workspaces, video sessions, workout plans and progress tools. See the [studio product guide](docs/STUDIO_PRODUCT.md) for workflows, database migrations, verification and release boundaries.
 
-**Status:** the studio management release is deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app), with Vercel, Neon PostgreSQL, and LiveKit Cloud. The missing studio database migrations were applied and production sign-in was verified on 19 October; see the [deployment repair](docs/LOGIN_DEPLOYMENT_FIX.md) and [studio product guide](docs/STUDIO_PRODUCT.md). Physical-device accuracy trials, independent review, email/domain setup, and broader public-launch acceptance remain separate work.
+**Status:** the studio management release is deployed for operator testing at [geez-squad.vercel.app](https://geez-squad.vercel.app), with Vercel, Neon PostgreSQL, and LiveKit Cloud. The missing studio database migrations were applied and production sign-in was verified on 19 October; see the [deployment repair](docs/LOGIN_DEPLOYMENT_FIX.md) and [studio product guide](docs/STUDIO_PRODUCT.md). Gmail verification/recovery delivery is configured. Physical-device accuracy trials, independent review, and broader public-launch acceptance remain separate work.
 
 ## Run locally
 
@@ -22,9 +22,13 @@ Open `http://localhost:3000`. Setup creates a private `.env` with a random auth 
 - `/app` — authenticated account, onboarding and studio. Local accounts and explicitly selected testing accounts can sign in without email verification. Production email delivery requires verified email.
 - `/studio/<id>` — membership-protected session room.
 
-For operator testing before purchasing a sending domain, set Vercel Production `EMAIL_DELIVERY=test` and redeploy. The login page offers **Create account**, signs new users in immediately, and explains that emails are unverified and email recovery is unavailable. Accounts retain `emailVerified=false`; use your own addresses and save your passwords. `EMAIL_DELIVERY=disabled` closes production signup/reset while allowing existing verified accounts. The default production mode is `resend`, which requires a verified sending domain and mail credentials. See the [two-account testing guide](docs/TESTING_GUIDE.md).
+Production email/password accounts use `EMAIL_DELIVERY=smtp` with the configured Gmail mailbox and an app password; no purchased sending domain is required. New clients verify their mailbox before connecting to a studio. `EMAIL_DELIVERY=test` is for controlled testing without mail delivery; it never marks accounts verified. `disabled` closes signup/recovery while preserving existing sign-in. Keep secrets in the deployment environment.
 
-Create a coach account, then a trainee account in a second browser profile. The coach creates an invitation for the trainee's exact email and shares its link manually. The trainee accepts it; the coach can then enroll that trainee when scheduling a session. Camera practice needs no video service. Group video needs LiveKit credentials.
+Studio owners are protected **Admins**. Public signup creates a **Trainee** profile; an admin invites **Coaches** through Team. Staff job titles do not grant app privileges. Assign one primary coach per trainee in Team. Coaches see assigned profiles from the current assignment date onward and can manage explicitly hosted classes. An account can also retain its own member benefits while holding a staff role.
+
+Add members in **Members** and assign their membership immediately. Walk-ins need no email or app account for memberships, payments, attendance and admin bookings. With an email, use **Send setup email**; the person signs up, verifies and accepts the studio connection. **Restore app access** requires confirmation from the original linked account. Trainees book/cancel physical classes under **My membership & classes**. Camera practice needs no video service; group video uses LiveKit.
+
+See the [roles/access and workout-feedback audit](docs/BUG_AUDIT_2026-10-23.md) for permission boundaries, migration reconciliation, verification evidence and remaining limits.
 
 ## Checks
 

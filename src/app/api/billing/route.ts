@@ -1,3 +1,4 @@
+import { requireStudio } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
@@ -11,8 +12,7 @@ async function handlePOST(request: Request) {
       .object({ action: z.enum(['checkout', 'portal']) })
       .parse(await readJson(request));
     await rateLimit(user.id, 'billing', 5);
-    if (user.role !== 'coach')
-      throw new ApiError(403, 'Studio subscriptions are managed by coaches.');
+    await requireStudio(user.id, 'admin');
     if (
       !process.env.STRIPE_SECRET_KEY ||
       !process.env.STRIPE_PRICE_ID ||

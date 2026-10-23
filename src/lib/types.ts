@@ -8,7 +8,13 @@ export type Block = {
   rest: number;
   loadKg?: number;
 };
-export type Plan = { id: string; name: string; description: string; blocks: Block[] };
+export type Plan = {
+  id: string;
+  name: string;
+  description: string;
+  blocks: Block[];
+  canEdit?: boolean;
+};
 export type MetricView = {
   exercise: string;
   revision: number;
@@ -26,6 +32,7 @@ export type MetricView = {
   updatedAt: string;
 };
 export type ClientView = Person & {
+  assignedAt?: string | null;
   joinedAt: string;
   coachNote?: string;
   latestCheckIn?: CheckInView | null;
@@ -75,6 +82,7 @@ export type CheckInView = {
 };
 export type AssignmentView = { userId: string; planId: string; assignedAt: string };
 export type ClassView = {
+  permissions?: { canManage: boolean; hostId: string; presenterIds?: string[] };
   id: string;
   editVersion?: string;
   title: string;
@@ -106,6 +114,13 @@ export type ClassView = {
   }[];
 };
 export type WorkspaceData = {
+  coaches?: { id: string; name: string }[];
+  permissions?: {
+    admin: boolean;
+    coach: boolean;
+    trainee: boolean;
+    role: 'admin' | 'coach' | 'trainee';
+  };
   user: Person;
   studio: { id: string; name: string } | null;
   clients: ClientView[];

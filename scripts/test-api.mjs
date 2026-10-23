@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
@@ -16,6 +17,7 @@ async function request(path, body, jar = {}, method = body ? 'POST' : 'GET', ori
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       Origin: origin,
+      'x-forwarded-for': jar.ip || '2001:db8:ffff::1',
       ...(jar.cookie ? { Cookie: jar.cookie } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -31,13 +33,20 @@ async function request(path, body, jar = {}, method = body ? 'POST' : 'GET', ori
   return { status: response.status, json };
 }
 async function check(path, body, jar, status = 200, method) {
-  const result = await request(path, body, jar, method);
+  const seedAdmin = body?.action === 'onboard' && body.role === 'coach' && status === 200;
+  const result = await request(
+    path,
+    body?.action === 'onboard' ? { ...body, role: 'trainee' } : body,
+    jar,
+    method,
+  );
+  if (seedAdmin && result.status === 200) await provisionTestAdmin(db, jar.id);
   assert.equal(result.status, status, `${path}: ${JSON.stringify(result.json)}`);
   checks++;
   return result.json;
 }
 async function signup(name) {
-  const jar = {};
+  const jar = { ip: `2001:db8:${randomBytes(2).toString('hex')}::1` };
   const email = `${name.toLowerCase().replaceAll(' ', '-')}-${suffix}@example.test`;
   const result = await check(
     '/api/auth/sign-up/email',
@@ -172,7 +181,7 @@ try {
     bodyweightKg: 72.5,
     note: 'Ready to train',
   };
-  await check('/api/command', checkIn, coach, 403);
+  await check('/api/command', checkIn, coach);
   await check('/api/command', { ...checkIn, energy: 6 }, trainee, 400);
   await check('/api/command', checkIn, trainee);
   const record = {

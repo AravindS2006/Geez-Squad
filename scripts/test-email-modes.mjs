@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import { grantLocalTestTerm } from './test-member-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -140,7 +141,7 @@ try {
       {
         action: 'onboard',
         name: 'Testing Coach',
-        role: 'coach',
+        role: 'trainee',
         studioName: 'Testing Studio',
         adult: true,
       },
@@ -151,12 +152,13 @@ try {
       trainee,
     );
     await command(
-      { action: 'onboard', name: 'Changed role', role: 'coach', adult: true },
+      { action: 'onboard', name: 'Changed role', role: 'trainee', adult: true },
       trainee,
       409,
     );
+    await provisionTestAdmin(db, coach.id);
     const invite = await command({ action: 'invite', email: trainee.email }, coach);
-    await command({ action: 'acceptInvite', code: invite.code }, coach, 403);
+    await command({ action: 'acceptInvite', code: invite.code }, coach, 400);
     await command({ action: 'acceptInvite', code: invite.code }, trainee);
     await command({ action: 'acceptInvite', code: invite.code }, trainee, 400);
     const workspace = await request('/api/workspace', undefined, coach.cookie).then((r) =>

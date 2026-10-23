@@ -1,3 +1,6 @@
+import { changeBooking } from './studio-bookings';
+import { sendMail } from './mail';
+import { requireStudio } from './studio-access';
 import 'server-only';
 import type { Prisma } from '@prisma/client';
 import { db } from './db';
@@ -26,7 +29,10 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
       }),
       db.studioMember.findMany({
         where: { studioId },
-        include: { joinRequest: { select: { status: true } } },
+        include: {
+          joinRequest: { select: { status: true } },
+          primaryCoach: { select: { coachId: true, assignedAt: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }),
       db.membershipOffer.findMany({ where: { studioId }, orderBy: { pricePaise: 'asc' } }),
@@ -41,15 +47,40 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
         orderBy: { startsAt: 'asc' },
       }),
     ]);
+  const connections = await db.membership.findMany({
+    where: {
+      studioId,
+      user: {
+        NOT: { studioRoles: { some: { studioId, role: 'trainee', status: { not: 'active' } } } },
+      },
+    },
+    select: { userId: true },
+  });
   return {
     studio,
+    coaches: await db.user.findMany({
+      where: {
+        OR: [
+          { studio: { id: studioId } },
+          {
+            studioRoles: { some: { studioId, status: 'active', role: { in: ['admin', 'coach'] } } },
+          },
+        ],
+      },
+      select: { id: true, name: true },
+    }),
     members: members.map(({ joinRequest, ...member }) => ({
       ...member,
-      accessStatus: member.userId
-        ? 'connected'
-        : !member.email
-          ? 'no_email'
-          : (joinRequest?.status ?? 'withdrawn'),
+      accessStatus:
+        member.userId && connections.some((m) => m.userId === member.userId)
+          ? 'connected'
+          : member.userId
+            ? joinRequest?.status === 'pending'
+              ? 'pending_restore'
+              : 'disconnected'
+            : !member.email
+              ? 'no_email'
+              : (joinRequest?.status ?? 'withdrawn'),
     })),
     offers,
     terms,
@@ -66,6 +97,7 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
     () =>
       db.$transaction(
         async (tx) => {
+          await requireStudio(actorId, 'admin', studioId, tx);
           let targetId = 'id' in c && c.id ? c.id : studioId;
           const assertOwned = async (
             model:
@@ -83,25 +115,49 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
               const member = await tx.studioMember.findFirst({
                 where: { id: c.memberId, studioId },
               });
-              if (!member || member.userId || !member.email || member.status === 'archived')
-                throw new ApiError(409, 'Choose an unlinked member with an email address.');
+              if (!member || member.status === 'archived')
+                throw new ApiError(409, 'Choose an available member.');
+              const linked = member.userId
+                ? await tx.user.findUnique({ where: { id: member.userId } })
+                : null;
+              const connected = member.userId
+                ? await tx.membership.findUnique({
+                    where: { studioId_userId: { studioId, userId: member.userId } },
+                  })
+                : null;
+              const traineeGrant = member.userId
+                ? await tx.studioRoleGrant.findUnique({
+                    where: {
+                      studioId_userId_role: { studioId, userId: member.userId, role: 'trainee' },
+                    },
+                  })
+                : null;
+              if (connected && (!traineeGrant || traineeGrant.status === 'active'))
+                throw new ApiError(409, 'This member is already connected.');
+              const email = linked?.email ?? member.email;
+              if (!email) throw new ApiError(409, 'Add an email before sending a setup request.');
               await tx.studioJoinRequest.upsert({
                 where: { memberId: member.id },
                 create: {
                   memberId: member.id,
-                  email: member.email,
-                  status: c.operation === 'resend' ? 'pending' : 'withdrawn',
+                  email,
+                  targetUserId: member.userId,
+                  status: c.operation === 'withdraw' ? 'withdrawn' : 'pending',
                 },
                 update: {
-                  email: member.email,
-                  status: c.operation === 'resend' ? 'pending' : 'withdrawn',
+                  email,
+                  targetUserId: member.userId,
+                  status: c.operation === 'withdraw' ? 'withdrawn' : 'pending',
                 },
               });
               targetId = member.id;
               break;
             }
             case 'studioClass': {
-              const { action, id, startsAt, ...fields } = c;
+              const { action, id, startsAt, hostId, ...fields } = c;
+              const owner = await tx.studio.findUniqueOrThrow({ where: { id: studioId } });
+              const selectedHost = hostId ?? owner.ownerId;
+              await requireStudio(selectedHost, 'coach', studioId, tx);
               const existing = id
                 ? await tx.studioClass.findFirst({
                     where: { id, studioId },
@@ -145,52 +201,35 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
                 id
                   ? await tx.studioClass.update({
                       where: { id },
-                      data: { ...fields, startsAt: new Date(startsAt) },
+                      data: { ...fields, hostId: selectedHost, startsAt: new Date(startsAt) },
                     })
                   : await tx.studioClass.create({
-                      data: { ...fields, startsAt: new Date(startsAt), studioId },
+                      data: {
+                        ...fields,
+                        hostId: selectedHost,
+                        startsAt: new Date(startsAt),
+                        studioId,
+                      },
                     })
               ).id;
+              if (fields.status === 'cancelled') {
+                const bookings = await tx.studioBooking.findMany({
+                  where: { classId: targetId, status: 'booked' },
+                });
+                await tx.studioBooking.updateMany({
+                  where: { classId: targetId, status: 'booked' },
+                  data: { status: 'cancelled' },
+                });
+                for (const booking of bookings)
+                  await tx.auditEvent.create({
+                    data: { actorId, action: 'booking.classCancelled', targetId: booking.id },
+                  });
+              }
               break;
             }
             case 'booking': {
-              const item = await tx.studioClass.findFirst({
-                where: { id: c.classId, studioId },
-                include: { bookings: { where: { status: 'booked' } } },
-              });
-              if (!item || item.status !== 'scheduled' || item.startsAt <= new Date())
-                throw new ApiError(409, 'Only upcoming scheduled classes accept booking changes.');
-              const member = await tx.studioMember.findFirst({
-                where: { id: c.memberId, studioId },
-              });
-              if (!member) throw new ApiError(404, 'This member is not available.');
-              if (c.status === 'booked') {
-                const date = studioToday(item.startsAt);
-                if (
-                  member.status !== 'active' ||
-                  !(await tx.memberTerm.findFirst({
-                    where: {
-                      studioId,
-                      memberId: member.id,
-                      status: 'active',
-                      startsOn: { lte: date },
-                      endsOn: { gte: date },
-                    },
-                  }))
-                )
-                  throw new ApiError(409, 'An active membership on the class date is required.');
-                if (
-                  !item.bookings.some((b) => b.memberId === member.id) &&
-                  item.bookings.length >= item.capacity
-                )
-                  throw new ApiError(409, 'This class is full.');
-              }
               targetId = (
-                await tx.studioBooking.upsert({
-                  where: { classId_memberId: { classId: item.id, memberId: member.id } },
-                  create: { classId: item.id, memberId: member.id, status: c.status },
-                  update: { status: c.status },
-                })
+                await changeBooking(tx, studioId, c.memberId, c.classId, c.status, actorId)
               ).id;
               break;
             }
@@ -399,6 +438,25 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
   );
   if (c.action === 'member' || c.action === 'cancelTerm')
     await revokeIneligibleParticipants(studioId);
+  if (c.action === 'memberAccess' && c.operation !== 'withdraw') {
+    const request = await db.studioJoinRequest.findUniqueOrThrow({
+      where: { memberId: c.memberId },
+      include: { member: { include: { studio: true } } },
+    });
+    try {
+      await sendMail(
+        request.email,
+        `${request.member.studio.name}: connect your membership`,
+        `Your studio membership is ready. Sign up or sign in using this email, verify your mailbox, and accept the studio request inside the app. Your membership and history remain saved if you connect later.\n\n${process.env.BETTER_AUTH_URL}/app`,
+      );
+    } catch {
+      throw new ApiError(
+        502,
+        'Member and request saved. The setup email could not be delivered; use Send setup email to retry.',
+        'EMAIL_DELIVERY_FAILED',
+      );
+    }
+  }
   logEvent('info', 'studio_operation', {
     ...requestContext.getStore(),
     action: c.action,

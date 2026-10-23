@@ -9,10 +9,11 @@ export const operationsSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('memberAccess'),
     memberId: id,
-    operation: z.enum(['resend', 'withdraw']),
+    operation: z.enum(['resend', 'sendEmail', 'restore', 'withdraw']),
   }),
   z.object({
     action: z.literal('studioClass'),
+    hostId: id.optional(),
     id: id.optional(),
     title: text.min(2),
     trainer: text.min(2),
@@ -149,7 +150,9 @@ export type StudioStaff = {
   status: string;
 };
 export type OperationsData = {
+  coaches?: { id: string; name: string }[];
   studioClasses: {
+    hostId?: string | null;
     id: string;
     title: string;
     trainer: string;

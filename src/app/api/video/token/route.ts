@@ -1,3 +1,4 @@
+import { classPermissions } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
 import { requireParticipation } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
@@ -19,13 +20,11 @@ async function handlePOST(request: Request) {
     const { classId } = z.object({ classId: z.string().max(100) }).parse(await readJson(request));
     await rateLimit(user.id, 'token', 10);
     const item = await requireClass(classId, user.id);
-    if (item.studio.ownerId !== user.id) await requireParticipation(item.studioId, user.id);
+    const permissions = await classPermissions(item, user.id);
+    if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
     if (item.status !== 'live')
       throw new ApiError(409, 'The coach has not started this class, or it has ended.');
-    if (
-      item.studio.ownerId !== user.id &&
-      !item.enrollments.find((e) => e.userId === user.id)?.consentAt
-    )
+    if (!permissions.canManage && !item.enrollments.find((e) => e.userId === user.id)?.consentAt)
       throw new ApiError(403, 'Please complete the sharing consent first.');
     if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET)
       throw new ApiError(
@@ -37,9 +36,7 @@ async function handlePOST(request: Request) {
       name: user.name,
       ttl: '5m',
     });
-    token.addGrant(
-      classVideoGrant(item.id, item.studio.ownerId === user.id, existingVideoRoomName(item)),
-    );
+    token.addGrant(classVideoGrant(item.id, permissions.canManage, existingVideoRoomName(item)));
     return NextResponse.json(
       { token: await token.toJwt(), url: process.env.LIVEKIT_URL },
       { headers: { 'Cache-Control': 'no-store' } },

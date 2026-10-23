@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -37,10 +38,11 @@ test('personal email signup connects through Members and active membership contr
       (
         await coach.request.post('/api/command', {
           headers,
-          data: { action: 'onboard', role: 'coach', name: 'Link Owner', adult: true },
+          data: { action: 'onboard', role: 'trainee', name: 'Link Owner', adult: true },
         })
       ).ok(),
     ).toBe(true);
+    await provisionTestAdmin(db, ownerEmail);
     const offer = await coach.request.post('/api/studio-operations', {
       headers,
       data: {
@@ -60,10 +62,7 @@ test('personal email signup connects through Members and active membership contr
     await page.getByLabel('Email address').fill(email);
     await page.getByLabel('Password', { exact: true }).fill('Local-Fixture-Password-12345');
     await page.getByRole('button', { name: 'Create account', exact: true }).click();
-    await expect(page.getByRole('button', { name: /a trainee/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(page.getByRole('button', { name: /a coach/ })).toHaveCount(0);
     await page.getByRole('checkbox', { name: /I am 18/ }).check();
     await page.getByRole('button', { name: 'Create my workspace' }).click();
     await expect(

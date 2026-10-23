@@ -51,6 +51,9 @@ const CameraAnalyzer = dynamic(() => import('./camera-analyzer').then((m) => m.C
 });
 type LiveState = Pick<
   ClassView,
+  | 'permissions'
+  | 'coachId'
+  | 'coachName'
   | 'title'
   | 'startsAt'
   | 'duration'
@@ -163,7 +166,7 @@ export function Studio({
     metricBusy = useRef(false),
     mounted = useRef(true),
     joinGeneration = useRef(0);
-  const coach = user.id === item?.coachId;
+  const coach = item?.permissions?.canManage ?? user.id === item?.coachId;
   current.current = item;
   const classmates = remote.filter((p) => p.identity !== item?.coachId);
   const lastClassmatePage = Math.max(0, Math.ceil(classmates.length / CLASSMATE_PAGE_SIZE) - 1);
@@ -175,6 +178,7 @@ export function Studio({
   subscriptionPolicy.current = {
     isCoach: coach,
     coachId: item?.coachId || '',
+    presenterIds: item?.permissions?.presenterIds,
     focusId: focus,
     cameraIds: coach
       ? visibleCameraIds
@@ -182,7 +186,7 @@ export function Studio({
         ? visibleClassmates.map((p) => p.identity)
         : [],
   };
-  const subscriptionKey = subscriptionPolicy.current.cameraIds.join(',');
+  const subscriptionKey = `${subscriptionPolicy.current.cameraIds.join(',')}:${subscriptionPolicy.current.presenterIds?.join(',') ?? ''}`;
   const syncSubscriptions = useCallback(() => {
     for (const person of room.current?.remoteParticipants.values() || [])
       for (const publication of person.trackPublications.values()) {
@@ -247,7 +251,7 @@ export function Studio({
         setItem((p) => (p ? { ...p, ...state } : p));
         setMessages(state.messages);
         setParticipationReason(state.participationAllowed ? '' : state.participationReason);
-        if (!state.participationAllowed && !coach) {
+        if (!state.participationAllowed) {
           joinGeneration.current++;
           setShowConsent(false);
           void room.current?.disconnect();
@@ -262,6 +266,23 @@ export function Studio({
         setSyncWarning('');
       } catch (err) {
         if (active) {
+          if (
+            err &&
+            typeof err === 'object' &&
+            'status' in err &&
+            (err.status === 403 || err.status === 404)
+          ) {
+            joinGeneration.current++;
+            void room.current?.disconnect();
+            setConnected(false);
+            setShowConsent(false);
+            setRemote([]);
+            setItem((p) =>
+              p
+                ? { ...p, participants: [], permissions: { canManage: false, hostId: p.coachId } }
+                : p,
+            );
+          }
           failures++;
           setSyncWarning(
             err instanceof Error

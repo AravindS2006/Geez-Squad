@@ -4,6 +4,7 @@ export const CLASSMATE_PAGE_SIZE = 9;
 export type MediaSubscription = {
   isCoach: boolean;
   coachId: string;
+  presenterIds?: readonly string[];
   cameraIds: readonly string[];
   focusId?: string | null;
 };
@@ -26,5 +27,8 @@ export function shouldSubscribe(
   if (source === 'camera')
     return (!policy.isCoach && identity === policy.coachId) || policy.cameraIds.includes(identity);
   if (source === 'microphone') return true;
-  return identity === policy.coachId && ['screen_share', 'screen_share_audio'].includes(source);
+  return (
+    (identity === policy.coachId || !!policy.presenterIds?.includes(identity)) &&
+    ['screen_share', 'screen_share_audio'].includes(source)
+  );
 }

@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import { fetchJson } from '@/lib/client';
 type Requests = { requests: { id: string; studioName: string }[]; verificationRequired: boolean };
-export function StudioJoinRequests() {
+export function StudioJoinRequests({ kind = 'member' }: { kind?: 'member' | 'coach' }) {
+  const endpoint = kind === 'coach' ? '/api/studio-team/requests' : '/api/studio-join-requests';
   const [data, setData] = useState<Requests | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
@@ -10,7 +11,7 @@ export function StudioJoinRequests() {
     let active = true;
     async function refresh() {
       try {
-        const result = await fetchJson<Requests>('/api/studio-join-requests');
+        const result = await fetchJson<Requests>(endpoint);
         if (active) {
           setData(result);
           setError('');
@@ -25,12 +26,12 @@ export function StudioJoinRequests() {
       active = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [endpoint]);
   async function respond(requestId: string, action: 'accept' | 'decline') {
     setBusy(true);
     setError('');
     try {
-      await fetchJson('/api/studio-join-requests', {
+      await fetchJson(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId, action }),
@@ -51,7 +52,7 @@ export function StudioJoinRequests() {
   if (!error && !data?.verificationRequired && !data?.requests.length) return null;
   return (
     <section className="panel studio-requests" aria-label="Studio requests">
-      <h2>Your studio connections</h2>
+      <h2>{kind === 'coach' ? 'Your coach invitations' : 'Your studio connections'}</h2>
       {data?.verificationRequired && (
         <p>
           Verify your email to see and accept studio requests.{' '}
@@ -65,8 +66,9 @@ export function StudioJoinRequests() {
           <div>
             <h3>{request.studioName}</h3>
             <p>
-              Your studio has added you as a member. Accept to share your coaching progress and see
-              your membership, payments and visits.
+              {kind === 'coach'
+                ? 'Accept coaching access for assigned trainees and classes you host. This does not change your personal membership benefits.'
+                : 'Your studio has added you as a member. Accept to share your coaching progress and see your membership, payments and visits.'}
             </p>
           </div>
           <div className="form-actions">
@@ -82,7 +84,7 @@ export function StudioJoinRequests() {
               disabled={busy}
               onClick={() => void respond(request.id, 'accept')}
             >
-              Accept studio request
+              {kind === 'coach' ? 'Accept coach invitation' : 'Accept studio request'}
             </button>
           </div>
         </div>

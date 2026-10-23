@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
@@ -34,10 +35,11 @@ test('shared session survives login, rescheduling reaches an open room, and endi
       (
         await page.request.post('/api/command', {
           headers,
-          data: { action: 'onboard', name: 'Session Coach', role: 'coach', adult: true },
+          data: { action: 'onboard', name: 'Session Coach', role: 'trainee', adult: true },
         })
       ).ok(),
     ).toBe(true);
+    await provisionTestAdmin(db, userId);
     const studio = await db.studio.findUniqueOrThrow({ where: { ownerId: userId } });
     const soon = await db.classSession.create({
       data: {
@@ -177,10 +179,11 @@ test('schedule editor rejects DST gaps and preserves the second occurrence of a 
       (
         await page.request.post('/api/command', {
           headers,
-          data: { action: 'onboard', name: 'Time Coach', role: 'coach', adult: true },
+          data: { action: 'onboard', name: 'Time Coach', role: 'trainee', adult: true },
         })
       ).ok(),
     ).toBe(true);
+    await provisionTestAdmin(db, userId);
     const studio = await db.studio.findUniqueOrThrow({ where: { ownerId: userId } });
     const original = '2027-11-07T06:30:45.000Z';
     const session = await db.classSession.create({

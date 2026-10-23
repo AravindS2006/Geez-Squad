@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
@@ -50,10 +51,12 @@ async function agent(name, role) {
   ids.push(signup.data.user.id);
   session.email = signup.data.user.email;
   check(
-    (await session.call('/api/command', { action: 'onboard', role, name, adult: true })).status,
+    (await session.call('/api/command', { action: 'onboard', role: 'trainee', name, adult: true }))
+      .status,
     200,
     'onboarding',
   );
+  if (role === 'coach') await provisionTestAdmin(db, signup.data.user.id);
   agents.push(session);
   return session;
 }
@@ -437,9 +440,9 @@ try {
     'declining exposes no membership history',
   );
   check(
-    (await post({ action: 'memberAccess', memberId: futureMember, operation: 'resend' })).status,
-    200,
-    'owner can explicitly resend',
+    (await post({ action: 'memberAccess', memberId: futureMember, operation: 'sendEmail' })).status,
+    502,
+    'local email mode reports delivery failure while retaining the request',
   );
   futureRequests = (await futureClient.call('/api/studio-join-requests')).data.requests;
   check(futureRequests.length, 1, 'resend restores one pending request');

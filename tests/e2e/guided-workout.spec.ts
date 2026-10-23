@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
 import { chromium, expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -47,9 +48,10 @@ test('pausing cancels calibration and pending movement while retaining completed
         data: { name, email, password: 'Local-Integration-Only-12345' },
       });
       expect(signup.ok()).toBe(true);
+      if (role === 'coach') await provisionTestAdmin(db, email);
       const setup = await request.post(`${origin}/api/command`, {
         headers,
-        data: { action: 'onboard', name, role, adult: true },
+        data: { action: 'onboard', name, role: 'trainee', adult: true },
       });
       expect(setup.ok()).toBe(true);
     }
@@ -274,11 +276,42 @@ test('guided sets count only after the hands-free countdown, recover between set
       await page.waitForTimeout(650);
       await moveThroughAngles(page, [105, 125, 145, 165, 180]);
       await expect(reps).toHaveText(String(set).padStart(2, '0'));
+      await expect(page.locator('.set-completion')).toContainText(`Set ${set} complete · 1/1 reps`);
       await page.getByRole('button', { name: 'Workout settings', exact: true }).click();
       await expect(page.locator('.set-results tbody tr')).toHaveCount(set);
       await page.getByRole('button', { name: 'Close dialog' }).click();
     }
     await expect(page.getByText('Workout complete', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enable voice & rep sound' })).toBeVisible();
+    await page.getByRole('button', { name: 'New workout', exact: true }).click();
+    await expect(page.locator('.set-completion')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Workout settings', exact: true }).click();
+    await page.getByLabel('Rest (seconds)').fill('0');
+    await page.getByRole('button', { name: 'Close dialog' }).click();
+    for (let set = 1; set <= 2; set++) {
+      await page
+        .getByRole('button', { name: set === 1 ? 'Start set' : 'Start next set', exact: true })
+        .click();
+      await expect(page.locator('.set-completion')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Pause set', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Workout settings', exact: true }).click();
+      await page.getByRole('button', { name: 'Finish set early' }).click();
+      await expect(page.locator('.set-completion')).toContainText(
+        `Set ${set} finished early · 0/1 reps`,
+      );
+      if (set === 1) {
+        await expect(
+          page.getByRole('button', { name: 'Start next set', exact: true }),
+        ).toBeEnabled();
+        await page.waitForTimeout(300);
+        await expect(page.getByRole('button', { name: 'Pause set', exact: true })).toHaveCount(0);
+      }
+    }
+    await expect(page.locator('.set-completion')).toContainText(
+      'Workout finished · 0 of 2 targets reached',
+    );
+    await page.getByLabel('Exercise to practice').selectOption('plank');
+    await expect(page.locator('.set-completion')).toHaveCount(0);
     await page.getByRole('button', { name: 'Stop local camera analysis' }).click();
     await expect(page.getByRole('button', { name: 'Enable camera' })).toBeVisible();
     expect(

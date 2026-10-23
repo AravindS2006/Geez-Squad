@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
@@ -29,10 +30,11 @@ test('mobile studio journey persists membership, receipt, attendance, and bookin
       (
         await page.request.post('/api/command', {
           headers,
-          data: { action: 'onboard', role: 'coach', name: 'Studio Browser Owner', adult: true },
+          data: { action: 'onboard', role: 'trainee', name: 'Studio Browser Owner', adult: true },
         })
       ).ok(),
     ).toBe(true);
+    await provisionTestAdmin(db, userId);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/app?view=members');
     await page.getByRole('button', { name: 'Add member', exact: true }).first().click();

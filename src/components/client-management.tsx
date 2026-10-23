@@ -74,50 +74,56 @@ export function ClientManagement({
         </button>
         {message && <p role="status">{message}</p>}
       </form>
-      <details className="membership-management">
-        <summary>Studio membership</summary>
-        <p>
-          Removing this trainee removes their plan assignment and enrollment in {upcoming} scheduled{' '}
-          {upcoming === 1 ? 'session' : 'sessions'}. Their account and past workout records are
-          preserved.
-        </p>
-        {live ? (
-          <p className="inline-notice">
-            End their live class before removing them from the studio.
+      {(data.permissions?.admin ?? data.demo) && (
+        <details className="membership-management">
+          <summary>Studio membership</summary>
+          <p>
+            Removing this trainee removes their plan assignment and enrollment in {upcoming}{' '}
+            scheduled {upcoming === 1 ? 'session' : 'sessions'}. Their account and past workout
+            records are preserved.
           </p>
-        ) : confirmRemove ? (
-          <div className="form-stack">
-            <p>Remove {client.name} from your studio?</p>
-            <div className="form-actions">
-              <button
-                className="button danger-button"
-                disabled={busy}
-                onClick={async () => {
-                  try {
-                    await onSave({ action: 'removeClient', userId: client.id });
-                    onRemoved();
-                  } catch {
-                    setConfirmRemove(false);
-                  }
-                }}
-              >
-                Confirm removal
-              </button>
-              <button
-                className="button outline"
-                disabled={busy}
-                onClick={() => setConfirmRemove(false)}
-              >
-                Keep trainee
-              </button>
+          {live ? (
+            <p className="inline-notice">
+              End their live class before removing them from the studio.
+            </p>
+          ) : confirmRemove ? (
+            <div className="form-stack">
+              <p>Remove {client.name} from your studio?</p>
+              <div className="form-actions">
+                <button
+                  className="button danger-button"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      await onSave({ action: 'removeClient', userId: client.id });
+                      onRemoved();
+                    } catch {
+                      setConfirmRemove(false);
+                    }
+                  }}
+                >
+                  Confirm removal
+                </button>
+                <button
+                  className="button outline"
+                  disabled={busy}
+                  onClick={() => setConfirmRemove(false)}
+                >
+                  Keep trainee
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <button className="button outline" disabled={busy} onClick={() => setConfirmRemove(true)}>
-            Remove from studio
-          </button>
-        )}
-      </details>
+          ) : (
+            <button
+              className="button outline"
+              disabled={busy}
+              onClick={() => setConfirmRemove(true)}
+            >
+              Remove from studio
+            </button>
+          )}
+        </details>
+      )}
     </div>
   );
 }

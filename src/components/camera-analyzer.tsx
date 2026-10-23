@@ -1,5 +1,6 @@
 'use client';
 import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
+import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';
 import {
   Camera,
@@ -137,6 +138,7 @@ export function CameraAnalyzer({
   const [config, setConfig] = useState(() => defaultWorkoutConfig(exercise, block));
   const [mode, setMode] = useState<Mode>('setup');
   const [completedSets, setCompletedSets] = useState<SetResult[]>([]);
+  const [completion, setCompletion] = useState('');
   const [restUntil, setRestUntil] = useState(0);
   const [restLeft, setRestLeft] = useState(0);
   const [localPaused, setLocalPaused] = useState(false);
@@ -343,6 +345,17 @@ export function CameraAnalyzer({
         });
     }
     const nextMode = completedRef.current.length >= configRef.current.sets ? 'complete' : 'rest';
+    const confirmation = setFeedback(
+      entry.number,
+      amount,
+      record.target,
+      isHoldExercise(record.exercise),
+    );
+    const feedback =
+      nextMode === 'complete'
+        ? `${confirmation}. ${workoutFeedback(completedRef.current.map((s) => s.amount >= record.target))}`
+        : confirmation;
+    setCompletion(feedback);
     modeRef.current = nextMode;
     setMode(nextMode);
     setLocalPaused(false);
@@ -350,9 +363,7 @@ export function CameraAnalyzer({
     setRestUntil(until);
     setRestLeft(configRef.current.rest);
     announce(
-      nextMode === 'complete'
-        ? 'Workout complete. Well done. Take a recovery break.'
-        : `Set finished. Rest for ${configRef.current.rest} seconds.`,
+      `${feedback}. ${nextMode === 'complete' ? 'Take a recovery break.' : `Rest for ${configRef.current.rest} seconds.`}`,
       true,
     );
   }
@@ -380,6 +391,7 @@ export function CameraAnalyzer({
       return;
     previewState.current = initialPoseState();
     startClock.current = initialStartCountdown();
+    setCompletion('');
     armedAt.current = performance.now();
     armedRef.current = true;
     lastCountdownSound.current = null;
@@ -505,6 +517,7 @@ export function CameraAnalyzer({
     setLocalPaused(false);
     completedRef.current = [];
     setCompletedSets([]);
+    setCompletion('');
     let saved: Partial<WorkoutConfig> = {};
     try {
       saved = JSON.parse(readBrowserPreference(`geez-squad-workout-v3-${exercise}`) || '{}');
@@ -521,6 +534,7 @@ export function CameraAnalyzer({
   }, [classId, exercise, revision, block?.sets, block?.reps, block?.rest, block?.loadKg]);
   useEffect(() => {
     const onPageHide = () => {
+      setCompletion('');
       const unfinished = recordSet();
       if (unfinished?.owner && unfinished.record.activeMs > 0)
         void saveWorkoutSet(unfinished.owner, unfinished.record).catch(() => {});
@@ -1234,6 +1248,24 @@ export function CameraAnalyzer({
         )}
       </div>
       <div className="analyzer-footer">
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {completion}
+        </div>
+        {completion && (
+          <section className="set-completion" aria-label="Set completed">
+            <CheckCircle2 size={28} aria-hidden="true" />
+            <div>
+              <strong>{completion}</strong>
+              <p>
+                {mode === 'rest'
+                  ? restLeft > 0
+                    ? `Recovery · ${restLeft}s remaining`
+                    : 'Recovery complete · Start next set when ready'
+                  : 'Take a recovery break. Your results are below.'}
+              </p>
+            </div>
+          </section>
+        )}
         {saveMessage && (
           <div className={`workout-save-status ${saveFailed ? 'save-pending' : ''}`} role="status">
             <span>{saveMessage}</span>
@@ -1251,7 +1283,7 @@ export function CameraAnalyzer({
         )}
         <div className={`cue-card analyzer-cue ${cueExpanded ? 'is-expanded' : ''}`}>
           <ScanLine size={16} aria-hidden="true" />
-          <p role="status">{cue}</p>
+          <p role={completion ? undefined : 'status'}>{cue}</p>
           <button
             className="icon-button cue-expand"
             aria-label={cueExpanded ? 'Collapse coaching cue' : 'Expand coaching cue'}
@@ -1264,7 +1296,9 @@ export function CameraAnalyzer({
         <section className="set-progress analyzer-progress" aria-label="Set progress">
           <div>
             <strong>
-              {mode === 'complete' ? 'Workout complete' : `Set ${currentSet} of ${config.sets}`}
+              {mode === 'complete'
+                ? workoutFeedback(completedSets.map((s) => s.amount >= config.target))
+                : `Set ${currentSet} of ${config.sets}`}
             </strong>
             <span>
               {armed
@@ -1359,6 +1393,7 @@ export function CameraAnalyzer({
                 onClick={() => {
                   completedRef.current = [];
                   setCompletedSets([]);
+                  setCompletion('');
                   modeRef.current = 'setup';
                   setMode('setup');
                   baseline.current = {

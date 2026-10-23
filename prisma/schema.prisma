@@ -27,6 +27,8 @@ model User {
   checkIns CheckIn[]
   assignments PlanAssignment[]
   studioMembers StudioMember[]
+  studioRoles StudioRoleGrant[]
+  coachAssignments PrimaryCoachAssignment[]
 }
 model Session {
   id String @id
@@ -95,6 +97,8 @@ model Studio {
   enquiries StudioEnquiry[]
   staff StudioStaff[]
   studioClasses StudioClass[]
+  roleGrants StudioRoleGrant[]
+  teamRequests StudioTeamRequest[]
 }
 
 model StudioMember {
@@ -114,6 +118,7 @@ model StudioMember {
   terms MemberTerm[]
   attendance StudioAttendance[]
   bookings StudioBooking[]
+  primaryCoach PrimaryCoachAssignment?
   @@index([studioId, status])
   @@unique([studioId, userId])
 }
@@ -123,6 +128,7 @@ model StudioJoinRequest {
   memberId String @unique
   email String
   status String @default("pending")
+  targetUserId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -217,6 +223,7 @@ model StudioStaff {
 model StudioClass {
   id String @id @default(cuid())
   studioId String
+  hostId String?
   title String
   trainer String
   location String
@@ -262,6 +269,7 @@ model Invitation {
 model WorkoutPlan {
   id String @id @default(cuid())
   studioId String
+  createdById String?
   name String
   description String
   blocks Json
@@ -275,6 +283,7 @@ model ClassSession {
   videoRoomName String?
   id String @id @default(cuid())
   studioId String
+  hostId String?
   planId String?
   title String
   startsAt DateTime
@@ -426,4 +435,54 @@ model AuditEvent {
   targetId String
   createdAt DateTime @default(now())
   @@index([actorId, createdAt])
+}
+
+model StudioRoleGrant {
+  id String @id @default(cuid())
+  studioId String
+  userId String
+  role String
+  status String @default("active")
+  grantedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([studioId, userId, role])
+  @@index([userId, status])
+}
+
+model PrimaryCoachAssignment {
+  id String @id @default(cuid())
+  memberId String @unique
+  coachId String
+  assignedAt DateTime @default(now())
+  note String @default("")
+  member StudioMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  @@index([coachId])
+}
+
+model CoachAssignmentHistory {
+  id String @id @default(cuid())
+  memberId String
+  studioId String
+  coachId String
+  assignedAt DateTime
+  endedAt DateTime @default(now())
+  note String
+  @@index([studioId, memberId])
+}
+
+model StudioTeamRequest {
+  id String @id @default(cuid())
+  studioId String
+  email String
+  role String @default("coach")
+  status String @default("pending")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  @@unique([studioId, email, role])
+  @@index([email, status])
 }

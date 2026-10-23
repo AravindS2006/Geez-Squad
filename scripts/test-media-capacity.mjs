@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import { grantLocalTestTerm } from './test-member-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -128,11 +129,12 @@ try {
   assert.ok(signup.ok(), `Signup ${signup.status()}`);
   const onboard = await coach.request.post(`${origin}/api/command`, {
     headers,
-    data: { action: 'onboard', name: 'Media Coach', role: 'coach', adult: true },
+    data: { action: 'onboard', name: 'Media Coach', role: 'trainee', adult: true },
   });
   assert.ok(onboard.ok());
   const user = await db.user.findUniqueOrThrow({ where: { email } });
   coachId = user.id;
+  await provisionTestAdmin(db, coachId);
   const studio = await db.studio.findUniqueOrThrow({ where: { ownerId: coachId } });
   await db.$transaction(
     ids.map((id, index) =>

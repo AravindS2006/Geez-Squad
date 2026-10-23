@@ -15,6 +15,7 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm audit --audit-level=high
+      - run: npm run db:roles:rehearse
       - run: npm run build
       - name: API and browser verification
         shell: pwsh
@@ -25,6 +26,8 @@ jobs:
               try { Invoke-WebRequest -Uri http://localhost:3000/api/health -UseBasicParsing | Out-Null; break } catch { Start-Sleep -Seconds 1 }
             }
             node scripts/test-api.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/test-studio-roles.mjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node scripts/test-studio-operations.mjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

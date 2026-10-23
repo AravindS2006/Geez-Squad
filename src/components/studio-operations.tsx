@@ -46,6 +46,7 @@ import {
 } from '@/lib/studio-operations';
 import type { WorkspaceData } from '@/lib/types';
 import { StudioSchedule } from './studio-schedule';
+import { StudioTeam } from './studio-team';
 
 const operationViews = [
   'dashboard',
@@ -144,6 +145,7 @@ export function StudioOperations({
   const [loading, setLoading] = useState(!workspace.demo);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
   const [editor, setEditor] = useState<Editor | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
@@ -191,6 +193,7 @@ export function StudioOperations({
   function open(next: Editor) {
     setError('');
     paymentRequest.current = crypto.randomUUID();
+    setMemberEmail(data?.members.find((m) => m.id === next.id)?.email ?? '');
     setEditor(next);
   }
   async function save(command: OperationsCommand) {
@@ -221,11 +224,17 @@ export function StudioOperations({
       setNotice(
         releasedBookings
           ? `Studio updated. ${releasedBookings} ineligible future booking(s) cancelled and seats released.`
-          : 'Studio updated successfully.',
+          : command.action === 'memberAccess' && command.operation !== 'withdraw'
+            ? 'Setup email sent. Awaiting account confirmation.'
+            : 'Studio updated successfully.',
       );
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Please check the fields and retry.');
+      if (command.action === 'memberAccess' && !workspace.demo)
+        await fetchJson<OperationsData>('/api/studio-operations')
+          .then(setData)
+          .catch(() => {});
       return false;
     } finally {
       lock.current = false;
@@ -341,7 +350,7 @@ export function StudioOperations({
       memberships: 'Create plan',
       payments: 'Record payment',
       enquiries: 'Add enquiry',
-      staff: 'Add staff',
+      staff: 'Add directory staff',
     } as Record<string, string>
   )[view];
   function exportMembers() {
@@ -398,15 +407,20 @@ export function StudioOperations({
                         <strong>{m.name}</strong>
                         <small>{m.email || m.phone || 'In-studio member'}</small>
                         <small>
-                          {m.userId
-                            ? 'Connected'
-                            : !m.email
-                              ? 'No email'
-                              : m.accessStatus === 'pending' || (workspace.demo && !m.accessStatus)
-                                ? 'Pending confirmation'
-                                : m.accessStatus === 'declined'
-                                  ? 'Request declined'
-                                  : 'Request withdrawn'}
+                          {m.accessStatus === 'connected' || (workspace.demo && m.userId)
+                            ? 'Connected account'
+                            : m.userId
+                              ? m.accessStatus === 'pending_restore'
+                                ? 'Pending app confirmation'
+                                : 'App access removed'
+                              : !m.email
+                                ? 'No email'
+                                : m.accessStatus === 'pending' ||
+                                    (workspace.demo && !m.accessStatus)
+                                  ? 'Pending confirmation'
+                                  : m.accessStatus === 'declined'
+                                    ? 'Request declined'
+                                    : 'Request withdrawn'}
                         </small>
                       </span>
                     </button>
@@ -612,6 +626,7 @@ export function StudioOperations({
           />
         </label>
       )}
+      {view === 'staff' && !workspace.demo && <StudioTeam />}
       {notice && (
         <div className="ops-notice" role="status">
           <Check size={16} />
@@ -1576,14 +1591,14 @@ export function StudioOperations({
               : 'Not yet'}
           </p>
           <p className="ops-context-note">
-            {selectedMember.userId
+            {selectedMember.accessStatus === 'connected'
               ? 'Connected to their account. Contact email edits do not change account access. Live participation requires an active membership.'
               : selectedMember.email
                 ? 'This member can sign in with their personal email and accept the studio request. Their membership is saved immediately.'
                 : 'Add an email address to connect this member to their account. Walk-in memberships work without an account.'}
           </p>
-          {!selectedMember.userId &&
-            selectedMember.email &&
+          {selectedMember.accessStatus !== 'connected' &&
+            (selectedMember.email || selectedMember.userId) &&
             selectedMember.status !== 'archived' && (
               <div className="form-actions">
                 <button
@@ -1593,11 +1608,11 @@ export function StudioOperations({
                     void save({
                       action: 'memberAccess',
                       memberId: selectedMember.id,
-                      operation: 'resend',
+                      operation: selectedMember.userId ? 'restore' : 'sendEmail',
                     })
                   }
                 >
-                  Send studio request
+                  {selectedMember.userId ? 'Restore app access' : 'Send setup email'}
                 </button>
                 <button
                   className="text-link"
@@ -1643,6 +1658,20 @@ export function StudioOperations({
                       in and accept the studio request. No separate coaching invitation is needed.
                     </p>
                   </div>
+                  <p className="ops-context-note" aria-live="polite">
+                    <strong>
+                      {editMember?.accessStatus === 'connected'
+                        ? 'Connected account'
+                        : editMember?.userId
+                          ? 'App access removed · Restore from member details'
+                          : memberEmail.trim()
+                            ? 'Pending app connection'
+                            : 'In-person member'}
+                    </strong>
+                    {!memberEmail.trim() &&
+                      !editMember?.userId &&
+                      ' · Memberships, payments, attendance and studio bookings work without an account.'}
+                  </p>
                   <Field label="Full name">
                     <input
                       name="name"
@@ -1658,9 +1687,16 @@ export function StudioOperations({
                         name="email"
                         type="email"
                         maxLength={254}
-                        defaultValue={editMember?.email}
+                        value={memberEmail}
+                        onChange={(e) => setMemberEmail(e.target.value)}
+                        aria-describedby="member-email-help"
                       />
                     </Field>
+                    <p id="member-email-help" className="microcopy">
+                      Leave blank for an in-person member. With an email, they must sign up, verify
+                      their mailbox and accept the studio request for digital coaching. Contact
+                      email edits never transfer account ownership.
+                    </p>
                     <Field label="Phone (optional)">
                       <input
                         name="phone"

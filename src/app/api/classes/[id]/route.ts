@@ -1,3 +1,4 @@
+import { classPermissions } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
 import { participation, revokeIneligibleParticipants } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
@@ -16,7 +17,12 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
       },
     });
     if (!item) throw new ApiError(404, 'This session is not available.');
-    const coach = item.studio.ownerId === user.id;
+    const permissions = await classPermissions(item, user.id);
+    const coach = permissions.canManage;
+    const host = await db.user.findUnique({
+      where: { id: permissions.hostId },
+      select: { name: true },
+    });
     // Trainees only query their own enrollment; class size does not multiply
     // the private metrics fetched for every trainee's three-second poll.
     const enrollments = await db.enrollment.findMany({
@@ -44,6 +50,9 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
       {
         participationAllowed: eligibility.allowed,
         participationReason: eligibility.reason,
+        permissions,
+        coachId: permissions.hostId,
+        coachName: host?.name ?? 'Studio coach',
         title: item.title,
         startsAt: item.startsAt,
         duration: item.duration,

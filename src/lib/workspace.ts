@@ -4,53 +4,71 @@ import { ApiError } from './security';
 import type { WorkspaceData, Block, ClassView, ExerciseId } from './types';
 import { sessionEditVersion } from './session-management';
 import { compareSessions } from './session-timing';
+import { studioAccess, classPermissionView } from './studio-access';
+import type { Prisma } from '@prisma/client';
 export async function workspaceData(userId: string, classId?: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
-  const studio = await db.studio.findFirst({
-    where: { OR: [{ ownerId: userId }, { memberships: { some: { userId } } }] },
-  });
+  const access = await studioAccess(userId);
+  const studio = access?.studio ?? null;
+  const coach = !!access?.coach;
   const memberProfiles = studio
     ? await db.studioMember.findMany({
-        where: { studioId: studio.id, userId: { not: null } },
-        select: { userId: true, name: true, goal: true },
-      })
-    : [];
-  const visibleUser =
-    studio && user.role === 'coach'
-      ? { OR: [{ id: userId }, { memberships: { some: { studioId: studio.id } } }] }
-      : { id: userId };
-  const [members, plans, classes, billing, sets, checkIns, assignments] = await Promise.all([
-    studio && user.role === 'coach'
-      ? db.membership.findMany({
-          where: { studioId: studio.id },
-          include: {
-            user: {
-              include: {
-                checkIns: { orderBy: { createdAt: 'desc' }, take: 1 },
-                workoutSets: {
-                  where: { OR: [{ reps: { gt: 0 } }, { holdMs: { gt: 0 } }] },
-                  orderBy: { endedAt: 'desc' },
-                  take: 1,
-                },
-                _count: {
-                  select: {
-                    workoutSets: {
-                      where: {
-                        completed: true,
-                        endedAt: { gte: new Date(Date.now() - 7 * 86400000) },
-                      },
-                    },
-                  },
-                },
+        where: {
+          studioId: studio.id,
+          userId: { not: null },
+          user: {
+            memberships: { some: { studioId: studio.id } },
+            NOT: {
+              studioRoles: {
+                some: { studioId: studio.id, role: 'trainee', status: { not: 'active' } },
               },
             },
+          },
+          ...(!access?.admin ? { primaryCoach: { coachId: userId } } : {}),
+        },
+        include: { primaryCoach: true },
+      })
+    : [];
+  const visibleIds = memberProfiles.map((m) => m.userId!);
+  const setVisibility: Prisma.WorkoutSetWhereInput = {
+    OR: [
+      { userId },
+      ...memberProfiles
+        .filter((m) => coach)
+        .map((m) => ({
+          userId: m.userId!,
+          ...(access?.admin ? {} : { startedAt: { gte: m.primaryCoach!.assignedAt } }),
+          OR: [{ classId: null }, { class: { studioId: studio!.id } }],
+        })),
+    ],
+  };
+  const checkInVisibility: Prisma.CheckInWhereInput = {
+    OR: [
+      { userId },
+      ...memberProfiles
+        .filter((m) => coach)
+        .map((m) => ({
+          userId: m.userId!,
+          ...(access?.admin ? {} : { createdAt: { gte: m.primaryCoach!.assignedAt } }),
+        })),
+    ],
+  };
+  const [members, plans, classes, billing, sets, checkIns, assignments] = await Promise.all([
+    studio && coach
+      ? db.membership.findMany({
+          where: { studioId: studio.id, userId: { in: visibleIds } },
+          include: {
+            user: true,
           },
           orderBy: { createdAt: 'desc' },
         })
       : [],
     studio
-      ? db.workoutPlan.findMany({ where: { studioId: studio.id }, orderBy: { createdAt: 'desc' } })
+      ? db.workoutPlan.findMany({
+          where: { studioId: studio.id, ...(coach ? {} : { assignments: { some: { userId } } }) },
+          orderBy: { createdAt: 'desc' },
+        })
       : [],
     Promise.all(
       (classId ? [undefined] : ['live', 'scheduled', 'completed', 'cancelled']).map((status) =>
@@ -58,15 +76,22 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
           where: {
             ...(classId ? { id: classId } : {}),
             ...(status ? { status } : {}),
-            ...(user.role === 'coach'
-              ? { studio: { ownerId: userId } }
-              : { enrollments: { some: { userId } } }),
+            ...(access?.admin
+              ? { studioId: studio!.id }
+              : {
+                  OR: [
+                    ...(coach ? [{ studioId: studio!.id, hostId: userId }] : []),
+                    { enrollments: { some: { userId } } },
+                  ],
+                }),
           },
           include: {
             _count: { select: { enrollments: true } },
             studio: { include: { owner: { select: { name: true } } } },
+            plan: { select: { blocks: true } },
             enrollments: {
-              where: user.role === 'coach' ? {} : { userId },
+              // Per-class filtering below prevents session-only hosts from seeing unrelated profiles.
+              where: {},
               include: { user: { select: { id: true, name: true } }, metric: true, summary: true },
             },
           },
@@ -77,78 +102,133 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     ).then((groups) => groups.flat()),
     db.billingSubscription.findUnique({ where: { userId } }),
     db.workoutSet.findMany({
-      where: { user: visibleUser },
+      where: setVisibility,
       include: { user: { select: { name: true } }, class: { select: { title: true } } },
       orderBy: { endedAt: 'desc' },
       take: 500,
     }),
     db.checkIn.findMany({
-      where: { user: visibleUser },
+      where: checkInVisibility,
       include: { user: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 100,
     }),
     studio
       ? db.planAssignment.findMany({
-          where: { studioId: studio.id, ...(user.role === 'coach' ? {} : { userId }) },
+          where: { studioId: studio.id, ...(coach ? { userId: { in: visibleIds } } : { userId }) },
         })
       : [],
   ]);
-  const classViews: ClassView[] = classes.map((c) => ({
-    id: c.id,
-    ...(user.role === 'coach' ? { editVersion: sessionEditVersion(c) } : {}),
-    title: c.title,
-    startsAt: c.startsAt.toISOString(),
-    duration: c.duration,
-    capacity: c.capacity,
-    participantCount: c._count.enrollments,
-    status: c.status,
-    exercise: c.exercise as ExerciseId,
-    revision: c.revision,
-    paused: c.paused,
-    startedAt: c.startedAt?.toISOString() ?? null,
-    endedAt: c.endedAt?.toISOString() ?? null,
-    coachId: c.studio.ownerId,
-    coachName: c.studio.owner.name,
-    planId: c.planId,
-    workout: (plans.find((p) => p.id === c.planId)?.blocks ?? []) as unknown as Block[],
-    participants: c.enrollments
-      .filter((e) => user.role === 'coach' || e.userId === userId)
-      .map((e) => ({
-        id: e.userId,
-        name: e.user.name,
-        helpRequested: e.helpRequested,
-        metric: e.metric
-          ? {
-              exercise: e.metric.exercise,
-              revision: e.metric.revision,
-              reps: e.metric.reps,
-              holdSeconds: e.metric.holdSeconds,
-              score: e.metric.score,
-              confidence: e.metric.confidence,
-              phase: e.metric.phase,
-              cue: e.metric.cue,
-              quality: e.metric.quality,
-              rangeDegrees: e.metric.rangeDegrees,
-              repSeconds: e.metric.repSeconds,
-              trackingCoverage: e.metric.trackingCoverage,
-              rejectedReps: e.metric.rejectedReps,
-              updatedAt: e.metric.updatedAt.toISOString(),
-            }
-          : null,
-        summary: e.summary
-          ? {
-              totalReps: e.summary.totalReps,
-              totalHoldSeconds: e.summary.totalHoldSeconds,
-              trackedSamples: e.summary.trackedSamples,
-              scoreTotal: e.summary.scoreTotal,
-            }
-          : null,
-      })),
-  }));
+  const hosts = await db.user.findMany({
+    where: { id: { in: [...new Set(classes.map((c) => c.hostId ?? c.studio.ownerId))] } },
+    select: { id: true, name: true },
+  });
+  const classAdmins = await db.studioRoleGrant.findMany({
+    where: {
+      studioId: { in: [...new Set(classes.map((c) => c.studioId))] },
+      role: 'admin',
+      status: 'active',
+    },
+    select: { studioId: true, userId: true },
+  });
+  const classViews: ClassView[] = classes.map((c) => {
+    const permissions = classPermissionView(
+      c,
+      userId,
+      access,
+      classAdmins.filter((a) => a.studioId === c.studioId).map((a) => a.userId),
+    );
+    return {
+      id: c.id,
+      ...(permissions.canManage ? { editVersion: sessionEditVersion(c) } : {}),
+      permissions,
+      title: c.title,
+      startsAt: c.startsAt.toISOString(),
+      duration: c.duration,
+      capacity: c.capacity,
+      participantCount: c._count.enrollments,
+      status: c.status,
+      exercise: c.exercise as ExerciseId,
+      revision: c.revision,
+      paused: c.paused,
+      startedAt: c.startedAt?.toISOString() ?? null,
+      endedAt: c.endedAt?.toISOString() ?? null,
+      coachId: permissions.hostId,
+      coachName:
+        hosts.find((h) => h.id === permissions.hostId)?.name ??
+        (permissions.hostId === c.studio.ownerId ? c.studio.owner.name : 'Former coach'),
+      planId: c.planId,
+      workout: (c.plan?.blocks ?? []) as unknown as Block[],
+      participants: c.enrollments
+        .filter((e) => permissions.canManage || e.userId === userId)
+        .map((e) => ({
+          id: e.userId,
+          name: e.user.name,
+          helpRequested: e.helpRequested,
+          metric: e.metric
+            ? {
+                exercise: e.metric.exercise,
+                revision: e.metric.revision,
+                reps: e.metric.reps,
+                holdSeconds: e.metric.holdSeconds,
+                score: e.metric.score,
+                confidence: e.metric.confidence,
+                phase: e.metric.phase,
+                cue: e.metric.cue,
+                quality: e.metric.quality,
+                rangeDegrees: e.metric.rangeDegrees,
+                repSeconds: e.metric.repSeconds,
+                trackingCoverage: e.metric.trackingCoverage,
+                rejectedReps: e.metric.rejectedReps,
+                updatedAt: e.metric.updatedAt.toISOString(),
+              }
+            : null,
+          summary: e.summary
+            ? {
+                totalReps: e.summary.totalReps,
+                totalHoldSeconds: e.summary.totalHoldSeconds,
+                trackedSamples: e.summary.trackedSamples,
+                scoreTotal: e.summary.scoreTotal,
+              }
+            : null,
+        })),
+    };
+  });
   return {
+    coaches:
+      studio && coach
+        ? await db.user.findMany({
+            where: {
+              OR: [
+                { id: studio.ownerId },
+                {
+                  studioRoles: {
+                    some: {
+                      studioId: studio.id,
+                      status: 'active',
+                      role: { in: ['admin', 'coach'] },
+                    },
+                  },
+                },
+              ],
+            },
+            select: { id: true, name: true },
+          })
+        : [],
     demo: false,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, goal: user.goal },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role === 'unset' ? 'unset' : coach ? 'coach' : 'trainee',
+      goal: user.goal,
+    },
+    permissions: {
+      admin: !!access?.admin,
+      coach,
+      trainee: !!access?.trainee,
+      role: access?.role ?? 'trainee',
+    },
     studio: studio ? { id: studio.id, name: studio.name } : null,
     clients: members.map((m) => ({
       id: m.userId,
@@ -157,22 +237,34 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
       role: m.user.role,
       goal: memberProfiles.find((p) => p.userId === m.userId)?.goal ?? m.user.goal,
       joinedAt: m.createdAt.toISOString(),
-      coachNote: m.coachNote,
-      latestCheckIn: m.user.checkIns[0]
+      coachNote: access?.admin
+        ? m.coachNote
+        : (memberProfiles.find((p) => p.userId === m.userId)?.primaryCoach?.note ?? ''),
+      assignedAt:
+        memberProfiles.find((p) => p.userId === m.userId)?.primaryCoach?.assignedAt.toISOString() ??
+        null,
+      latestCheckIn: checkIns.find((e) => e.userId === m.userId)
         ? {
-            ...m.user.checkIns[0],
+            ...checkIns.find((e) => e.userId === m.userId)!,
             userName: m.user.name,
-            createdAt: m.user.checkIns[0].createdAt.toISOString(),
+            createdAt: checkIns.find((e) => e.userId === m.userId)!.createdAt.toISOString(),
           }
         : null,
-      lastTrainingAt: m.user.workoutSets[0]?.endedAt.toISOString() ?? null,
-      completedSetsThisWeek: m.user._count.workoutSets,
+      lastTrainingAt:
+        sets
+          .find((e) => e.userId === m.userId && (e.reps > 0 || e.holdMs > 0))
+          ?.endedAt.toISOString() ?? null,
+      completedSetsThisWeek: sets.filter(
+        (e) =>
+          e.userId === m.userId && e.completed && e.endedAt.getTime() >= Date.now() - 7 * 86400000,
+      ).length,
     })),
     plans: plans.map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
       blocks: p.blocks as unknown as Block[],
+      canEdit: !!access?.admin || p.createdById === userId,
     })),
     classes: classViews.sort(compareSessions),
     workoutSets: sets.map(({ user: person, class: session, ...set }) => ({

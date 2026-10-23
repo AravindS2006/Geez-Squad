@@ -37,7 +37,9 @@ async function handleGET() {
           },
         },
         attendance: { select: { date: true } },
-        bookings: { select: { status: true, class: { select: { title: true, startsAt: true } } } },
+        bookings: {
+          select: { id: true, status: true, class: { select: { title: true, startsAt: true } } },
+        },
       },
     });
     const [workoutSets, checkIns, assignments] = await Promise.all([
@@ -60,9 +62,20 @@ async function handleGET() {
         },
         memberships,
         studioRecords,
+        bookingEvents: await db.auditEvent.findMany({
+          where: {
+            targetId: { in: studioRecords.flatMap((m) => m.bookings.map((b) => b.id)) },
+            action: { startsWith: 'booking.' },
+          },
+          select: { action: true, targetId: true, createdAt: true },
+        }),
         workoutSets,
         checkIns,
         assignments,
+        studioRoles: await db.studioRoleGrant.findMany({
+          where: { userId: user.id },
+          select: { role: true, status: true, grantedAt: true, studio: { select: { name: true } } },
+        }),
         workouts: enrollments.map((e) => ({
           class: e.class,
           consentAt: e.consentAt,

@@ -66,7 +66,9 @@ export function CoachingFollowUps({
         <p>
           {data.clients.length
             ? 'No current follow-ups from shared check-ins, plans, or saved activity.'
-            : 'Invite your first trainee to build your coaching roster.'}
+            : data.permissions?.admin || data.demo
+              ? 'Add a member and connect their account to build your coaching roster.'
+              : 'An admin can assign trainees to you from Team.'}
         </p>
       )}
       <p className="microcopy">

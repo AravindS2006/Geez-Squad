@@ -1,3 +1,4 @@
+import { provisionTestAdmin } from './support/admin';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -41,9 +42,10 @@ test('authenticated owners can enter the workspace and the demo remains separate
       data: { name: 'Entry Coach', email, password: 'Local-Integration-Only-12345' },
     });
     expect(signup.ok()).toBe(true);
+    await provisionTestAdmin(db, email);
     const setup = await page.request.post('/api/command', {
       headers,
-      data: { action: 'onboard', name: 'Entry Coach', role: 'coach', adult: true },
+      data: { action: 'onboard', name: 'Entry Coach', role: 'trainee', adult: true },
     });
     expect(setup.ok()).toBe(true);
 

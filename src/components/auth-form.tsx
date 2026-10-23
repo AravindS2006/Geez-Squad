@@ -7,25 +7,27 @@ import '@/app/auth.css';
 import { ArrowUpRight, Eye, EyeOff, ArrowRight, Check } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { Brand } from './ui';
-import { loginDestination } from '@/lib/login-destination';
+import { accountDestination, loginDestination } from '@/lib/login-destination';
 export function AuthForm({
   testingMode,
   signupEnabled,
   passwordResetEnabled,
+  verificationRequired = false,
 }: {
   testingMode: boolean;
   signupEnabled: boolean;
   passwordResetEnabled: boolean;
+  verificationRequired?: boolean;
 }) {
   const params = useSearchParams();
   const token = params.get('token'),
     invite = params.get('invite');
   const destination = loginDestination(params.get('next'));
-  const signedInDestination = invite ? `/invite?code=${encodeURIComponent(invite)}` : destination;
+  const signedInDestination = accountDestination(params.get('next'), invite);
   const [mode, setMode] = useState(
       token && passwordResetEnabled
         ? 'reset'
-        : params.get('mode') === 'verify'
+        : verificationRequired || params.get('mode') === 'verify'
           ? 'verify'
           : params.get('mode') === 'signup' && signupEnabled
             ? 'signup'

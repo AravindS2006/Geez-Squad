@@ -471,6 +471,7 @@ small {
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* Guided workout and meeting controls remain readable on a phone. */
@@ -798,6 +799,99 @@ small {
 .sidebar nav {
   padding: 0 17px;
 }
+.sidebar .brand-link {
+  flex-shrink: 0;
+  margin: 24px 24px 20px;
+}
+.sidebar .brand {
+  font-size: 24px;
+  letter-spacing: -1px;
+  gap: 7px;
+}
+.sidebar .studio-selector {
+  flex-shrink: 0;
+  margin-bottom: 18px;
+}
+.sidebar .workspace-navigation {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-bottom: 12px;
+}
+.nav-group + .nav-group {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 14px;
+}
+.nav-group .nav-label {
+  display: block;
+  margin: 0 12px 8px;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+}
+.sidebar .sidebar-bottom {
+  flex-shrink: 0;
+  margin-top: 0;
+  border-top: 1px solid var(--line);
+  padding: 8px 17px 12px;
+  background: #fbfcf8;
+}
+.sidebar-bottom .nav-item {
+  padding-block: 8px;
+  margin-bottom: 0;
+}
+.sidebar-bottom .profile-button {
+  margin-top: 6px;
+  padding-top: 10px;
+}
+.mobile-quick-access {
+  display: none;
+}
+@media (min-width: 761px) and (max-width: 1000px) {
+  .sidebar .brand {
+    font-size: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .main-shell.has-quick-access {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-quick-access {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 12;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    border-top: 1px solid var(--line);
+    background: #fbfcf8;
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-quick-access a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 52px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #606b58;
+    text-align: center;
+    padding: 4px 2px;
+  }
+  .mobile-quick-access a[aria-current='page'],
+  .mobile-quick-access a:hover {
+    color: #294b35;
+    background: #e6efd6;
+  }
+  .app-layout:has(.mobile-quick-access) > .toast {
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}
 .nav-item {
   display: flex;
   align-items: center;
@@ -894,7 +988,7 @@ small {
 .profile-button small {
   display: block;
   font-size: 9px;
-  color: #8b9282;
+  color: #606b58;
   margin-top: 5px;
 }
 .profile-button > svg {
@@ -3231,7 +3325,7 @@ small {
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.2s;
-    width: 235px;
+    width: min(280px, calc(100vw - 48px));
     box-shadow: 8px 0 50px #17211b15;
   }
   .sidebar.open {

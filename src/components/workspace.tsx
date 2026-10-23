@@ -87,6 +87,8 @@ const nav = [
   { id: 'plans', name: 'Workout plans', icon: Dumbbell },
   { id: 'analytics', name: 'Insights', icon: ChartNoAxesCombined },
   { id: 'studio-details', name: 'Studio details', icon: Building2 },
+  { id: 'benefits', name: 'My membership & classes', icon: CreditCard },
+  { id: 'practice', name: 'Camera practice', icon: ScanLine },
 ];
 type Command = Record<string, unknown>;
 export function Workspace({ initial, view }: { initial: WorkspaceData; view: string }) {
@@ -202,12 +204,52 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     [progressClient, setProgressClient] = useState('all');
   const base = data.demo ? '/demo' : '/app',
     coach = data.permissions?.coach ?? data.user.role === 'coach',
-    admin = data.permissions?.admin ?? (data.demo && coach);
-  const allowedViews = admin
-    ? nav.map((n) => n.id)
+    admin = data.permissions?.admin ?? (data.demo && coach),
+    trainee = data.permissions?.trainee ?? !coach;
+  const navigationGroups = admin
+    ? [
+        {
+          name: 'Daily studio',
+          items: ['dashboard', 'members', 'attendance', 'classes', 'sessions'],
+        },
+        { name: 'Memberships & payments', items: ['memberships', 'payments'] },
+        { name: 'Coaching', items: ['coaching', 'clients', 'plans', 'analytics', 'practice'] },
+        { name: 'Administration', items: ['enquiries', 'staff', 'studio-details'] },
+      ]
     : coach
-      ? ['coaching', 'clients', 'sessions', 'classes', 'plans', 'analytics']
-      : ['dashboard', 'sessions', 'plans', 'analytics'];
+      ? [
+          { name: 'Daily coaching', items: ['coaching', 'clients', 'sessions', 'classes'] },
+          { name: 'Training & progress', items: ['plans', 'analytics', 'practice'] },
+        ]
+      : [
+          { name: 'Your studio', items: ['dashboard', 'benefits', 'sessions'] },
+          { name: 'Your training', items: ['plans', 'practice', 'analytics'] },
+        ];
+  if (coach && trainee && !data.demo)
+    navigationGroups.push({ name: 'Your membership', items: ['benefits'] });
+  const allowedViews = navigationGroups.flatMap((group) => group.items);
+  const quickAccess = (
+    admin
+      ? [
+          ['dashboard', 'Home'],
+          ['members', 'Members'],
+          ['attendance', 'Attendance'],
+          ['payments', 'Payments'],
+        ]
+      : coach
+        ? [
+            ['coaching', 'Overview'],
+            ['clients', 'Trainees'],
+            ['sessions', 'Live sessions'],
+            ['classes', 'Classes'],
+          ]
+        : [
+            ['dashboard', 'Home'],
+            ['benefits', 'Membership'],
+            ['sessions', 'Live sessions'],
+            ['practice', 'Practice'],
+          ]
+  ).map(([id, label]) => ({ ...nav.find((item) => item.id === id)!, label }));
   const currentClient = data.clients.find((person) => person.id === selectedClient?.id);
   const overview = coachingOverview(data, timeZone);
   const activeView =
@@ -238,6 +280,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
       : coach && !admin
         ? 'coaching'
         : 'dashboard';
+  const showQuickAccess = !['studio', 'practice'].includes(activeView);
   const upcoming = data.classes
     .filter((c) => c.status === 'scheduled' || c.status === 'live')
     .sort(compareSessions);
@@ -549,45 +592,34 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </span>
           <ChevronDown size={14} />
         </button>
-        {!data.demo && (
-          <button className="text-action" onClick={() => go('benefits')}>
-            My membership &amp; classes
-          </button>
-        )}
-        <span className="nav-label">{coach ? 'YOUR STUDIO' : 'YOUR TRAINING'}</span>
-        <nav>
-          {nav
-            .filter((n) => allowedViews.includes(n.id))
-            .map((n) => (
-              <Link
-                key={n.id}
-                href={`${base}?view=${n.id}`}
-                className={`nav-item ${activeView === n.id ? 'active' : ''}`}
-                aria-current={activeView === n.id ? 'page' : undefined}
-                onClick={() => {
-                  setMobileMenu(false);
-                  setSearch('');
-                }}
-              >
-                <n.icon size={19} />
-                <span>{n.name}</span>
-                {n.id === 'clients' && <small>{data.clients.length}</small>}
-              </Link>
-            ))}
+        <nav className="workspace-navigation" aria-label="Main menu">
+          {navigationGroups.map((group) => (
+            <div className="nav-group" role="group" aria-label={group.name} key={group.name}>
+              <span className="nav-label" aria-hidden="true">
+                {group.name}
+              </span>
+              {group.items
+                .map((id) => nav.find((item) => item.id === id)!)
+                .map((n) => (
+                  <Link
+                    key={n.id}
+                    href={`${base}?view=${n.id}`}
+                    className={`nav-item ${activeView === n.id ? 'active' : ''}`}
+                    aria-current={activeView === n.id ? 'page' : undefined}
+                    onClick={() => {
+                      setMobileMenu(false);
+                      setSearch('');
+                    }}
+                  >
+                    <n.icon size={19} />
+                    <span>{n.name}</span>
+                    {n.id === 'clients' && <small>{data.clients.length}</small>}
+                  </Link>
+                ))}
+            </div>
+          ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="coach-note">
-            <span className="note-orbit">✳</span>
-            <strong>
-              A human touch.
-              <br />A smarter way to train.
-            </strong>
-            <p>Every rep is a chance to move a little better.</p>
-            <button onClick={() => go('practice')}>
-              Try camera coaching
-              <ArrowUpRight size={15} />
-            </button>
-          </div>
           <button
             className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
             onClick={() => go('settings')}
@@ -608,7 +640,10 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </button>
         </div>
       </aside>
-      <div className="main-shell" inert={smallScreen && mobileMenu}>
+      <div
+        className={`main-shell ${showQuickAccess ? 'has-quick-access' : ''}`}
+        inert={smallScreen && mobileMenu}
+      >
         <header className="topbar">
           <button
             className="icon-button mobile-toggle"
@@ -1425,6 +1460,25 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             Geez Squad <span className="brand-period">✳</span>
           </span>
         </footer>
+        {showQuickAccess && (
+          <nav className="mobile-quick-access" aria-label="Quick access">
+            {quickAccess.map((item) => (
+              <Link
+                key={item.id}
+                href={`${base}?view=${item.id}`}
+                aria-label={`Quick access: ${item.name}`}
+                aria-current={activeView === item.id ? 'page' : undefined}
+                onClick={() => {
+                  setMobileMenu(false);
+                  setSearch('');
+                }}
+              >
+                <item.icon size={20} aria-hidden="true" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </nav>
+        )}
       </div>
       {toast && (
         <div className="toast" role="status">

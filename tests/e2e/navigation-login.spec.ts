@@ -151,6 +151,11 @@ test('role menus group daily work, keep account controls visible, and expose mob
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toHaveCount(0);
       await page.setViewportSize({ width: 844, height: 390 });
+      const tabletBrand = (await page.locator('.sidebar .brand').boundingBox())!;
+      const tabletSidebar = (await page.locator('.sidebar').boundingBox())!;
+      expect(tabletBrand.x + tabletBrand.width).toBeLessThanOrEqual(
+        tabletSidebar.x + tabletSidebar.width - 8,
+      );
       await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeInViewport();
       await expect(menu.getByRole('link').last()).not.toBeInViewport();
       await menu.getByRole('link').last().scrollIntoViewIfNeeded();

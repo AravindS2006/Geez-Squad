@@ -804,8 +804,6 @@ small {
   margin: 24px 24px 20px;
 }
 .sidebar .brand {
-  font-size: 24px;
-  letter-spacing: -1px;
   gap: 7px;
 }
 .sidebar .studio-selector {
@@ -850,8 +848,8 @@ small {
   display: none;
 }
 @media (min-width: 761px) and (max-width: 1000px) {
-  .sidebar .brand {
-    font-size: 20px;
+  .sidebar .brand-link .brand {
+    font-size: 18px;
   }
 }
 @media (max-width: 760px) {

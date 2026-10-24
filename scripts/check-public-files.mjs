@@ -12,7 +12,7 @@ function git(args) {
   return result.stdout;
 }
 const tracked = git(['ls-files', '-z']).split('\0').filter(Boolean);
-const historical = git(['log', '--all', '--format=', '--name-only', '-z'])
+const historical = git(['log', '--all', '-m', '--format=', '--name-only', '-z'])
   .split('\0')
   .map((file) => file.replace(/^[\r\n]+/, ''))
   .filter(Boolean);

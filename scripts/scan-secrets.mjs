@@ -12,10 +12,11 @@ const localScanner = resolve(
   process.platform === 'win32' ? 'gitleaks.exe' : 'gitleaks',
 );
 const scanner = process.env.GITLEAKS_BIN || (existsSync(localScanner) ? localScanner : 'gitleaks');
-const result = spawnSync(scanner, ['git', '--redact=100', '--no-banner', '--log-opts=--all', '.'], {
-  stdio: 'inherit',
-  windowsHide: true,
-});
+const result = spawnSync(
+  scanner,
+  ['git', '--redact=100', '--no-banner', '--log-opts=--all --full-history -m', '.'],
+  { stdio: 'inherit', windowsHide: true },
+);
 if (result.error)
   console.error(
     'Secret scan unavailable. Install Gitleaks or set GITLEAKS_BIN; the push is blocked.',

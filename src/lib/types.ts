@@ -1,12 +1,17 @@
-import type { ProfileExerciseId } from './exercise-profiles';
-export type ExerciseId = ProfileExerciseId;
+import type { ArmMode, ExerciseDefinition, LibraryExerciseId } from './exercise-library';
+import type { Arms } from './rep-events';
+export type ExerciseId = LibraryExerciseId;
 export type Person = { id: string; name: string; email: string; role: string; goal: string };
 export type Block = {
+  id?: string;
   exercise: ExerciseId;
   sets: number;
   reps: number;
   rest: number;
   loadKg?: number;
+  loadBasis?: 'per-hand' | 'total';
+  armMode?: ArmMode;
+  targetUnit?: 'reps' | 'seconds';
 };
 export type Plan = {
   id: string;
@@ -16,6 +21,12 @@ export type Plan = {
   canEdit?: boolean;
 };
 export type MetricView = {
+  targetUnit?: 'reps' | 'seconds';
+  armMode?: ArmMode | null;
+  arms?: Arms | null;
+  technique?: string | null;
+  blockId?: string | null;
+  measurementSource?: 'automatic' | 'manual' | 'timer';
   exercise: string;
   revision: number;
   reps: number;
@@ -40,6 +51,15 @@ export type ClientView = Person & {
   completedSetsThisWeek?: number;
 };
 export type WorkoutSetRecord = {
+  exerciseLabel?: string;
+  schemaVersion?: number;
+  runId?: string | null;
+  blockId?: string | null;
+  armMode?: ArmMode | null;
+  arms?: Arms | null;
+  measurementSource?: 'automatic' | 'manual' | 'timer';
+  targetUnit?: 'reps' | 'seconds';
+  loadBasis?: 'per-hand' | 'total' | null;
   clientId: string;
   classId: string | null;
   revision: number;
@@ -63,6 +83,14 @@ export type WorkoutSetRecord = {
   endedAt: string;
 };
 export type WorkoutSetView = WorkoutSetRecord & {
+  originalReps?: number;
+  correction?: {
+    reps: number;
+    holdMs: number;
+    reason: string;
+    actorId: string;
+    createdAt: string;
+  } | null;
   id: string;
   userId: string;
   userName: string;
@@ -82,6 +110,8 @@ export type CheckInView = {
 };
 export type AssignmentView = { userId: string; planId: string; assignedAt: string };
 export type ClassView = {
+  activeBlockId?: string | null;
+  controlSequence?: number;
   permissions?: { canManage: boolean; hostId: string; presenterIds?: string[] };
   id: string;
   editVersion?: string;
@@ -114,6 +144,8 @@ export type ClassView = {
   }[];
 };
 export type WorkspaceData = {
+  features?: import('./coaching-features').CoachingFeatures;
+  customExercises?: ExerciseDefinition[];
   coaches?: { id: string; name: string }[];
   permissions?: {
     admin: boolean;

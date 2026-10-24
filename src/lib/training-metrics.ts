@@ -17,6 +17,7 @@ export type TrainingMetrics = {
   tempoTotal: number;
   rejectedReps: number;
   lastRejectionAt: number;
+  eventIds: string[];
 };
 export function initialTrainingMetrics(reps = 0, timestamp: number | null = null): TrainingMetrics {
   return {
@@ -36,6 +37,7 @@ export function initialTrainingMetrics(reps = 0, timestamp: number | null = null
     tempoTotal: 0,
     rejectedReps: 0,
     lastRejectionAt: 0,
+    eventIds: [],
   };
 }
 export function pauseTrainingMetrics(state: TrainingMetrics) {
@@ -61,7 +63,19 @@ export function observeTrainingMetrics(
     state.confidenceMs += dt;
     state.confidenceTotal += analysis.confidence * dt;
   }
-  if (analysis.reps === state.lastReps + 1) {
+  const events = analysis.repEvents?.filter((e) => !state.eventIds.includes(e.id));
+  if (events) {
+    for (const event of events) {
+      state.repSamples++;
+      if (event.quality !== null) {
+        state.qualityTotal += event.quality;
+        state.qualitySamples++;
+      }
+      state.rangeTotal += event.rangeDegrees;
+      state.tempoTotal += event.observedMs / 1000;
+      state.eventIds = [...state.eventIds.slice(-255), event.id];
+    }
+  } else if (analysis.reps === state.lastReps + 1) {
     state.repSamples++;
     if (analysis.lastRepQuality != null) {
       state.qualityTotal += analysis.lastRepQuality;

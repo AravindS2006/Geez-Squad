@@ -31,6 +31,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node scripts/test-studio-operations.mjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/test-coaching-phase.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/test-next-phase.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             npx playwright test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node scripts/check-accessibility.mjs
@@ -47,3 +51,23 @@ jobs:
           name: browser-failure-diagnostics
           path: test-results/
           retention-days: 3
+  postgres-coaching:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - run: npm run db:coaching:postgres

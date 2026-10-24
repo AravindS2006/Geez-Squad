@@ -41,6 +41,13 @@ try {
     INSERT INTO "StudioStaff" (id,"studioId",name,role) VALUES ('directory','studio','Directory coach','Head coach');
     INSERT INTO "ClassSession" (id,"studioId",title,"startsAt") VALUES ('class','studio','Legacy class',CURRENT_TIMESTAMP);`);
   sql(await readFile(`prisma/migrations/${migrations[6]}/migration.sql`, 'utf8'));
+  for (const name of [
+    '20261024000000_coaching_measurements',
+    '20261024010000_workout_snapshot',
+    '20261024020000_nutrition',
+    '20261024030000_operation_corrections',
+  ])
+    sql(await readFile(`prisma/migrations/${name}/migration.sql`, 'utf8'));
   assert.equal(
     (await db.account.findUnique({ where: { id: 'account' } })).password,
     'unchanged-password-hash',

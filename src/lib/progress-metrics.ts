@@ -1,5 +1,6 @@
 import type { WorkoutSetView } from './types';
 export function summarizeWorkouts(sets: WorkoutSetView[], timeZone = 'UTC') {
+  sets = sets.map(effectiveWorkoutSet);
   const weighted = (
     field: 'formScore' | 'qualityScore' | 'rangeDegrees' | 'repSeconds',
     weight: (set: WorkoutSetView) => number,
@@ -19,14 +20,12 @@ export function summarizeWorkouts(sets: WorkoutSetView[], timeZone = 'UTC') {
     trackedMs,
     coverage: activeMs ? (trackedMs / activeMs) * 100 : null,
     form: weighted('formScore', (set) => set.trackedMs),
-    quality: weighted('qualityScore', (set) => set.reps),
-    range: weighted('rangeDegrees', (set) => set.reps),
-    tempo: weighted('repSeconds', (set) => set.reps),
+    quality: weighted('qualityScore', (set) => set.originalReps ?? set.reps),
+    range: weighted('rangeDegrees', (set) => set.originalReps ?? set.reps),
+    tempo: weighted('repSeconds', (set) => set.originalReps ?? set.reps),
     rejectedReps: sets.reduce((total, set) => total + set.rejectedReps, 0),
-    loadVolume: sets
-      .filter((set) => set.loadKg !== null)
-      .reduce((total, set) => total + set.reps * set.loadKg!, 0),
-    loadedSets: sets.filter((set) => set.loadKg !== null).length,
+    loadVolume: sets.filter(supportsLoadVolume).reduce((total, set) => total + loadVolume(set), 0),
+    loadedSets: sets.filter(supportsLoadVolume).length,
     trainingDays: new Set(
       sets
         .filter((set) => set.reps > 0 || set.holdMs > 0)
@@ -40,6 +39,39 @@ export function summarizeWorkouts(sets: WorkoutSetView[], timeZone = 'UTC') {
         ),
     ).size,
   };
+}
+export function effectiveWorkoutSet(set: WorkoutSetView): WorkoutSetView {
+  if (!set.correction) return set;
+  const { reps, holdMs } = set.correction;
+  const hold = set.targetUnit === 'seconds' || set.holdMs > 0;
+  return {
+    ...set,
+    originalReps: set.originalReps ?? set.reps,
+    reps,
+    holdMs,
+    completed: (hold ? holdMs / 1000 : reps) >= set.target,
+  };
+}
+export function loadVolume(set: WorkoutSetView): number {
+  if (!supportsLoadVolume(set)) return 0;
+  const count =
+    set.loadBasis === 'per-hand' && set.arms && !set.correction
+      ? set.armMode === 'left'
+        ? set.arms.left.reps
+        : set.armMode === 'right'
+          ? set.arms.right.reps
+          : set.arms.left.reps + set.arms.right.reps
+      : set.reps *
+        (set.loadBasis === 'per-hand' && (set.armMode === 'both' || set.armMode === 'alternating')
+          ? 2
+          : 1);
+  return count * set.loadKg!;
+}
+export function supportsLoadVolume(set: WorkoutSetView): boolean {
+  return (
+    set.loadKg !== null &&
+    (set.loadBasis === 'total' || (set.loadBasis === 'per-hand' && !!(set.arms || set.armMode)))
+  );
 }
 export function csvCell(value: unknown) {
   const raw = String(value ?? '');
@@ -68,27 +100,44 @@ export function workoutCsv(sets: WorkoutSetView[]) {
     'Reported load kg',
     'Target reached',
     'Rule version',
+    'Measurement source',
+    'Arm mode',
+    'Left reps',
+    'Right reps',
+    'Load basis',
+    'Original reps',
+    'Correction reason',
   ];
-  const rows = sets.map((set) => [
-    set.endedAt,
-    set.userName,
-    set.exercise,
-    set.classTitle ?? 'Practice',
-    set.setNumber,
-    set.target,
-    set.reps,
-    set.holdMs / 1000,
-    set.activeMs / 1000,
-    set.trackedMs / 1000,
-    set.formScore,
-    set.qualityScore,
-    set.rangeDegrees,
-    set.repSeconds,
-    set.confidence,
-    set.rejectedReps,
-    set.loadKg,
-    set.completed ? 'Yes' : 'No',
-    set.ruleVersion,
-  ]);
+  const rows = sets.map((original) => {
+    const set = effectiveWorkoutSet(original);
+    return [
+      set.endedAt,
+      set.userName,
+      set.exercise,
+      set.classTitle ?? 'Practice',
+      set.setNumber,
+      set.target,
+      set.reps,
+      set.holdMs / 1000,
+      set.activeMs / 1000,
+      set.trackedMs / 1000,
+      set.formScore,
+      set.qualityScore,
+      set.rangeDegrees,
+      set.repSeconds,
+      set.confidence,
+      set.rejectedReps,
+      set.loadKg,
+      set.completed ? 'Yes' : 'No',
+      set.ruleVersion,
+      set.measurementSource ?? 'legacy automatic',
+      set.armMode,
+      set.arms?.left.reps,
+      set.arms?.right.reps,
+      set.loadBasis ?? 'unspecified',
+      original.originalReps ?? original.reps,
+      set.correction?.reason,
+    ];
+  });
   return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 }

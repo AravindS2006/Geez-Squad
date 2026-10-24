@@ -34,6 +34,9 @@ import { apiCommand, fetchJson } from '@/lib/client';
 import { enableJoinDevices } from '@/lib/join-devices';
 import { exercises, exerciseName } from '@/lib/catalog';
 import { isHoldExercise } from '@/lib/exercise-profiles';
+import { exerciseDefinition, type ExerciseDefinition } from '@/lib/exercise-library';
+import { coachingFeatures, type CoachingFeatures } from '@/lib/coaching-features';
+import { reportCoachingHealth } from '@/lib/coaching-health';
 import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
@@ -46,7 +49,7 @@ import {
   shouldSubscribe,
   type MediaSubscription,
 } from '@/lib/meeting-policy';
-const CameraAnalyzer = dynamic(() => import('./camera-analyzer').then((m) => m.CameraAnalyzer), {
+const CameraAnalyzer = dynamic(() => import('./workout-player').then((m) => m.WorkoutPlayer), {
   ssr: false,
 });
 type LiveState = Pick<
@@ -68,6 +71,8 @@ type LiveState = Pick<
   | 'startedAt'
   | 'endedAt'
   | 'participants'
+  | 'activeBlockId'
+  | 'controlSequence'
 > & {
   messages: MessageView[];
   participationAllowed: boolean;
@@ -86,6 +91,8 @@ export function Studio({
   services,
   onExit,
   onDemoControl,
+  customExercises = [],
+  features,
 }: {
   initialClass?: ClassView;
   user: Person;
@@ -93,6 +100,8 @@ export function Studio({
   services: WorkspaceData['services'];
   onExit: () => void;
   onDemoControl?: (c: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  customExercises?: ExerciseDefinition[];
+  features?: CoachingFeatures;
 }) {
   const [item, setItem] = useState(initialClass),
     [hydrated, setHydrated] = useState(false),
@@ -115,6 +124,9 @@ export function Studio({
     [connectionState, setConnectionState] = useState('Not connected'),
     [analysisWarning, setAnalysisWarning] = useState('');
   const [syncWarning, setSyncWarning] = useState('');
+  const [refreshSignal, setRefreshSignal] = useState(0);
+  const [roomFeatures] = useState(() => features ?? coachingFeatures());
+  const lastNotification = useRef({ sequence: -1, nonces: [] as string[] });
   const [participationReason, setParticipationReason] = useState('');
   const [diagnostics, setDiagnostics] = useState(false);
   const [diagnosticsNotice, setDiagnosticsNotice] = useState('');
@@ -132,6 +144,11 @@ export function Studio({
     position: 'top-right',
   });
   const [cameraHeight, setCameraHeight] = useState(0);
+  const [cameraTop, setCameraTop] = useState(0);
+  const onCameraBounds = useCallback((height: number, top: number) => {
+    setCameraHeight(height);
+    setCameraTop(top);
+  }, []);
   const [mirror, setMirror] = useState(true);
   const [coachVolume, setCoachVolume] = useState(1);
   const coachVideoSizeRef = useRef<HTMLSelectElement>(null);
@@ -298,7 +315,7 @@ export function Studio({
       active = false;
       clearTimeout(timer);
     };
-  }, [demo, initialClass?.id]);
+  }, [demo, initialClass?.id, refreshSignal]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -333,6 +350,7 @@ export function Studio({
               phase: 'tracking unavailable',
               cue: 'Camera analysis is unavailable. Re-enable your camera.',
             };
+      if (Date.now() - snapshot.at >= 2000) reportCoachingHealth('stale_summary', consent && !demo);
       metricBusy.current = true;
       lastShared.current = Date.now();
       try {
@@ -354,6 +372,13 @@ export function Studio({
             repSeconds: a.lastRepSeconds ?? null,
             trackingCoverage: a.trackingCoverage ?? null,
             rejectedReps: a.rejectedReps ?? 0,
+            schemaVersion: 2,
+            blockId: c.activeBlockId ?? null,
+            armMode: a.armMode ?? null,
+            arms: a.arms ?? null,
+            technique: a.technique ?? null,
+            measurementSource: a.measurementSource ?? 'automatic',
+            targetUnit: a.targetUnit,
           }),
         });
         setAnalysisWarning('');
@@ -367,7 +392,7 @@ export function Studio({
     }, 3000);
     return () => clearInterval(timer);
   }, [demo, coach, connected, consent]);
-  async function control(control: string, exercise?: string) {
+  async function control(control: string, exercise?: string, blockId?: string) {
     if (!item || controlPending.current) return;
     controlPending.current = true;
     controlVersion.current++;
@@ -375,7 +400,7 @@ export function Studio({
     setError('');
     try {
       if (demo) {
-        await onDemoControl?.({ action: 'classControl', id: item.id, control, exercise });
+        await onDemoControl?.({ action: 'classControl', id: item.id, control, exercise, blockId });
         setItem((c) =>
           c
             ? {
@@ -384,13 +409,14 @@ export function Studio({
                 paused: control === 'pause' ? true : control === 'resume' ? false : c.paused,
                 exercise: (exercise as ClassView['exercise']) || c.exercise,
                 revision: control === 'exercise' ? c.revision + 1 : c.revision,
+                activeBlockId: control === 'exercise' ? (blockId ?? null) : c.activeBlockId,
                 startedAt: control === 'start' ? new Date().toISOString() : c.startedAt,
                 endedAt: control === 'end' ? new Date().toISOString() : c.endedAt,
               }
             : c,
         );
       } else {
-        await apiCommand({ action: 'classControl', id: item.id, control, exercise });
+        await apiCommand({ action: 'classControl', id: item.id, control, exercise, blockId });
         const s = await fetchJson<LiveState>(`/api/classes/${item.id}`);
         setItem((c) => (c ? { ...c, ...s } : c));
       }
@@ -485,6 +511,7 @@ export function Studio({
         .on(RoomEvent.TrackPublished, update)
         .on(RoomEvent.TrackUnpublished, update)
         .on(RoomEvent.Reconnected, update)
+        .on(RoomEvent.Reconnected, () => reportCoachingHealth('media_reconnected', true))
         .on(RoomEvent.TrackSubscribed, update)
         .on(RoomEvent.TrackUnsubscribed, update)
         .on(RoomEvent.LocalTrackPublished, update)
@@ -492,6 +519,28 @@ export function Studio({
         .on(RoomEvent.TrackMuted, update)
         .on(RoomEvent.TrackUnmuted, update);
       instance.on(RoomEvent.ActiveSpeakersChanged, update);
+      instance.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+        if (participant || topic !== 'geez-coaching-v2' || payload.byteLength > 1000) return;
+        try {
+          const event = JSON.parse(new TextDecoder().decode(payload));
+          if (
+            event.version !== 2 ||
+            event.classId !== current.current?.id ||
+            !Number.isInteger(event.sequence) ||
+            typeof event.nonce !== 'string'
+          )
+            return;
+          const last = lastNotification.current;
+          if (event.sequence < last.sequence || last.nonces.includes(event.nonce)) return;
+          lastNotification.current = {
+            sequence: event.sequence,
+            nonces: [...last.nonces.slice(-63), event.nonce],
+          };
+          setRefreshSignal((n) => n + 1);
+        } catch {
+          /* Ignore malformed notifications; authenticated snapshots reconcile state. */
+        }
+      });
       instance.on(RoomEvent.ConnectionQualityChanged, update);
       instance.on(RoomEvent.AudioPlaybackStatusChanged, () => {
         if (mounted.current && room.current === instance)
@@ -800,7 +849,7 @@ export function Studio({
   return (
     <div
       ref={meetingRef}
-      className={`live-studio meeting-room ${coach ? 'coach-meeting' : 'trainee-meeting'}`}
+      className={`live-studio meeting-room ${roomFeatures.meeting ? 'meeting-v2' : ''} ${coach ? 'coach-meeting' : 'trainee-meeting'}`}
       inert={!hydrated}
       aria-busy={!hydrated}
     >
@@ -842,17 +891,42 @@ export function Studio({
               disabled={busy || item.status !== 'live'}
               onChange={(e) => void control('exercise', e.target.value)}
             >
-              {exercises.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
+              {[...exercises, ...customExercises]
+                .filter((e) => roomFeatures.library || e.profileId)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
             </select>
           ) : (
-            <strong>{exerciseName(item.exercise)}</strong>
+            <strong>{exerciseDefinition(item.exercise, customExercises).name}</strong>
           )}
         </div>
       </header>
+      {!!item.workout?.length && (
+        <nav className="meeting-workout-queue" aria-label="Class workout sequence">
+          <span>Workout</span>
+          {item.workout.map((block, index) => (
+            <button
+              type="button"
+              key={block.id ?? index}
+              aria-current={item.activeBlockId === block.id ? 'step' : undefined}
+              disabled={!coach || busy || item.status !== 'live'}
+              onClick={() => void control('exercise', block.exercise, block.id)}
+            >
+              <small>{String(index + 1).padStart(2, '0')}</small>
+              <span>
+                {exerciseDefinition(block.exercise, customExercises).name}
+                <small>
+                  {block.sets} × {block.reps}
+                  {block.targetUnit === 'seconds' || isHoldExercise(block.exercise) ? 's' : ' reps'}
+                </small>
+              </span>
+            </button>
+          ))}
+        </nav>
+      )}
       {item.status !== 'live' && sessionDetails}
       {error && (
         <p className="inline-error meeting-notice" role="alert">
@@ -957,20 +1031,33 @@ export function Studio({
               <div
                 className={`trainee-video-layout coach-video-${coachVideoLayout.size}${coachVideoLayout.minimized ? ' coach-video-minimized' : ''}`}
                 data-coach-position={coachVideoLayout.position}
-                style={{ '--trainee-camera-height': `${cameraHeight}px` } as React.CSSProperties}
+                style={
+                  {
+                    '--trainee-camera-height': `${cameraHeight}px`,
+                    '--trainee-camera-top': `${cameraTop}px`,
+                  } as React.CSSProperties
+                }
               >
                 <div className="trainee-self-stage">
                   <CameraAnalyzer
+                    customExercises={customExercises}
+                    features={roomFeatures}
                     exercise={item.exercise}
                     paused={item.paused || item.status !== 'live'}
                     revision={item.revision}
                     stream={stream}
                     mirror={mirror}
-                    onCameraHeight={setCameraHeight}
+                    onCameraHeight={onCameraBounds}
                     saveForUser={!demo && consent ? user.id : undefined}
                     historyUserId={!demo ? user.id : undefined}
                     classId={item.id}
-                    block={item.workout?.find((b) => b.exercise === item.exercise)}
+                    block={
+                      item.activeBlockId
+                        ? item.workout?.find((b) => b.id === item.activeBlockId)
+                        : item.activeBlockId === undefined
+                          ? item.workout?.find((b) => b.exercise === item.exercise)
+                          : undefined
+                    }
                     sessionCamera={!demo && services.video}
                     onEnableCamera={
                       item.status === 'live'
@@ -983,6 +1070,11 @@ export function Studio({
                     initialReps={me?.metric?.revision === item.revision ? me.metric.reps : 0}
                     initialHoldSeconds={
                       me?.metric?.revision === item.revision ? me.metric.holdSeconds : 0
+                    }
+                    initialArms={
+                      me?.metric?.revision === item.revision
+                        ? (me.metric.arms ?? undefined)
+                        : undefined
                     }
                   />
                 </div>
@@ -1600,6 +1692,9 @@ export function Studio({
         <Modal title="A shared space to move together." onClose={() => setShowConsent(false)}>
           <div className="form-stack">
             <VideoDevices preview preferences={preferences} onChange={setPreferences} />
+            <p className="prejoin-framing">
+              {exerciseDefinition(item.exercise, customExercises).view}
+            </p>
             <p>
               Your enabled camera and microphone are shared with this class. Movement summaries are
               visible to you and your coach.

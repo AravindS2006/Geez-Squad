@@ -6,7 +6,7 @@ export function analyzePoseForm(
   point: (index: number) => Point,
   geometryPoint = point,
   reference: Point | null = null,
-): { score: number | null; valid: boolean; cue: string | null } {
+): { score: number | null; valid: boolean; cue: string | null; postureValid?: boolean } {
   const shoulder = point(11),
     hip = point(23),
     ankle = point(27);
@@ -49,6 +49,8 @@ export function analyzePoseForm(
         : clamp(95 - Math.max(0, upperArmLean - 20) * 1.5 - Math.max(0, torsoChange - 10) * 1.5);
     return {
       score,
+      postureValid:
+        upperArmLean !== null && upperArmLean < 100 && verticalLean <= 55 && shoulder.y < hip.y,
       valid:
         upperArmLean !== null && upperArmLean <= 65 && verticalLean <= 55 && shoulder.y < hip.y,
       cue:

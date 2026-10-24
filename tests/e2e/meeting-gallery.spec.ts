@@ -89,11 +89,13 @@ for (const traineeCount of [8, 30, 48]) {
         data: { helpRequested: true },
       });
       await page.goto(`/studio/${session.id}`);
+      await expect(page.getByLabel('Gallery density')).toHaveValue('comfortable');
+      await page.getByLabel('Gallery density').selectOption('overview');
       const tiles = traineeNames.map((name) =>
         page.getByRole('button', { name: new RegExp(`^Focus ${name}(?:,|$)`) }),
       );
       await expect(tiles[0].locator('.participant-stats')).toContainText('5');
-      await expect(tiles[0].locator('.participant-stats')).toContainText('83');
+      await expect(tiles[0].locator('.participant-stats')).toContainText('Uncertain');
       if (traineeCount <= 36) await expect(tiles[traineeCount - 1]).toContainText('Help requested');
       const visibleCount = Math.min(traineeCount, 36);
       const cameraTiles = tiles.slice(0, visibleCount);

@@ -47,6 +47,7 @@ import {
 import type { WorkspaceData } from '@/lib/types';
 import { StudioSchedule } from './studio-schedule';
 import { StudioTeam } from './studio-team';
+import { OperationsInsights } from './operations-insights';
 
 const operationViews = [
   'dashboard',
@@ -155,6 +156,10 @@ export function StudioOperations({
   const [today, setToday] = useState(studioToday);
   const lock = useRef(false);
   const paymentRequest = useRef('');
+  const [attendanceCorrection, setAttendanceCorrection] = useState<{
+    memberId: string;
+    date: string;
+  } | null>(null);
   useEffect(() => {
     const timer = setInterval(() => setToday(studioToday()), 60000);
     return () => clearInterval(timer);
@@ -641,6 +646,9 @@ export function StudioOperations({
           {error}
         </p>
       )}
+      {['dashboard', 'staff', 'memberships', 'attendance', 'classes'].includes(view) && (
+        <OperationsInsights data={data} today={today} view={view} onNavigate={onNavigate} />
+      )}
       {view === 'dashboard' && (
         <>
           <div className="ops-stats">
@@ -1084,6 +1092,37 @@ export function StudioOperations({
               </p>
             </div>
           </div>
+          {attendanceCorrection && (
+            <form
+              className="attendance-correction"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const reason = String(new FormData(e.currentTarget).get('reason'));
+                if (await save({ action: 'removeAttendance', ...attendanceCorrection, reason }))
+                  setAttendanceCorrection(null);
+              }}
+            >
+              <strong>
+                Correct check-in · {memberName(attendanceCorrection.memberId)} ·{' '}
+                {shortDate(attendanceCorrection.date)}
+              </strong>
+              <label>
+                Reason for correction
+                <input name="reason" required minLength={5} maxLength={300} />
+              </label>
+              <p>The check-in is removed and the reason is retained in the studio audit history.</p>
+              <button className="button dark" disabled={busy}>
+                Remove incorrect check-in
+              </button>
+              <button
+                type="button"
+                className="text-link"
+                onClick={() => setAttendanceCorrection(null)}
+              >
+                Cancel correction
+              </button>
+            </form>
+          )}
           <div className="ops-table-scroll">
             <table className="ops-table">
               <thead>
@@ -1141,6 +1180,18 @@ export function StudioOperations({
                           >
                             {checked ? <Check size={15} /> : <Plus size={15} />}Check in
                           </button>
+                          {checked && (
+                            <button
+                              className="text-link"
+                              disabled={busy}
+                              aria-label={`Correct attendance for ${m.name}`}
+                              onClick={() =>
+                                setAttendanceCorrection({ memberId: m.id, date: attendanceDate })
+                              }
+                            >
+                              Correct check-in
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

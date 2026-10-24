@@ -48,6 +48,23 @@ export default function PrivacyPage() {
         self-reported values. Your check-ins are available to you and your coach; private coach
         notes are visible only to the coach.
       </p>
+      <h2>Nutrition sharing</h2>
+      <p>
+        Nutrition journals contain food, water, optional member-entered nutrition values,
+        preferences, and agreed targets. They are private by default. Sharing lets your current
+        assigned coach and authorized studio admins view them and update targets. You can turn
+        sharing off at any time, edit or delete entries, and download them in your account export.
+        New coach access is checked on each request. No automatic meal analysis or medical diet
+        prescription is performed.
+      </p>
+      <h2>Installing the app</h2>
+      <p>
+        You can install Geez Squad to your home screen on supported browsers. The service worker
+        caches only a public offline screen and app icons. Account pages, journal entries, APIs,
+        live media, and camera frames are not cached by the service worker. Internet access is
+        required for sign-in and live classes. Existing confirmed workout save queues remain on this
+        device until retried or cleared.
+      </p>
       <h2>Messages and coach feedback</h2>
       <p>
         Session messages are shared with the group. Cues addressed to one trainee are private to

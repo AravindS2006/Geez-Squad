@@ -43,7 +43,16 @@ async function handleGET() {
       },
     });
     const [workoutSets, checkIns, assignments] = await Promise.all([
-      db.workoutSet.findMany({ where: { userId: user.id }, orderBy: { endedAt: 'desc' } }),
+      db.workoutSet.findMany({
+        where: { userId: user.id },
+        orderBy: { endedAt: 'desc' },
+        include: {
+          corrections: {
+            orderBy: { createdAt: 'desc' },
+            select: { reps: true, holdMs: true, reason: true, actorId: true, createdAt: true },
+          },
+        },
+      }),
       db.checkIn.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
       db.planAssignment.findMany({
         where: { userId: user.id },
@@ -72,6 +81,11 @@ async function handleGET() {
         workoutSets,
         checkIns,
         assignments,
+        nutritionProfile: await db.nutritionProfile.findUnique({ where: { userId: user.id } }),
+        nutritionEntries: await db.nutritionEntry.findMany({
+          where: { userId: user.id },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
         studioRoles: await db.studioRoleGrant.findMany({
           where: { userId: user.id },
           select: { role: true, status: true, grantedAt: true, studio: { select: { name: true } } },

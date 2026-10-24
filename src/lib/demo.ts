@@ -58,6 +58,8 @@ export function demoData(): WorkspaceData {
         capacity: 8,
         status: 'scheduled',
         exercise: 'squat',
+        activeBlockId: 'foundation-squat',
+        workout: starterBlocks,
         revision: 0,
         paused: false,
         startedAt: null,

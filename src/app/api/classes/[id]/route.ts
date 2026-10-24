@@ -4,6 +4,10 @@ import { participation, revokeIneligibleParticipants } from '@/lib/member-access
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, safeError } from '@/lib/security';
+import { measurementData } from '@/lib/measurement-contract';
+import { planBlocks } from '@/lib/workout-run';
+import type { Block } from '@/lib/types';
+import { isAutomaticExercise } from '@/lib/exercise-library';
 async function handleGET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
@@ -31,6 +35,20 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
       orderBy: { createdAt: 'asc' },
     });
     if (!coach && !enrollments.length) throw new ApiError(404, 'This session is not available.');
+    const blocks = planBlocks({
+      id: item.planId ?? item.id,
+      blocks: (item.workoutSnapshot ?? item.plan?.blocks ?? []) as unknown as Block[],
+    });
+    const activeBlock = blocks.find((b) => b.id === item.activeBlockId);
+    if (
+      _request.headers.get('X-Coaching-Client') !== '2' &&
+      (!isAutomaticExercise(item.exercise) || activeBlock?.armMode)
+    )
+      throw new ApiError(
+        409,
+        'Reload this page to use the current workout player.',
+        'CLIENT_UPDATE_REQUIRED',
+      );
     const eligibility =
       coach || ['completed', 'cancelled'].includes(item.status)
         ? { allowed: true, reason: '' }
@@ -58,7 +76,9 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
         duration: item.duration,
         capacity: item.capacity,
         planId: item.planId,
-        workout: item.plan?.blocks ?? [],
+        workout: blocks,
+        activeBlockId: item.activeBlockId,
+        controlSequence: item.controlSequence,
         participantCount: item._count.enrollments,
         status: item.status,
         exercise: item.exercise,
@@ -70,7 +90,9 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
           id: e.userId,
           name: e.user.name,
           helpRequested: e.helpRequested,
-          metric: e.metric,
+          metric: e.metric
+            ? { ...e.metric, ...measurementData(e.metric.measurement), measurement: undefined }
+            : null,
           summary: e.summary
             ? {
                 totalReps: e.summary.totalReps,

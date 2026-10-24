@@ -29,6 +29,36 @@ model User {
   studioMembers StudioMember[]
   studioRoles StudioRoleGrant[]
   coachAssignments PrimaryCoachAssignment[]
+  nutritionProfile NutritionProfile?
+  nutritionEntries NutritionEntry[]
+}
+
+model NutritionProfile {
+  userId String @id
+  shareWithCoach Boolean @default(false)
+  calories Int?
+  protein Float?
+  waterMl Int?
+  preferences String @default("")
+  guidance String @default("")
+  updatedById String
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model NutritionEntry {
+  id String @id
+  userId String
+  date String
+  meal String
+  description String
+  calories Int?
+  protein Float?
+  carbs Float?
+  fat Float?
+  waterMl Int @default(0)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, date])
 }
 model Session {
   id String @id
@@ -76,6 +106,7 @@ model RateLimit {
   lastRequest BigInt
 }
 model Studio {
+  coachingFeatures Json?
   id String @id @default(cuid())
   name String
   ownerId String @unique
@@ -99,6 +130,7 @@ model Studio {
   studioClasses StudioClass[]
   roleGrants StudioRoleGrant[]
   teamRequests StudioTeamRequest[]
+  exercises CustomExercise[]
 }
 
 model StudioMember {
@@ -280,6 +312,9 @@ model WorkoutPlan {
   assignments PlanAssignment[]
 }
 model ClassSession {
+  workoutSnapshot Json?
+  activeBlockId String?
+  controlSequence Int @default(0)
   videoRoomName String?
   id String @id @default(cuid())
   studioId String
@@ -318,6 +353,7 @@ model Enrollment {
   @@index([userId])
 }
 model Metric {
+  measurement Json?
   id String @id @default(cuid())
   enrollmentId String @unique
   exercise String
@@ -348,6 +384,8 @@ model WorkoutSummary {
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 }
 model WorkoutSet {
+  measurement Json?
+  corrections WorkoutCorrection[]
   id String @id @default(cuid())
   clientId String
   userId String
@@ -377,6 +415,31 @@ model WorkoutSet {
   @@unique([userId, clientId])
   @@index([userId, endedAt])
   @@index([classId])
+}
+
+model CustomExercise {
+  id String @id
+  studioId String
+  createdById String
+  name String
+  equipment String
+  instructions String
+  targetUnit String
+  createdAt DateTime @default(now())
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  @@index([studioId])
+}
+
+model WorkoutCorrection {
+  id String @id
+  setId String
+  actorId String
+  reps Int
+  holdMs Int
+  reason String
+  createdAt DateTime @default(now())
+  set WorkoutSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  @@index([setId, createdAt])
 }
 model CheckIn {
   id String @id @default(cuid())
@@ -429,6 +492,7 @@ model WebhookEvent {
   createdAt DateTime @default(now())
 }
 model AuditEvent {
+  detailsJson Json?
   id String @id @default(cuid())
   actorId String
   action String

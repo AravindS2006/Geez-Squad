@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
+  outputDir: './test-results/browser-runs',
   fullyParallel: false,
   // The real WASM model and shared SQLite fixtures contend on small CI runners.
   workers: process.env.CI ? 1 : undefined,

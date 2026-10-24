@@ -1,14 +1,26 @@
 import { z } from 'zod';
-import { exerciseIds, isHoldExercise } from './exercise-profiles';
+import {
+  libraryExerciseIds,
+  usesHoldTime,
+  isAutomaticExercise,
+  type LibraryExerciseId,
+} from './exercise-library';
+import { measurementSchema } from './measurement-contract';
 import { MAX_CLASS_CLIENTS } from './class-policy';
-export const exerciseSchema = z.enum(exerciseIds);
+export const exerciseSchema = z
+  .union([z.enum(libraryExerciseIds), z.string().regex(/^custom:[a-zA-Z0-9-]{1,80}$/)])
+  .transform((id) => id as LibraryExerciseId);
 const identifier = z.string().min(1).max(100);
 const block = z.object({
+  id: identifier.optional(),
   exercise: exerciseSchema,
   sets: z.number().int().min(1).max(10),
   reps: z.number().int().min(1).max(120),
   rest: z.number().int().min(0).max(300),
   loadKg: z.number().finite().min(0).max(500).optional(),
+  loadBasis: z.enum(['per-hand', 'total']).optional(),
+  armMode: z.enum(['left', 'right', 'both', 'alternating']).optional(),
+  targetUnit: z.enum(['reps', 'seconds']).optional(),
 });
 export const commandSchema = z.discriminatedUnion('action', [
   z.object({
@@ -89,6 +101,7 @@ export const commandSchema = z.discriminatedUnion('action', [
     id: identifier,
     control: z.enum(['start', 'pause', 'resume', 'end', 'cancel', 'exercise']),
     exercise: exerciseSchema.optional(),
+    blockId: identifier.optional(),
   }),
   z.object({ action: z.literal('consent'), id: identifier, consent: z.literal(true) }),
   z.object({
@@ -117,6 +130,7 @@ export const commandSchema = z.discriminatedUnion('action', [
 ]);
 export const metricSchema = z
   .object({
+    ...measurementSchema.shape,
     classId: identifier,
     exercise: exerciseSchema,
     revision: z.number().int().min(0),
@@ -132,12 +146,19 @@ export const metricSchema = z
     trackingCoverage: z.number().finite().min(0).max(100).nullable().optional(),
     rejectedReps: z.number().int().min(0).max(5000).optional(),
   })
-  .refine((data) => (isHoldExercise(data.exercise) ? data.reps === 0 : data.holdSeconds === 0), {
-    message: 'Use repetitions or hold time for the selected exercise.',
-  });
+  .refine(
+    (data) =>
+      data.targetUnit === 'seconds' || usesHoldTime(data.exercise)
+        ? data.reps === 0
+        : data.holdSeconds === 0,
+    {
+      message: 'Use repetitions or hold time for the selected exercise.',
+    },
+  );
 const score = z.number().finite().min(0).max(100).nullable();
 export const workoutSetSchema = z
   .object({
+    ...measurementSchema.shape,
     clientId: z.uuid(),
     ownerId: identifier.optional(),
     classId: identifier.nullable(),
@@ -168,8 +189,25 @@ export const workoutSetSchema = z
       wallMs < 0 ||
       data.activeMs > wallMs + 1000 ||
       data.trackedMs > data.activeMs ||
-      data.holdMs > data.trackedMs ||
+      ((data.measurementSource ?? 'automatic') === 'automatic'
+        ? data.holdMs > data.trackedMs
+        : data.holdMs > data.activeMs) ||
       data.reps > Math.max(1, Math.ceil(data.activeMs / 350))
     )
       ctx.addIssue({ code: 'custom', message: 'Workout timing and counts are inconsistent.' });
+    if (data.measurementSource === 'automatic' && !isAutomaticExercise(data.exercise))
+      ctx.addIssue({ code: 'custom', message: 'This exercise requires manual tracking.' });
+    if (data.armMode && data.exercise !== 'curl')
+      ctx.addIssue({ code: 'custom', message: 'This exercise does not support arm modes.' });
+    if (data.armMode && data.arms) {
+      const a = data.arms;
+      const expected =
+        data.armMode === 'left'
+          ? a.left.reps
+          : data.armMode === 'right'
+            ? a.right.reps
+            : Math.min(a.left.reps, a.right.reps);
+      if (data.armMode === 'both' ? data.reps > expected : data.reps !== expected)
+        ctx.addIssue({ code: 'custom', message: 'Arm counts do not match the selected mode.' });
+    }
   });

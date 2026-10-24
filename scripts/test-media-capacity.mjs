@@ -166,6 +166,7 @@ try {
     },
   });
   await coach.goto(`${origin}/studio/${session.id}`);
+  await coach.getByLabel('Gallery density').selectOption('overview');
   await coach.getByRole('button', { name: 'Join live video', exact: true }).click();
   await coach.getByRole('checkbox', { name: /I agree to group video/ }).check();
   await coach

@@ -4,10 +4,25 @@ export { jointAngle } from './pose-geometry';
 import type { ExerciseId } from './types';
 import { getExerciseProfile, type ExerciseProfile } from './exercise-profiles';
 import { defaultWorkoutConfig, normalizeWorkoutConfig, type WorkoutConfig } from './workout-config';
+import { isAutomaticExercise, type ArmMode } from './exercise-library';
+import {
+  coordinateReps,
+  emptyArm,
+  initialRepCoordinator,
+  type Arms,
+  type RepEvent,
+  type RepCoordinator,
+} from './rep-events';
 
-export const RULE_VERSION = 'profile-v7';
+export const RULE_VERSION = 'profile-v8';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
+  measurementSource?: 'automatic' | 'manual' | 'timer';
+  targetUnit?: 'reps' | 'seconds';
+  armMode?: ArmMode;
+  arms?: Arms;
+  repEvents?: RepEvent[];
+  technique?: 'steady' | 'adjust' | 'uncertain';
   reps: number;
   holdSeconds: number;
   score: number | null;
@@ -33,6 +48,15 @@ type Filter = { raw: number; value: number; velocity: number; timestamp: number 
 
 type Identity = { x: number; y: number; torso: number; width: number; height: number };
 export type PoseState = {
+  armMode?: ArmMode;
+  limbs?: { left: PoseState; right: PoseState };
+  armTotals?: Arms;
+  armBaseline?: { left: number; right: number; reps: number };
+  previousArmTracked?: [boolean, boolean];
+  armMeasurements?: Record<'left' | 'right', { range: number; seconds: number; samples: number }>;
+  coordinator?: RepCoordinator;
+  lastEvent?: RepEvent;
+  countedAt?: number;
   reps: number;
   holdMs: number;
   stage: 'seek' | 'ready' | 'working';
@@ -339,6 +363,46 @@ export function analyzePose(
   settings: Partial<WorkoutConfig> = defaultWorkoutConfig(exercise),
   worldLandmarks?: Landmark[][],
 ): Analysis {
+  if (!isAutomaticExercise(exercise))
+    return unavailable(state, 'Automatic measurement is unavailable. Use manual tracking.');
+  const config = normalizeWorkoutConfig(exercise, settings);
+  if (exercise === 'curl' && config.armMode) {
+    return analyzeArms(
+      poses,
+      exercise,
+      state,
+      timestamp,
+      width,
+      height,
+      paused,
+      config,
+      worldLandmarks,
+    );
+  }
+  return analyzeSinglePose(
+    poses,
+    exercise,
+    state,
+    timestamp,
+    width,
+    height,
+    paused,
+    settings,
+    worldLandmarks,
+  );
+}
+
+function analyzeSinglePose(
+  poses: Landmark[][],
+  exercise: ExerciseId,
+  state: PoseState,
+  timestamp: number,
+  width: number,
+  height: number,
+  paused: boolean,
+  settings: Partial<WorkoutConfig>,
+  worldLandmarks?: Landmark[][],
+): Analysis {
   const profile = getExerciseProfile(exercise);
   const config = normalizeWorkoutConfig(exercise, settings);
   // A duplicated/out-of-order delivery is not evidence of a new body or a
@@ -484,7 +548,7 @@ export function analyzePose(
     return suspend(
       state,
       timestamp,
-      `Keep your ${hidden.join(', ')} visible. Improve lighting or move the camera farther back.`,
+      `${side === 0 ? 'Left' : 'Right'} ${hidden.join(', ')} hidden. Turn slightly, improve lighting, or move farther back until the required joints fit.`,
       profile.occlusionGraceMs,
       confidence,
     );
@@ -715,6 +779,7 @@ export function analyzePose(
       angle: Math.round(angle),
       tracked: true,
       postureValid: form.valid,
+      technique: holding ? 'steady' : 'adjust',
       ruleVersion: RULE_VERSION,
       geometrySource: source,
       trackedSide: side === 0 ? 'left' : 'right',
@@ -874,7 +939,7 @@ export function analyzePose(
           'Rep not counted. Move more slowly and under control.',
           timestamp,
         );
-      else if (!state.cycleFormValid)
+      else if (!(form.postureValid ?? form.valid))
         reject(
           state,
           'form',
@@ -897,6 +962,15 @@ export function analyzePose(
           ? clamp(formScore * 0.5 + rangeScore * 0.25 + confidenceScore * 0.15 + timingScore * 0.1)
           : null;
         state.reps += 1;
+        state.lastEvent = {
+          id: `${side === 0 ? 'left' : 'right'}:${state.reps}:${timestamp}`,
+          side: side === 0 ? 'left' : 'right',
+          startedAt: state.startedAt,
+          endedAt: timestamp,
+          observedMs: state.observedMs,
+          rangeDegrees: Math.round(range),
+          quality: state.lastRepQuality,
+        };
         state.lastRepAt = timestamp;
         state.lastRange = Math.round(range);
         state.lastDuration = state.observedMs / 1000;
@@ -942,7 +1016,9 @@ export function analyzePose(
     cue,
     angle: Math.round(angle),
     tracked: true,
-    postureValid: form.valid,
+    postureValid: form.postureValid ?? form.valid,
+    technique: form.valid && !form.cue ? 'steady' : 'adjust',
+    repEvents: state.lastEvent?.endedAt === timestamp ? [state.lastEvent] : [],
     ruleVersion: RULE_VERSION,
     rangeDegrees: state.lastRange,
     lastRepSeconds: state.lastDuration,
@@ -951,6 +1027,147 @@ export function analyzePose(
     geometrySource: source,
     trackedSide: side === 0 ? 'left' : 'right',
     filteredLandmarks: filtered,
+  };
+}
+
+function analyzeArms(
+  poses: Landmark[][],
+  exercise: ExerciseId,
+  state: PoseState,
+  timestamp: number,
+  width: number,
+  height: number,
+  paused: boolean,
+  settings: Partial<WorkoutConfig>,
+  world?: Landmark[][],
+): Analysis {
+  const mode = settings.armMode!;
+  if (state.armMode && state.armMode !== mode) {
+    state.limbs = undefined;
+    state.coordinator = undefined;
+  }
+  state.armMode = mode;
+  const totals = state.armTotals ?? { left: emptyArm(), right: emptyArm() };
+  state.limbs ??= {
+    left: { ...initialPoseState(), reps: totals.left.reps },
+    right: { ...initialPoseState(), reps: totals.right.reps },
+  };
+  state.coordinator ??= { ...initialRepCoordinator(), pairs: state.reps };
+  const previousAt = state.countedAt ?? timestamp;
+  const fresh = timestamp > previousAt && timestamp - previousAt <= 450;
+  const results = (['left', 'right'] as const).map((side) =>
+    analyzeSinglePose(
+      poses,
+      exercise,
+      state.limbs![side],
+      timestamp,
+      width,
+      height,
+      paused,
+      {
+        ...settings,
+        side,
+        calibrationSource: settings.side === side ? settings.calibrationSource : undefined,
+      },
+      world,
+    ),
+  );
+  const events = results.flatMap((r) => r.repEvents ?? []);
+  state.armMeasurements ??= {
+    left: { range: 0, seconds: 0, samples: 0 },
+    right: { range: 0, seconds: 0, samples: 0 },
+  };
+  for (const event of events) {
+    const summary = state.armMeasurements[event.side];
+    summary.range += event.rangeDegrees;
+    summary.seconds += event.observedMs / 1000;
+    summary.samples++;
+  }
+  for (const [index, side] of (['left', 'right'] as const).entries()) {
+    const r = results[index],
+      limb = state.limbs[side],
+      old = totals[side];
+    totals[side] = {
+      reps: limb.reps,
+      rangeDegrees: state.armMeasurements[side].samples
+        ? state.armMeasurements[side].range / state.armMeasurements[side].samples
+        : old.rangeDegrees,
+      repSeconds: state.armMeasurements[side].samples
+        ? state.armMeasurements[side].seconds / state.armMeasurements[side].samples
+        : old.repSeconds,
+      activeMs: old.activeMs + (fresh && !paused ? timestamp - previousAt : 0),
+      trackedMs:
+        old.trackedMs +
+        (fresh && !paused && r.tracked && state.previousArmTracked?.[index]
+          ? timestamp - previousAt
+          : 0),
+    };
+  }
+  const pairs = coordinateReps(state.coordinator, mode, events, timestamp);
+  const base = state.armBaseline ?? { left: 0, right: 0, reps: 0 };
+  state.reps =
+    mode === 'both'
+      ? pairs
+      : base.reps +
+        (mode === 'alternating'
+          ? Math.min(totals.left.reps - base.left, totals.right.reps - base.right)
+          : totals[mode].reps - base[mode]);
+  state.armTotals = totals;
+  state.previousArmTracked = [results[0].tracked, results[1].tracked];
+  if (timestamp > previousAt || !state.countedAt) state.countedAt = timestamp;
+  const chosen = mode === 'right' ? 1 : mode === 'left' ? 0 : results[0].tracked ? 0 : 1;
+  const result = results[chosen];
+  const dual = mode === 'both' || mode === 'alternating';
+  state.stage = dual
+    ? state.limbs.left.stage === 'ready' && state.limbs.right.stage === 'ready'
+      ? 'ready'
+      : 'seek'
+    : state.limbs[mode].stage;
+  state.lastTimestamp = Math.max(
+    ...results.map((_, i) => state.limbs![i ? 'right' : 'left'].lastTimestamp),
+  );
+  const atStart = dual && results.every((r) => r.tracked && r.phase === 'arm extended');
+  const adjustment = dual ? results.find((r) => r.technique === 'adjust') : undefined;
+  return {
+    ...result,
+    reps: state.reps,
+    arms: totals,
+    armMode: mode,
+    repEvents: events,
+    score: dual
+      ? results.some((r) => r.score === null)
+        ? null
+        : results.reduce((s, r) => s + r.score!, 0) / results.length
+      : result.score,
+    tracked: dual ? results.every((r) => r.tracked) : result.tracked,
+    confidence: dual ? Math.min(...results.map((r) => r.confidence)) : result.confidence,
+    postureValid: dual ? results.every((r) => r.postureValid) : result.postureValid,
+    phase: atStart
+      ? 'arm extended'
+      : dual
+        ? (results.find((r) => !r.tracked)?.phase ?? 'moving')
+        : result.phase,
+    angle: dual ? Math.min(...results.map((r) => r.angle ?? 0)) : result.angle,
+    cue: dual
+      ? (results.find((r) => !r.tracked)?.cue ??
+        state.coordinator.sequenceCue ??
+        (adjustment
+          ? `${adjustment.trackedSide === 'right' ? 'Right' : 'Left'}: ${adjustment.cue}`
+          : result.cue))
+      : result.cue,
+    technique:
+      results.some((r) => !r.tracked) && dual
+        ? 'uncertain'
+        : adjustment
+          ? 'adjust'
+          : result.technique,
+    geometrySource: result.geometrySource,
+    rangeDegrees: events.length
+      ? events.reduce((s, e) => s + e.rangeDegrees, 0) / events.length
+      : result.rangeDegrees,
+    lastRepSeconds: events.length
+      ? events.reduce((s, e) => s + e.observedMs, 0) / events.length / 1000
+      : result.lastRepSeconds,
   };
 }
 

@@ -75,6 +75,7 @@ self.onmessage = async ({ data }) => {
         worldPoses: result.worldLandmarks,
         inferenceMs: performance.now() - started,
         timestamp: data.timestamp,
+        mediaTimeMs: data.mediaTimeMs,
         width: data.width,
         height: data.height,
         bitmap: data.presentFrame ? data.bitmap : undefined,

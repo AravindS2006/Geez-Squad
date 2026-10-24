@@ -43,6 +43,7 @@ export const set: WorkoutSetView = {
   confidence: 0.9,
   rejectedReps: 1,
   loadKg: 5,
+  loadBasis: 'total',
   completed: true,
   startedAt: '2026-10-09T00:00:00.000Z',
   endedAt: '2026-10-09T00:00:10.000Z',

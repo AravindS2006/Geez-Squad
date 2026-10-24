@@ -2,6 +2,7 @@
 import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';
+import { useCameraLayout } from './use-camera-layout';
 import {
   Camera,
   CameraOff,
@@ -53,6 +54,12 @@ import {
   MAX_START_FRAME_GAP_MS,
 } from '@/lib/workout-start';
 import { workoutSetProgress } from '@/lib/workout-progress';
+import { armModeLabels, type ArmMode } from '@/lib/exercise-library';
+import { setArms, readRunCheckpoint, type RunCheckpoint } from '@/lib/workout-run';
+import { measurementData } from '@/lib/measurement-contract';
+import { workoutSetSchema } from '@/lib/validation';
+import { reportCoachingHealth } from '@/lib/coaching-health';
+import type { Arms } from '@/lib/rep-events';
 import { exerciseIds, getExerciseProfile, isHoldExercise } from '@/lib/exercise-profiles';
 import {
   beginMovementCalibration,
@@ -95,6 +102,9 @@ export function CameraAnalyzer({
   classId = null,
   mirror = true,
   onCameraHeight,
+  runId,
+  onWorkoutComplete,
+  initialArms,
 }: {
   exercise: ExerciseId;
   paused?: boolean;
@@ -111,10 +121,13 @@ export function CameraAnalyzer({
   historyUserId?: string;
   classId?: string | null;
   mirror?: boolean;
-  onCameraHeight?: (height: number) => void;
+  onCameraHeight?: (height: number, top: number) => void;
+  runId?: string;
+  onWorkoutComplete?: () => void;
+  initialArms?: Arms;
 }) {
   const cameraView = useRef<HTMLDivElement>(null);
-  const displaySize = useRef({ width: 0, height: 0 });
+  const displaySize = useCameraLayout(cameraView, onCameraHeight);
   const video = useRef<HTMLVideoElement>(null),
     canvas = useRef<HTMLCanvasElement>(null),
     worker = useRef<Worker | null>(null),
@@ -169,7 +182,10 @@ export function CameraAnalyzer({
   const initDeadline = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useRef<Mode>('setup');
   const configRef = useRef(config);
-  const baseline = useRef({ reps: initialReps, holdMs: initialHoldSeconds * 1000 });
+  const baseline = useRef<{ reps: number; holdMs: number; armTotals?: Arms }>({
+    reps: initialReps,
+    holdMs: initialHoldSeconds * 1000,
+  });
   const completedRef = useRef<SetResult[]>([]);
   const metrics = useRef(initialTrainingMetrics(initialReps));
   const setStartedAt = useRef('');
@@ -180,8 +196,12 @@ export function CameraAnalyzer({
     revision: number;
     classId: string | null;
     owner?: string;
+    blockId: string | null;
+    runId: string;
   } | null>(null);
   const saveOwner = useRef(saveForUser);
+  const checkpointKey = useRef('');
+  const lastCheckpointAt = useRef(0);
   const sessionContext = useRef({ classId, revision });
   sessionContext.current = { classId, revision };
   const retryOwner = useRef(historyUserId);
@@ -206,7 +226,21 @@ export function CameraAnalyzer({
     streamCallback = useRef(onStream),
     voiceRef = useRef(false),
     lastSpoken = useRef({ text: '', at: 0 });
-  const tally = useRef({ reps: initialReps, holdMs: initialHoldSeconds * 1000 });
+  const tally = useRef<
+    Pick<
+      import('@/lib/pose-engine').PoseState,
+      'reps' | 'holdMs' | 'armTotals' | 'armBaseline' | 'armMeasurements'
+    >
+  >({ reps: initialReps, holdMs: initialHoldSeconds * 1000 });
+  const runIdentity = useRef(runId ?? '');
+  useEffect(() => {
+    runIdentity.current = runId ?? crypto.randomUUID();
+  }, [runId, exercise, block?.id]);
+  const completeCallback = useRef(onWorkoutComplete);
+  completeCallback.current = onWorkoutComplete;
+  useEffect(() => {
+    if (mode === 'complete') completeCallback.current?.();
+  }, [mode]);
   const [analysis, setAnalysis] = useState(empty),
     [status, setStatus] = useState('off'),
     [error, setError] = useState(''),
@@ -269,10 +303,10 @@ export function CameraAnalyzer({
     oscillator.start();
     oscillator.stop(context.currentTime + 0.1);
   }
-  function recordSet() {
+  function recordSet(consume = true) {
     const active = activeSet.current;
     if (!active) return null;
-    activeSet.current = null;
+    if (consume) activeSet.current = null;
     const amount = Math.floor(
       workoutSetProgress(
         active.exercise,
@@ -283,6 +317,14 @@ export function CameraAnalyzer({
     );
     const measured = trainingMetricsSummary(metrics.current);
     const record: WorkoutSetRecord = {
+      schemaVersion: 2,
+      runId: active.runId,
+      blockId: active.blockId,
+      armMode: configRef.current.armMode ?? null,
+      arms: setArms(tally.current.armTotals, baseline.current.armTotals),
+      measurementSource: 'automatic',
+      targetUnit: isHoldExercise(active.exercise) ? 'seconds' : 'reps',
+      loadBasis: configRef.current.loadBasis ?? null,
       clientId: active.clientId,
       classId: active.classId,
       revision: active.revision,
@@ -312,6 +354,44 @@ export function CameraAnalyzer({
       measured,
     };
   }
+  function checkpoint(
+    unfinished?: WorkoutSetRecord,
+    saveConsented = !!activeSet.current?.owner && activeSet.current.owner === saveOwner.current,
+    restEnd?: number,
+  ) {
+    if (!checkpointKey.current || !retryOwner.current) return;
+    const data: RunCheckpoint = {
+      version: 2,
+      owner: retryOwner.current,
+      exercise: unfinished?.exercise ?? exerciseRef.current,
+      classId: unfinished?.classId ?? sessionContext.current.classId,
+      revision: unfinished?.revision ?? sessionContext.current.revision,
+      runId: unfinished?.runId ?? runIdentity.current,
+      blockId: unfinished?.blockId ?? block?.id ?? null,
+      reps: tally.current.reps,
+      holdMs: tally.current.holdMs,
+      arms: tally.current.armTotals,
+      config: configRef.current,
+      completedSets: completedRef.current.length,
+      results: completedRef.current.map(({ number, amount, score, range, tempo, quality }) => ({
+        number,
+        amount,
+        score,
+        range,
+        tempo,
+        quality,
+      })),
+      unfinished,
+      updatedAt: Date.now(),
+      saveConsented,
+      restUntil: restEnd ?? restUntil,
+    };
+    try {
+      localStorage.setItem(checkpointKey.current, JSON.stringify(data));
+    } catch {
+      /* Saved sets remain recoverable through the normal queue. */
+    }
+  }
   function finishSet(result: Analysis) {
     if (modeRef.current !== 'active') return;
     const snapshot = recordSet();
@@ -340,6 +420,7 @@ export function CameraAnalyzer({
           );
         })
         .catch(() => {
+          reportCoachingHealth('save_failed', !!owner);
           setSaveFailed(true);
           setSaveMessage('Workout save pending. Retry when connected.');
         });
@@ -361,6 +442,7 @@ export function CameraAnalyzer({
     setLocalPaused(false);
     const until = Date.now() + configRef.current.rest * 1000;
     setRestUntil(until);
+    checkpoint(undefined, false, until);
     setRestLeft(configRef.current.rest);
     announce(
       `${feedback}. ${nextMode === 'complete' ? 'Take a recovery break.' : `Rest for ${configRef.current.rest} seconds.`}`,
@@ -382,6 +464,7 @@ export function CameraAnalyzer({
     setCalibration(null);
     if (
       pausedRef.current ||
+      (exerciseRef.current === 'curl' && !configRef.current.armMode) ||
       document.hidden ||
       status !== 'ready' ||
       armedRef.current ||
@@ -410,7 +493,7 @@ export function CameraAnalyzer({
   }
   function activateSet(timestamp: number) {
     if (!armedRef.current || pausedRef.current || document.hidden) return;
-    baseline.current = { reps: tally.current.reps, holdMs: tally.current.holdMs };
+    baseline.current = structuredClone(tally.current);
     metrics.current = initialTrainingMetrics(tally.current.reps, timestamp);
     setStartedAt.current = new Date().toISOString();
     lastObservedAt.current = setStartedAt.current;
@@ -419,6 +502,8 @@ export function CameraAnalyzer({
       exercise: exerciseRef.current,
       ...sessionContext.current,
       owner: saveOwner.current,
+      blockId: block?.id ?? null,
+      runId: runIdentity.current,
     };
     const preview = previewState.current;
     // The countdown already observed a stable starting pose. Preserve that readiness
@@ -442,6 +527,28 @@ export function CameraAnalyzer({
       lastTimestamp: timestamp,
       previousHoldValid: isHoldExercise(exerciseRef.current),
     };
+    if (preview.limbs) {
+      state.current.limbs = {
+        left: {
+          ...preview.limbs.left,
+          reps: tally.current.armTotals?.left.reps ?? 0,
+          lastEvent: undefined,
+        },
+        right: {
+          ...preview.limbs.right,
+          reps: tally.current.armTotals?.right.reps ?? 0,
+          lastEvent: undefined,
+        },
+      };
+      state.current.armMode = configRef.current.armMode;
+    }
+    state.current.armBaseline = {
+      left: tally.current.armTotals?.left.reps ?? 0,
+      right: tally.current.armTotals?.right.reps ?? 0,
+      reps: tally.current.reps,
+    };
+    state.current.armMeasurements = undefined;
+    tally.current.armBaseline = state.current.armBaseline;
     cancelStart();
     modeRef.current = 'active';
     setMode('active');
@@ -470,6 +577,9 @@ export function CameraAnalyzer({
       holdSeconds: Math.floor(tally.current.holdMs / 1000),
       phase: 'camera paused',
       cue,
+      armMode: configRef.current.armMode,
+      arms: tally.current.armTotals,
+      technique: 'uncertain' as const,
     };
     setAnalysis(unavailable);
     analysisCallback.current?.(unavailable);
@@ -507,7 +617,18 @@ export function CameraAnalyzer({
         setSaveFailed(true);
         setSaveMessage('Workout save pending. Retry when connected.');
       });
-    tally.current = { reps: initialReps, holdMs: initialHoldSeconds * 1000 };
+    checkpointKey.current = historyUserId
+      ? `geez-squad:run:v2:${historyUserId}:${classId ?? 'practice'}:${block?.id ?? exercise}`
+      : '';
+    const restored = checkpointKey.current
+      ? readRunCheckpoint(checkpointKey.current, historyUserId!, exercise, classId, revision)
+      : null;
+    const arms = measurementData({ arms: restored?.arms ?? initialArms }).arms ?? undefined;
+    tally.current = {
+      reps: Math.max(initialReps, restored?.reps ?? 0),
+      holdMs: Math.max(initialHoldSeconds * 1000, restored?.holdMs ?? 0),
+      armTotals: arms,
+    };
     state.current = { ...initialPoseState(), ...tally.current };
     previewState.current = initialPoseState();
     baseline.current = { reps: initialReps, holdMs: initialHoldSeconds * 1000 };
@@ -522,20 +643,102 @@ export function CameraAnalyzer({
     try {
       saved = JSON.parse(readBrowserPreference(`geez-squad-workout-v3-${exercise}`) || '{}');
     } catch {}
-    setConfig(
-      normalizeWorkoutConfig(exercise, {
-        ...saved,
-        ...(block
-          ? { sets: block.sets, target: block.reps, rest: block.rest, loadKg: block.loadKg ?? null }
-          : {}),
-      }),
-    );
-    setAnalysis({ ...empty, reps: initialReps, holdSeconds: initialHoldSeconds });
-  }, [classId, exercise, revision, block?.sets, block?.reps, block?.rest, block?.loadKg]);
+    const nextConfig = normalizeWorkoutConfig(exercise, {
+      ...saved,
+      ...(restored?.config ?? {}),
+      ...(block
+        ? {
+            sets: block.sets,
+            target: block.reps,
+            rest: block.rest,
+            loadKg: block.loadKg ?? null,
+            ...(block.armMode ? { armMode: block.armMode } : {}),
+            ...(block.loadBasis ? { loadBasis: block.loadBasis } : {}),
+          }
+        : {}),
+    });
+    configRef.current = nextConfig;
+    setConfig(nextConfig);
+    if (restored) {
+      runIdentity.current = restored.runId;
+      const previousResults = (Array.isArray(restored.results) ? restored.results : [])
+        .filter(
+          (r) =>
+            r &&
+            Number.isInteger(r.number) &&
+            Number.isFinite(r.amount) &&
+            r.amount >= 0 &&
+            Number.isFinite(r.range) &&
+            Number.isFinite(r.tempo) &&
+            (r.score === null || Number.isFinite(r.score)) &&
+            (r.quality === null || Number.isFinite(r.quality)),
+        )
+        .slice(0, 10);
+      const pending = workoutSetSchema.safeParse(restored.unfinished);
+      if (
+        pending.success &&
+        pending.data.activeMs > 0 &&
+        pending.data.exercise === exercise &&
+        pending.data.classId === classId &&
+        pending.data.revision === revision
+      ) {
+        if (saveForUser && restored.saveConsented)
+          void saveWorkoutSet(saveForUser, pending.data).catch(() => {});
+        previousResults.push({
+          number: previousResults.length + 1,
+          amount: pending.data.reps || pending.data.holdMs / 1000,
+          score: pending.data.formScore,
+          range: pending.data.rangeDegrees ?? 0,
+          tempo: pending.data.repSeconds ?? 0,
+          quality: pending.data.qualityScore,
+        });
+      }
+      completedRef.current = previousResults;
+      setCompletedSets(previousResults);
+      setSaveMessage(
+        previousResults.length ||
+          restored.reps > initialReps ||
+          restored.holdMs > initialHoldSeconds * 1000 ||
+          (restored.unfinished?.activeMs ?? 0) > 0
+          ? 'Confirmed progress restored. Any interrupted set is kept as a partial result. Acquire your start position before continuing.'
+          : '',
+      );
+      if (previousResults.length >= (block?.sets ?? restored.config.sets)) {
+        modeRef.current = 'complete';
+        setMode('complete');
+      } else if (previousResults.length > 0) {
+        modeRef.current = 'rest';
+        setMode('rest');
+        const end = Number.isFinite(restored.restUntil) ? restored.restUntil! : Date.now();
+        setRestUntil(end);
+        setRestLeft(Math.max(0, Math.ceil((end - Date.now()) / 1000)));
+      }
+      checkpoint(undefined, false, restored.restUntil);
+    }
+    baseline.current = structuredClone(tally.current);
+    setAnalysis({
+      ...empty,
+      reps: tally.current.reps,
+      holdSeconds: Math.floor(tally.current.holdMs / 1000),
+      arms: tally.current.armTotals,
+    });
+  }, [
+    classId,
+    exercise,
+    revision,
+    block?.id,
+    block?.sets,
+    block?.reps,
+    block?.rest,
+    block?.loadKg,
+    block?.armMode,
+    block?.loadBasis,
+  ]);
   useEffect(() => {
     const onPageHide = () => {
       setCompletion('');
       const unfinished = recordSet();
+      checkpoint(unfinished?.record, !!unfinished?.owner);
       if (unfinished?.owner && unfinished.record.activeMs > 0)
         void saveWorkoutSet(unfinished.owner, unfinished.record).catch(() => {});
       modeRef.current = 'setup';
@@ -546,19 +749,6 @@ export function CameraAnalyzer({
     window.addEventListener('pagehide', onPageHide);
     return () => window.removeEventListener('pagehide', onPageHide);
   }, []);
-  useEffect(() => {
-    const view = cameraView.current;
-    if (!view) return;
-    const update = () => {
-      const { width, height } = view.getBoundingClientRect();
-      displaySize.current = { width, height };
-      onCameraHeight?.(height);
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(view);
-    update();
-    return () => observer.disconnect();
-  }, [onCameraHeight]);
   useEffect(() => {
     if (mode !== 'rest') return;
     const tick = () => setRestLeft(Math.max(0, Math.ceil((restUntil - Date.now()) / 1000)));
@@ -701,6 +891,7 @@ export function CameraAnalyzer({
             return;
           }
           if (data.type === 'error') {
+            reportCoachingHealth('model_startup_failed', !!saveOwner.current);
             stop();
             setStatus('off');
             setError(data.message);
@@ -741,6 +932,7 @@ export function CameraAnalyzer({
                 timestamp - lastCaptureAt.current > 100 ? timestamp : lastCaptureAt.current + 50;
               inFlight.current = true;
               try {
+                const mediaTimeMs = v.currentTime * 1000;
                 const bitmap = await createImageBitmap(v);
                 if (generation.current !== run || worker.current !== task) {
                   bitmap.close();
@@ -752,6 +944,7 @@ export function CameraAnalyzer({
                     bitmap,
                     presentFrame: true,
                     timestamp,
+                    mediaTimeMs,
                     // A camera can rotate or change resolution while capture
                     // is pending. Geometry must describe this captured image.
                     width: bitmap.width,
@@ -783,6 +976,8 @@ export function CameraAnalyzer({
             const meanInferenceMs =
               recentInferenceMs.current.reduce((sum, ms) => sum + ms, 0) /
               recentInferenceMs.current.length;
+            if (recentInferenceMs.current.length >= 20 && meanInferenceMs > 100)
+              reportCoachingHealth('inference_slow', !!saveOwner.current, meanInferenceMs);
             // Heavy at 6–9 FPS can miss short exercise endpoints despite clearer
             // individual frames. Keep it only when it meets a 100 ms frame budget.
             if (
@@ -916,10 +1111,22 @@ export function CameraAnalyzer({
               );
               lastObservedAt.current = new Date().toISOString();
               const measured = trainingMetricsSummary(metrics.current);
+              if (measured.activeMs > 10000 && (measured.trackingCoverage ?? 100) < 50)
+                reportCoachingHealth('tracking_low', !!saveOwner.current);
               result.trackingCoverage = measured.trackingCoverage;
               result.rejectedReps = measured.rejectedReps;
               if (result.reps > tally.current.reps) signalRep();
-              tally.current = { reps: state.current.reps, holdMs: state.current.holdMs };
+              tally.current = {
+                reps: state.current.reps,
+                holdMs: state.current.holdMs,
+                armTotals: state.current.armTotals,
+                armBaseline: state.current.armBaseline,
+                armMeasurements: state.current.armMeasurements,
+              };
+              if (Date.now() - lastCheckpointAt.current >= 1000 || result.repEvents?.length) {
+                checkpoint(recordSet(false)?.record);
+                lastCheckpointAt.current = Date.now();
+              }
               const progress = workoutSetProgress(
                 exerciseRef.current,
                 result.reps,
@@ -930,6 +1137,8 @@ export function CameraAnalyzer({
             } else {
               result.reps = tally.current.reps;
               result.holdSeconds = Math.floor(tally.current.holdMs / 1000);
+              result.arms = tally.current.armTotals;
+              result.repEvents = [];
               result.score = null;
               if (armedRef.current) {
                 result.phase = !startClock.current.acquired
@@ -953,6 +1162,7 @@ export function CameraAnalyzer({
             if (diagnosticsEnabledRef.current)
               recordPoseDiagnostics(diagnosticBuffer.current, {
                 timestamp: data.timestamp,
+                mediaTimeMs: data.mediaTimeMs,
                 exercise: exerciseRef.current,
                 config: configRef.current,
                 width: data.width,
@@ -963,6 +1173,8 @@ export function CameraAnalyzer({
                 mode: modeRef.current,
                 stage: (activeSet ? state.current : previewState.current).stage,
                 continuity: observation.reason ?? 'accepted',
+                state: activeSet ? state.current : previewState.current,
+                rejectedJoints: stable.rejectedJoints,
                 analysis: result,
                 poses: observation.rawPoses,
                 worldPoses: observation.rawWorldPoses,
@@ -1211,12 +1423,15 @@ export function CameraAnalyzer({
                 </strong>
               </div>
               <div>
-                <span title="Limited visible alignment estimate, not a complete assessment of technique. A dash means this movement has no supported form score.">
-                  Form estimate
-                </span>
-                <strong>
-                  {analysis.score === null ? '—' : Math.round(analysis.score)}
-                  <small>{analysis.score === null ? '' : '/100'}</small>
+                <span>Technique</span>
+                <strong className="technique-text">
+                  {!analysis.tracked
+                    ? 'Uncertain'
+                    : analysis.technique === 'adjust'
+                      ? 'Adjust'
+                      : analysis.postureValid
+                        ? 'Steady'
+                        : 'Getting ready'}
                 </strong>
               </div>
               <div>
@@ -1294,6 +1509,59 @@ export function CameraAnalyzer({
           </button>
         </div>
         <section className="set-progress analyzer-progress" aria-label="Set progress">
+          {exercise === 'curl' && (
+            <div className="arm-mode-setup">
+              <label>
+                Workout mode
+                <select
+                  aria-label="Curl workout mode"
+                  value={config.armMode ?? ''}
+                  disabled={mode !== 'setup' || armed || !!block?.armMode}
+                  onChange={(e) =>
+                    updateConfig({
+                      armMode: e.target.value as ArmMode,
+                      side: e.target.value === 'right' ? 'right' : 'left',
+                      calibrationSource: undefined,
+                      topAngle: profile.topAngle,
+                      bottomAngle: profile.bottomAngle,
+                    })
+                  }
+                >
+                  <option value="">Choose how you will curl</option>
+                  {Object.entries(armModeLabels).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {analysis.arms && (
+                <div className="arm-counters" aria-label="Per-arm progress">
+                  <span>
+                    Left{' '}
+                    <strong>
+                      {setArms(analysis.arms, baseline.current.armTotals)?.left.reps ?? 0}
+                      <small> / {config.target}</small>
+                    </strong>
+                  </span>
+                  <span>
+                    Right{' '}
+                    <strong>
+                      {setArms(analysis.arms, baseline.current.armTotals)?.right.reps ?? 0}
+                      <small> / {config.target}</small>
+                    </strong>
+                  </span>
+                </div>
+              )}
+              <small>
+                {config.armMode === 'both'
+                  ? 'One rep = both arms completing the movement together.'
+                  : config.armMode === 'alternating'
+                    ? `${config.target} repetitions on each arm. Alternate sides.`
+                    : 'Choose the working arm before starting. Left and right refer to your body.'}
+              </small>
+            </div>
+          )}
           <div>
             <strong>
               {mode === 'complete'
@@ -1325,6 +1593,7 @@ export function CameraAnalyzer({
                 className="button lime"
                 disabled={
                   paused ||
+                  (exercise === 'curl' && !config.armMode) ||
                   status !== 'ready' ||
                   Boolean(calibrationRef.current) ||
                   (mode === 'rest' && restLeft > 0)
@@ -1392,14 +1661,13 @@ export function CameraAnalyzer({
                 className="button lime"
                 onClick={() => {
                   completedRef.current = [];
+                  runIdentity.current = crypto.randomUUID();
                   setCompletedSets([]);
+                  checkpoint();
                   setCompletion('');
                   modeRef.current = 'setup';
                   setMode('setup');
-                  baseline.current = {
-                    reps: tally.current.reps,
-                    holdMs: tally.current.holdMs,
-                  };
+                  baseline.current = structuredClone(tally.current);
                 }}
               >
                 New workout
@@ -1511,6 +1779,20 @@ export function CameraAnalyzer({
                     }
                   />
                 </label>
+                <label>
+                  Load describes
+                  <select
+                    value={config.loadBasis ?? ''}
+                    disabled={mode !== 'setup'}
+                    onChange={(e) =>
+                      updateConfig({ loadBasis: e.target.value as 'per-hand' | 'total' })
+                    }
+                  >
+                    <option value="">Unspecified · no volume estimate</option>
+                    <option value="per-hand">Weight in each hand</option>
+                    <option value="total">Total external weight</option>
+                  </select>
+                </label>
               </div>
               <details className="tracking-settings">
                 <summary>Adjust tracking with your coach</summary>
@@ -1560,9 +1842,18 @@ export function CameraAnalyzer({
                     Body side
                     <select
                       value={config.side}
-                      disabled={mode !== 'setup'}
+                      disabled={
+                        mode !== 'setup' ||
+                        (exercise === 'curl' &&
+                          (config.armMode === 'both' || config.armMode === 'alternating'))
+                      }
                       onChange={(e) =>
-                        updateConfig({ side: e.target.value as WorkoutConfig['side'] })
+                        updateConfig({
+                          side: e.target.value as WorkoutConfig['side'],
+                          ...(exercise === 'curl' && e.target.value !== 'auto'
+                            ? { armMode: e.target.value as ArmMode }
+                            : {}),
+                        })
                       }
                     >
                       <option value="auto">Automatic</option>
@@ -1652,7 +1943,15 @@ export function CameraAnalyzer({
                 <button
                   type="button"
                   className="button outline"
-                  disabled={status !== 'ready' || paused || Boolean(calibrationRef.current)}
+                  disabled={
+                    status !== 'ready' ||
+                    paused ||
+                    Boolean(calibrationRef.current) ||
+                    (exercise === 'curl' &&
+                      (!config.armMode ||
+                        config.armMode === 'both' ||
+                        config.armMode === 'alternating'))
+                  }
                   onClick={() => {
                     cancelStart();
                     const next = beginMovementCalibration(performance.now());

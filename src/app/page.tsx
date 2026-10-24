@@ -14,8 +14,13 @@ import {
 } from 'lucide-react';
 import { Brand } from '@/components/ui';
 import './landing.css';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (session) redirect('/app');
   return (
     <div className="landing">
       <a href="#main" className="landing-skip">

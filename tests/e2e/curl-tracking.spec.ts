@@ -196,6 +196,8 @@ for (const condition of [
       if (condition.noisy)
         await page.getByRole('checkbox', { name: 'Record tracking report locally' }).check();
       await page.getByRole('button', { name: 'Close dialog' }).click();
+      await expect(page.getByRole('button', { name: 'Start set', exact: true })).toBeDisabled();
+      await page.getByLabel('Curl workout mode').selectOption('right');
       await page.getByRole('button', { name: 'Enable camera' }).click();
       await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
       const reps = page.getByTestId('cumulative-reps');
@@ -287,7 +289,7 @@ for (const condition of [
         const report = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         expect(report.frameCount).toBeGreaterThan(30);
         expect(report.frameCount).toBeLessThanOrEqual(600);
-        expect(report.ruleVersion).toBe('profile-v7');
+        expect(report.ruleVersion).toBe('profile-v8');
         expect(
           report.frames.some(
             (frame: { continuity: string }) => frame.continuity === 'landmark-identity',
@@ -303,14 +305,9 @@ for (const condition of [
       await page.evaluate(() => {
         (window as unknown as CurlFixture).curlArmLean = 50;
       });
-      await expect
-        .poll(async () =>
-          Number.parseInt(
-            await page.locator('.analyzer-hud > div').nth(1).locator('strong').innerText(),
-            10,
-          ),
-        )
-        .toBeLessThan(75);
+      await expect(page.locator('.analyzer-hud > div').nth(1).locator('strong')).toHaveText(
+        'Adjust',
+      );
       await expect(page.locator('.analyzer-cue')).toContainText('upper arm');
       await expect(reps).toHaveText('10');
       await page.getByRole('button', { name: 'Stop local camera analysis' }).click();

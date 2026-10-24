@@ -12,6 +12,10 @@ import {
 import { workoutSetSchema } from '@/lib/validation';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { requireParticipation } from '@/lib/member-access';
+import { requireExercise } from '@/lib/exercise-access';
+import { studioAccess } from '@/lib/studio-access';
+import { splitMeasurement } from '@/lib/measurement-contract';
+import type { Prisma } from '@prisma/client';
 
 async function handlePOST(request: Request) {
   try {
@@ -29,13 +33,31 @@ async function handlePOST(request: Request) {
       Date.parse(data.startedAt) < Date.now() - 30 * 86400000
     )
       throw new ApiError(400, 'Save a workout within 30 days of training.');
-    const progress = isHoldExercise(data.exercise) ? data.holdMs / 1000 : data.reps;
+    const access = await studioAccess(user.id);
+    const definition = await requireExercise(data.exercise, access?.studio?.id);
+    const hold = definition.targetUnit === 'seconds';
+    const source =
+      data.measurementSource ?? (definition.profileId ? 'automatic' : hold ? 'timer' : 'manual');
+    if (source === 'timer' && !hold) throw new ApiError(400, 'Use repetitions for this exercise.');
+    if (
+      source !== 'automatic' &&
+      (data.formScore !== null ||
+        data.qualityScore !== null ||
+        data.rangeDegrees !== null ||
+        data.repSeconds !== null ||
+        data.confidence !== null ||
+        data.trackedMs !== 0 ||
+        data.arms)
+    )
+      throw new ApiError(400, 'Manual results cannot contain inferred measurements.');
+    if (data.schemaVersion === 2 && data.armMode && !data.arms && source === 'automatic')
+      throw new ApiError(400, 'Arm measurements are required for this workout mode.');
+    if (data.targetUnit && data.targetUnit !== definition.targetUnit)
+      throw new ApiError(400, 'Exercise target unit changed.');
+    const progress = hold ? data.holdMs / 1000 : data.reps;
     if (data.completed !== progress >= data.target)
       throw new ApiError(400, 'The completed target does not match the recorded set.');
-    if (
-      (!isHoldExercise(data.exercise) && data.holdMs !== 0) ||
-      (isHoldExercise(data.exercise) && data.reps !== 0)
-    )
+    if ((!hold && data.holdMs !== 0) || (hold && data.reps !== 0))
       throw new ApiError(400, 'Use repetitions or hold time for the selected exercise.');
     if (data.classId) {
       const item = await requireClass(data.classId, user.id);
@@ -51,10 +73,16 @@ async function handlePOST(request: Request) {
       )
         throw new ApiError(409, 'This set is outside the recorded class.');
     }
+    const { data: values, measurement } = splitMeasurement(data);
+    measurement.exerciseLabel = definition.name;
+    measurement.targetUnit = definition.targetUnit;
+    measurement.measurementSource =
+      data.measurementSource ?? (definition.profileId ? 'automatic' : hold ? 'timer' : 'manual');
     const saved = await db.workoutSet.upsert({
       where: { userId_clientId: { userId: user.id, clientId: data.clientId } },
       create: {
-        ...data,
+        ...(values as Omit<typeof data, keyof import('@/lib/measurement-contract').Measurement>),
+        measurement: measurement as Prisma.InputJsonValue,
         userId: user.id,
         startedAt: new Date(data.startedAt),
         endedAt: new Date(data.endedAt),

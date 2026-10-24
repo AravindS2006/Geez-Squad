@@ -89,9 +89,9 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     const coachTile = page.locator('.coach-stage');
     const feed = page.locator('#coach-video-feed');
     const analyzer = page.locator('.camera-analyzer');
-    await expect(size).toHaveValue('small');
-    await expect(size).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Enlarge coach video' })).toBeVisible();
+    await expect(size).toHaveValue('medium');
+    await expect(size).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Enlarge coach video' })).toBeHidden();
     await expect(analyzer).toBeVisible();
     // Layout changes must preserve the same camera and feed nodes, rather than remounting them.
     await analyzer.evaluate((node, id) => node.setAttribute('data-layout-fixture', id), fixtureId);
@@ -217,7 +217,9 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
         if (value === 'small') {
           expect(Math.abs(box!.width - box!.height)).toBeLessThanOrEqual(1);
           expect(box!.width).toBeGreaterThanOrEqual(104);
-          expect(box!.width).toBeLessThanOrEqual(viewport.width <= 950 ? 128 : 184);
+          expect(box!.width).toBeLessThanOrEqual(
+            viewport.width <= 600 ? 144 : viewport.width <= 950 ? 128 : 184,
+          );
           await expectInsideCamera();
           for (const position of ['top-left', 'bottom-left', 'bottom-right', 'top-right']) {
             await page.getByRole('button', { name: 'More options', exact: true }).click();

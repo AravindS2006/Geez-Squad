@@ -32,7 +32,9 @@ if (action === 'build') {
   run(['node_modules/prisma/build/index.js', 'generate']);
   run(['scripts/prepare-assets.mjs']);
   run(['node_modules/next/dist/bin/next', 'build']);
-} else if (action === 'serve')
+} else if (action === 'dev')
+  run(['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1']);
+else if (action === 'serve')
   run(['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1']);
 else if (action === 'e2e')
   run(['node_modules/@playwright/test/cli.js', 'test', '--workers=1', ...process.argv.slice(3)]);
@@ -48,6 +50,8 @@ else {
     a11y: 'check-accessibility',
   };
   if (!scripts[action])
-    throw new Error('Choose build, serve, unit, api, roles, studio, coaching, next, e2e, or a11y.');
+    throw new Error(
+      'Choose build, dev, serve, unit, api, roles, studio, coaching, next, e2e, or a11y.',
+    );
   run([`scripts/${scripts[action]}.mjs`]);
 }

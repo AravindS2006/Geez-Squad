@@ -4098,14 +4098,18 @@ small {
   padding: 0;
   margin: 0;
 }
-.workspace-content.studio-content {
+.workspace-content.studio-content,
+.workspace-content:has(.meeting-practice) {
   padding: 0;
 }
-.app-layout:has(.meeting-room) .sidebar,
-.app-layout:has(.meeting-room) .topbar {
+.app-layout:has(:is(.meeting-room, .meeting-practice)) .sidebar,
+.app-layout:has(:is(.meeting-room, .meeting-practice)) .topbar,
+.app-layout:has(:is(.meeting-room, .meeting-practice)) .demo-banner,
+.app-layout:has(:is(.meeting-room, .meeting-practice)) .workspace-footer,
+body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: none;
 }
-.app-layout:has(.meeting-room) .main-shell {
+.app-layout:has(:is(.meeting-room, .meeting-practice)) .main-shell {
   margin: 0;
   width: 100%;
 }

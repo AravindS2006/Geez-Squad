@@ -1,4 +1,38 @@
 /* Coaching v2. Tokens and responsive room layout are isolated from the workspace. */
+.camera-module-loading {
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #132025;
+  color: #c9ddbd;
+  border: 1px solid #3d5147;
+  border-radius: 12px;
+}
+.meeting-analyzer .camera-loading {
+  flex-direction: column;
+  padding: 56px 18px 20px;
+  text-align: center;
+  background: #10201ad9;
+  z-index: 2;
+}
+.meeting-analyzer .camera-access-error {
+  color: #ffcdc4;
+  background: #4d2829;
+  border: 1px solid #995253;
+  border-radius: 8px;
+  padding: 10px 12px;
+  max-width: 480px;
+}
+.monitor-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.monitor-tools-toggle {
+  display: none;
+}
 .meeting-room.meeting-v2 {
   --meeting-bg: #101417;
   --meeting-surface: #1b2227;

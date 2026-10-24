@@ -59,9 +59,15 @@ test('returning member resumes the workspace and can manage a private nutrition 
       { width: 390, height: 844 },
     ]) {
       await page.setViewportSize(viewport);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
+      const overflow = await page.evaluate(() =>
+        [...document.querySelectorAll('main *')].flatMap((e) => {
+          const b = e.getBoundingClientRect();
+          return b.width && b.right > innerWidth + 1
+            ? [{ element: e.tagName, classes: e.className, right: b.right, width: b.width }]
+            : [];
+        }),
       );
+      expect(overflow).toEqual([]);
       const result = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
         .analyze();
@@ -74,7 +80,9 @@ test('returning member resumes the workspace and can manage a private nutrition 
     await page.getByRole('button', { name: 'Delete Oats and fruit', exact: true }).click();
     await expect(page.getByText('No entries for this day.', { exact: true })).toBeVisible();
     await page.goto('http://localhost:3000/app?view=practice');
+    await page.getByRole('button', { name: 'Movement guide', exact: true }).click();
     await expect(page.getByRole('complementary', { name: 'Movement guide' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close movement guide', exact: true }).click();
     for (const viewport of [
       { width: 1440, height: 1000 },
       { width: 390, height: 844 },
@@ -83,9 +91,15 @@ test('returning member resumes the workspace and can manage a private nutrition 
       await expect(page.locator('.camera-view')).toBeVisible();
       const camera = await page.locator('.camera-view').boundingBox();
       expect(camera!.height).toBeGreaterThanOrEqual(400);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
+      const outside = await page.evaluate(() =>
+        [...document.querySelectorAll('main *')].flatMap((e) => {
+          const b = e.getBoundingClientRect();
+          return b.width && b.right > innerWidth + 1
+            ? [{ element: e.tagName, classes: e.className, right: b.right, width: b.width }]
+            : [];
+        }),
       );
+      expect(outside).toEqual([]);
       await page.screenshot({
         path: `docs/screenshots/practice-${viewport.width}.png`,
         fullPage: true,

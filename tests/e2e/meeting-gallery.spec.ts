@@ -8,7 +8,7 @@ import AxeBuilder from '@axe-core/playwright';
 
 process.loadEnvFile('.env');
 
-for (const traineeCount of [8, 30, 48]) {
+for (const traineeCount of [1, 4, 12, 36, 48]) {
   test(`${traineeCount} trainees are accessible on phones, laptops, and TVs`, async ({ page }) => {
     test.setTimeout(60000);
     const fixtureId = randomUUID();

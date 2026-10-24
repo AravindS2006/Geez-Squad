@@ -18,9 +18,15 @@ import { coachingFeatures, type CoachingFeatures } from '@/lib/coaching-features
 import { readRunCheckpoint, type RunCheckpoint } from '@/lib/workout-run';
 import { workoutSetSchema } from '@/lib/validation';
 import { useCameraLayout } from './use-camera-layout';
+import { requestCamera } from '@/lib/camera-access';
 
 const AutomaticWorkout = dynamic(() => import('./camera-analyzer').then((m) => m.CameraAnalyzer), {
   ssr: false,
+  loading: () => (
+    <div className="camera-module-loading" role="status">
+      Loading camera controls…
+    </div>
+  ),
 });
 type Props = ComponentProps<typeof CameraAnalyzer> & {
   customExercises?: ExerciseDefinition[];
@@ -56,7 +62,7 @@ export function WorkoutPlayer(props: Props) {
               : 'Manual repetitions'}
         </span>
         <span>{definition.name}</span>
-        {isAutomaticExercise(props.exercise) && (
+        {isAutomaticExercise(props.exercise) && pinnedFeatures.measurement && (
           <button type="button" className="text-link" onClick={() => setManual((v) => !v)}>
             {manual ? 'Use camera counting' : 'Use manual tracking'}
           </button>
@@ -102,6 +108,8 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
   const [notice, setNotice] = useState(''),
     [pending, setPending] = useState(false);
   const [preview, setPreview] = useState<MediaStream | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
+  const previewRequest = useRef<AbortController | null>(null);
   const [armMode, setArmMode] = useState<ArmMode | undefined>(
     props.block?.armMode ?? props.initialArmMode,
   );
@@ -258,6 +266,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
     window.addEventListener('pagehide', onHide);
     return () => {
       finalize.current();
+      previewRequest.current?.abort();
       owned.current?.getTracks().forEach((t) => t.stop());
       window.removeEventListener('pagehide', onHide);
     };
@@ -353,20 +362,33 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
           !preview && (
             <button
               className="button outline"
+              disabled={previewPending}
               onClick={async () => {
+                const request = new AbortController();
+                previewRequest.current?.abort();
+                previewRequest.current = request;
+                setPreviewPending(true);
                 try {
-                  const media = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: false,
-                  });
+                  const media = await requestCamera(
+                    {
+                      video: true,
+                      audio: false,
+                    },
+                    request.signal,
+                  );
                   owned.current = media;
                   setPreview(media);
                 } catch {
-                  setNotice('Camera unavailable. You can still record your workout.');
+                  if (!request.signal.aborted)
+                    setNotice(
+                      'Camera unavailable. Check permission and retry. You can still record your workout.',
+                    );
+                } finally {
+                  if (!request.signal.aborted) setPreviewPending(false);
                 }
               }}
             >
-              Enable camera preview
+              {previewPending ? 'Waiting for camera…' : 'Enable camera preview'}
             </button>
           )
         )}

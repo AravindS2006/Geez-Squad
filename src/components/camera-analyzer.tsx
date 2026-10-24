@@ -3,6 +3,7 @@ import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';
 import { useCameraLayout } from './use-camera-layout';
+import { requestCamera } from '@/lib/camera-access';
 import {
   Camera,
   CameraOff,
@@ -127,6 +128,7 @@ export function CameraAnalyzer({
   initialArms?: Arms;
 }) {
   const cameraView = useRef<HTMLDivElement>(null);
+  const cameraRequest = useRef<AbortController | null>(null);
   const displaySize = useCameraLayout(cameraView, onCameraHeight);
   const video = useRef<HTMLVideoElement>(null),
     canvas = useRef<HTMLCanvasElement>(null),
@@ -245,12 +247,15 @@ export function CameraAnalyzer({
     [status, setStatus] = useState('off'),
     [error, setError] = useState(''),
     [voice, setVoice] = useState(false);
+  const [waitingForCamera, setWaitingForCamera] = useState(false);
   exerciseRef.current = exercise;
   pausedRef.current = paused || localPaused;
   analysisCallback.current = onAnalysis;
   streamCallback.current = onStream;
   voiceRef.current = voice;
   function stop() {
+    cameraRequest.current?.abort();
+    cameraRequest.current = null;
     overlayState.current = initialPoseOverlay();
     continuityState.current = initialPoseContinuity();
     jointStability.current = initialJointStability();
@@ -825,28 +830,35 @@ export function CameraAnalyzer({
     lastVideoTime.current = -1;
     setError('');
     setStatus('loading');
+    setWaitingForCamera(!external);
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.Worker || !window.createImageBitmap)
         throw new Error(
           'Camera analysis is not supported here. Use a current Chrome, Edge, or Safari browser over HTTPS.',
         );
+      const request = new AbortController();
+      cameraRequest.current = request;
       const camera =
         external ??
-        (await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-            facingMode: 'user',
+        (await requestCamera(
+          {
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
+              facingMode: 'user',
+            },
+            audio: false,
           },
-          audio: false,
-        }));
+          request.signal,
+        ));
       if (generation.current !== run) {
         if (!external) camera.getTracks().forEach((t) => t.stop());
         return;
       }
       if (!external) ownStream.current = camera;
       currentStream.current = camera;
+      setWaitingForCamera(false);
       streamCallback.current?.(camera);
       if (!video.current) return;
       video.current.srcObject = camera;
@@ -1340,7 +1352,7 @@ export function CameraAnalyzer({
                   : analysis.cue);
   const currentSet = Math.min(completedSets.length + 1, config.sets);
   return (
-    <div className="camera-analyzer meeting-analyzer">
+    <div className="camera-analyzer meeting-analyzer" data-camera-status={status}>
       <div className="camera-view" ref={cameraView} data-mirrored={mirror}>
         <video ref={video} muted playsInline className="camera-video" />
         <canvas ref={canvas} className="pose-canvas" aria-hidden="true" />
@@ -1366,6 +1378,11 @@ export function CameraAnalyzer({
               <Camera size={32} />
             </div>
             <h3>Your workout camera</h3>
+            {error && (
+              <p className="camera-access-error" role="alert">
+                {error}
+              </p>
+            )}
             <p>{profile.cameraCue}. Keep your head in view and step back until these joints fit.</p>
             <button
               className="button lime"
@@ -1395,8 +1412,22 @@ export function CameraAnalyzer({
           </div>
         )}
         {status === 'loading' && (
-          <div className="camera-loading">
-            <span className="spinner" /> Preparing your camera & pose model…
+          <div className="camera-loading" role="status">
+            <span className="spinner" />
+            <span>
+              {waitingForCamera
+                ? 'Allow camera access in your browser to continue.'
+                : 'Camera connected. Preparing pose tracking…'}
+            </span>
+            <button
+              className="button outline"
+              onClick={() => {
+                stop();
+                setStatus('off');
+              }}
+            >
+              Cancel camera setup
+            </button>
           </div>
         )}
         {status === 'ready' && (
@@ -1490,11 +1521,6 @@ export function CameraAnalyzer({
               </button>
             )}
           </div>
-        )}
-        {error && (
-          <p className="inline-error" role="alert">
-            {error}
-          </p>
         )}
         <div className={`cue-card analyzer-cue ${cueExpanded ? 'is-expanded' : ''}`}>
           <ScanLine size={16} aria-hidden="true" />

@@ -3,9 +3,11 @@ import { readdir, readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 // This harness intentionally only accepts a dedicated local PostgreSQL service.
-const url = new URL(
-  process.env.POSTGRES_TEST_URL ?? 'postgres://postgres:postgres@localhost:5432/postgres',
-);
+if (!process.env.POSTGRES_TEST_URL)
+  throw new Error('Set POSTGRES_TEST_URL to a disposable local PostgreSQL service.');
+const url = new URL(process.env.POSTGRES_TEST_URL);
+if (!['postgres:', 'postgresql:'].includes(url.protocol))
+  throw new Error('Use a PostgreSQL test connection.');
 if (!['localhost', '127.0.0.1'].includes(url.hostname))
   throw new Error('Use a disposable local PostgreSQL service.');
 const schema = `coaching_rehearsal_${randomUUID().replaceAll('-', '')}`;

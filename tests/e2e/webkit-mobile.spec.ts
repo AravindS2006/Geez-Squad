@@ -2,6 +2,55 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { addPublicPoseCamera } from './support/public-pose-camera';
 
+test('iPhone install suggestion cannot obstruct navigation and core workspace pages fit', async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/demo');
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('.app-install')).toBeVisible();
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await expect(page.locator('.app-install')).toBeHidden();
+  await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Dismiss install suggestion', exact: true }).click();
+  await page.waitForLoadState('networkidle');
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('.app-install')).toHaveCount(0);
+  for (const view of [
+    'nutrition',
+    'members',
+    'memberships',
+    'attendance',
+    'payments',
+    'enquiries',
+    'staff',
+    'classes',
+    'studio-details',
+    'coaching',
+    'clients',
+    'sessions',
+    'plans',
+    'analytics',
+    'settings',
+  ]) {
+    await page.goto('/demo?view=' + view);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: 'Open navigation', exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      view,
+    ).toBe(true);
+  }
+  await page.goto('/login');
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByRole('heading', { name: 'Welcome back.' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('iPhone compatibility path draws real model landmarks without worker graphics or video bitmaps', async ({
   page,
 }) => {

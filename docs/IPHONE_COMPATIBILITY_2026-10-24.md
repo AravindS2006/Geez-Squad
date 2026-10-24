@@ -31,6 +31,11 @@ every iPhone condition has been validated.
   return needs user activation, Resume camera keeps the existing stream and model.
 - Manual practice uses explicit dark backgrounds and readable text/button colors;
   the new WebKit accessibility journey exposed inherited light backgrounds.
+- The iOS install suggestion no longer covers header/navigation actions. It moves
+  above the bottom navigation on phones, hides during modal dialogs, and can be
+  dismissed for the current browser session. A WebKit regression checks real
+  pointer access to Close navigation, persistence of dismissal, login and the
+  core studio/workspace views without horizontal overflow.
 
 ## Regression evidence
 

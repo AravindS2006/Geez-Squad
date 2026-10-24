@@ -5,6 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useCameraLayout } from './use-camera-layout';
 import { requestCamera } from '@/lib/camera-access';
 import {
+  appleTouchBrowser,
+  BrowserPoseTask,
+  captureCanvasFrame,
+  closePoseFrame,
+  initialPoseModel,
+  type PoseFrame,
+} from '@/lib/pose-browser';
+import {
   Camera,
   CameraOff,
   ScanLine,
@@ -132,7 +140,7 @@ export function CameraAnalyzer({
   const displaySize = useCameraLayout(cameraView, onCameraHeight);
   const video = useRef<HTMLVideoElement>(null),
     canvas = useRef<HTMLCanvasElement>(null),
-    worker = useRef<Worker | null>(null),
+    worker = useRef<Worker | BrowserPoseTask | null>(null),
     state = useRef(initialPoseState());
   const previewState = useRef(initialPoseState());
   const overlayState = useRef(initialPoseOverlay());
@@ -165,10 +173,15 @@ export function CameraAnalyzer({
   const [cueExpanded, setCueExpanded] = useState(false);
   const calibrationRef = useRef<MovementCalibration | null>(null);
   const [calibration, setCalibration] = useState<MovementCalibration | null>(null);
-  const [modelVariant, setModelVariant] = useState<'lite' | 'full' | 'heavy'>('heavy');
+  const [modelVariant, setModelVariant] = useState(initialPoseModel);
   const modelVariantRef = useRef(modelVariant);
   modelVariantRef.current = modelVariant;
-  const [modelInfo, setModelInfo] = useState({ variant: 'full', delegate: '', fps: 0 });
+  const [modelInfo, setModelInfo] = useState({
+    variant: 'full',
+    delegate: '',
+    fps: 0,
+    runtime: '',
+  });
   const frameStats = useRef({ frames: 0, since: 0 });
   const recentInferenceMs = useRef<number[]>([]);
   const [qualityNotice, setQualityNotice] = useState('');
@@ -181,6 +194,7 @@ export function CameraAnalyzer({
   const staleFrame = useRef(false);
   const trackingBackend = useRef('');
   const recoverOnCPU = useRef<(() => void) | null>(null);
+  const recoverInBrowser = useRef<(() => void) | null>(null);
   const initDeadline = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef = useRef<Mode>('setup');
   const configRef = useRef(config);
@@ -248,6 +262,7 @@ export function CameraAnalyzer({
     [error, setError] = useState(''),
     [voice, setVoice] = useState(false);
   const [waitingForCamera, setWaitingForCamera] = useState(false);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
   exerciseRef.current = exercise;
   pausedRef.current = paused || localPaused;
   analysisCallback.current = onAnalysis;
@@ -273,6 +288,8 @@ export function CameraAnalyzer({
     worker.current?.terminate();
     worker.current = null;
     recoverOnCPU.current = null;
+    recoverInBrowser.current = null;
+    setPlaybackBlocked(false);
     trackingBackend.current = '';
     inFlight.current = false;
     ownStream.current?.getTracks().forEach((t) => t.stop());
@@ -786,6 +803,8 @@ export function CameraAnalyzer({
         invalidateTracking(
           'Tracking paused while this tab is hidden. Return to the meeting to continue.',
         );
+      } else if (currentStream.current && video.current?.paused) {
+        setPlaybackBlocked(true);
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
@@ -799,7 +818,17 @@ export function CameraAnalyzer({
       // A GPU can initialize successfully yet block synchronously during
       // inference. Replace that worker once rather than waiting indefinitely.
       if (trackingBackend.current === 'GPU' && inFlight.current && gap > 5000) {
-        recoverOnCPU.current?.();
+        if (recoverOnCPU.current) recoverOnCPU.current();
+        else recoverInBrowser.current?.();
+        return;
+      }
+      if (
+        trackingBackend.current === 'CPU' &&
+        inFlight.current &&
+        gap > 5000 &&
+        recoverInBrowser.current
+      ) {
+        recoverInBrowser.current();
         return;
       }
       if (staleFrame.current || gap <= MAX_START_FRAME_GAP_MS) return;
@@ -832,7 +861,7 @@ export function CameraAnalyzer({
     setStatus('loading');
     setWaitingForCamera(!external);
     try {
-      if (!navigator.mediaDevices?.getUserMedia || !window.Worker || !window.createImageBitmap)
+      if (!navigator.mediaDevices?.getUserMedia)
         throw new Error(
           'Camera analysis is not supported here. Use a current Chrome, Edge, or Safari browser over HTTPS.',
         );
@@ -861,10 +890,15 @@ export function CameraAnalyzer({
       setWaitingForCamera(false);
       streamCallback.current?.(camera);
       if (!video.current) return;
+      video.current.muted = true;
+      video.current.playsInline = true;
       video.current.srcObject = camera;
       await video.current.play();
       if (generation.current !== run) return;
-      const launchWorker = (cpuOnly = false) => {
+      const launchWorker = (
+        cpuOnly = false,
+        browser = appleTouchBrowser() || !window.Worker || !window.createImageBitmap,
+      ) => {
         if (timer.current) clearInterval(timer.current);
         timer.current = null;
         if (frameRequest.current !== null)
@@ -881,10 +915,27 @@ export function CameraAnalyzer({
           invalidateTracking('Restarting tracking using CPU. Hold your starting position.');
           setStatus('loading');
         }
-        const task = new Worker('/pose-worker.js');
+        if (initDeadline.current) clearTimeout(initDeadline.current);
+        const task = browser ? new BrowserPoseTask() : new Worker('/pose-worker.js');
+        const snapshot = browser ? document.createElement('canvas') : null;
+        let captureFailures = 0;
+        const restartInBrowser = () => {
+          invalidateTracking('Tracking is restarting. Hold your starting position.');
+          setStatus('loading');
+          setQualityNotice(
+            'Using browser compatibility tracking. Your completed reps are retained.',
+          );
+          launchWorker(false, true);
+        };
+        recoverInBrowser.current = browser ? null : restartInBrowser;
+        recoverOnCPU.current = () => launchWorker(true, browser);
         worker.current = task;
         task.onerror = () => {
           if (generation.current === run && worker.current === task) {
+            if (!browser) {
+              restartInBrowser();
+              return;
+            }
             stop();
             setStatus('off');
             setError('Camera analysis could not start. Retry in a supported browser.');
@@ -892,7 +943,7 @@ export function CameraAnalyzer({
         };
         task.onmessage = ({ data }) => {
           if (generation.current !== run || worker.current !== task) {
-            data.bitmap?.close();
+            closePoseFrame(data.bitmap);
             return;
           }
           if (data.type === 'backend') {
@@ -903,6 +954,10 @@ export function CameraAnalyzer({
             return;
           }
           if (data.type === 'error') {
+            if (!browser) {
+              restartInBrowser();
+              return;
+            }
             reportCoachingHealth('model_startup_failed', !!saveOwner.current);
             stop();
             setStatus('off');
@@ -922,6 +977,7 @@ export function CameraAnalyzer({
               variant: data.variant ?? modelVariantRef.current,
               delegate: data.delegate ?? '',
               fps: 0,
+              runtime: browser ? 'browser' : 'worker',
             });
             const captureFrame = async () => {
               const v = video.current;
@@ -935,7 +991,6 @@ export function CameraAnalyzer({
                 lastVideoTime.current === v.currentTime
               )
                 return;
-              lastVideoTime.current = v.currentTime;
               const timestamp = performance.now();
               // Advance the sampling clock rather than resetting it to every
               // camera frame. A 24 FPS camera would otherwise be halved to
@@ -943,13 +998,17 @@ export function CameraAnalyzer({
               lastCaptureAt.current =
                 timestamp - lastCaptureAt.current > 100 ? timestamp : lastCaptureAt.current + 50;
               inFlight.current = true;
+              let bitmap: PoseFrame | undefined;
               try {
-                const mediaTimeMs = v.currentTime * 1000;
-                const bitmap = await createImageBitmap(v);
+                const mediaTime = v.currentTime;
+                const mediaTimeMs = mediaTime * 1000;
+                bitmap = snapshot ? captureCanvasFrame(v, snapshot) : await createImageBitmap(v);
                 if (generation.current !== run || worker.current !== task) {
-                  bitmap.close();
+                  closePoseFrame(bitmap);
                   return;
                 }
+                lastVideoTime.current = mediaTime;
+                captureFailures = 0;
                 task.postMessage(
                   {
                     type: 'frame',
@@ -962,10 +1021,22 @@ export function CameraAnalyzer({
                     width: bitmap.width,
                     height: bitmap.height,
                   },
-                  [bitmap],
+                  browser ? [] : [bitmap as ImageBitmap],
                 );
               } catch {
-                if (generation.current === run && worker.current === task) inFlight.current = false;
+                closePoseFrame(bitmap);
+                if (generation.current !== run || worker.current !== task) return;
+                inFlight.current = false;
+                if (++captureFailures < 3) return;
+                if (!browser) {
+                  restartInBrowser();
+                  return;
+                }
+                stop();
+                setStatus('off');
+                setError(
+                  'Camera frames could not be read. Retry camera analysis or use manual tracking.',
+                );
               }
             };
             const v = video.current;
@@ -976,7 +1047,11 @@ export function CameraAnalyzer({
                 void captureFrame();
               };
               frameRequest.current = v.requestVideoFrameCallback(onFrame);
-            } else timer.current = setInterval(() => void captureFrame(), 33);
+            }
+            // Some Safari camera/compositor combinations expose rVFC without
+            // delivering callbacks. Sampling still checks currentTime and the
+            // single-in-flight gate, so this never invents or duplicates frames.
+            timer.current = setInterval(() => void captureFrame(), 50);
           }
           if (data.type === 'result') {
             inFlight.current = false;
@@ -997,7 +1072,7 @@ export function CameraAnalyzer({
               recentInferenceMs.current.length >= (modelVariantRef.current === 'heavy' ? 5 : 20) &&
               meanInferenceMs > 100
             ) {
-              data.bitmap?.close();
+              closePoseFrame(data.bitmap);
               const next = modelVariantRef.current === 'heavy' ? 'full' : 'lite';
               modelVariantRef.current = next;
               setModelVariant(next);
@@ -1010,7 +1085,7 @@ export function CameraAnalyzer({
                 'Hold your starting position while tracking adapts to this device.',
               );
               setStatus('loading');
-              launchWorker(trackingBackend.current === 'CPU');
+              launchWorker(trackingBackend.current === 'CPU', browser);
               return;
             }
             if (
@@ -1022,7 +1097,7 @@ export function CameraAnalyzer({
             ) {
               staleFrame.current = true;
               invalidateTracking('Waiting for fresh camera frames before tracking continues.');
-              data.bitmap?.close();
+              closePoseFrame(data.bitmap);
               return;
             }
             lastFrameAt.current = data.timestamp;
@@ -1220,7 +1295,11 @@ export function CameraAnalyzer({
             if (generation.current !== run || worker.current !== task) return;
             if (!cpuOnly) {
               setQualityNotice('GPU initialization took too long. Tracking is restarting on CPU.');
-              launchWorker(true);
+              launchWorker(true, browser);
+              return;
+            }
+            if (!browser) {
+              restartInBrowser();
               return;
             }
             stop();
@@ -1233,7 +1312,6 @@ export function CameraAnalyzer({
         );
         task.postMessage({ type: 'init', variant: modelVariantRef.current, cpuOnly });
       };
-      recoverOnCPU.current = () => launchWorker(true);
       launchWorker();
     } catch (err) {
       if (generation.current !== run) return;
@@ -1257,7 +1335,7 @@ export function CameraAnalyzer({
     landmarks: (OverlayPoint | null)[],
     width: number,
     height: number,
-    bitmap?: ImageBitmap,
+    bitmap?: PoseFrame,
   ) {
     try {
       const c = canvas.current;
@@ -1304,7 +1382,7 @@ export function CameraAnalyzer({
       }
       ctx.globalAlpha = 1;
     } finally {
-      bitmap?.close();
+      closePoseFrame(bitmap);
     }
   }
   const definition = exercises.find((e) => e.id === exercise)!;
@@ -1352,9 +1430,24 @@ export function CameraAnalyzer({
                   : analysis.cue);
   const currentSet = Math.min(completedSets.length + 1, config.sets);
   return (
-    <div className="camera-analyzer meeting-analyzer" data-camera-status={status}>
+    <div
+      className="camera-analyzer meeting-analyzer"
+      data-camera-status={status}
+      data-pose-runtime={modelInfo.runtime}
+      data-tracking-fps={modelInfo.fps}
+    >
       <div className="camera-view" ref={cameraView} data-mirrored={mirror}>
-        <video ref={video} muted playsInline className="camera-video" />
+        <video
+          ref={video}
+          muted
+          autoPlay
+          playsInline
+          className="camera-video"
+          onPause={() => {
+            if (currentStream.current && status === 'ready') setPlaybackBlocked(true);
+          }}
+          onPlaying={() => setPlaybackBlocked(false)}
+        />
         <canvas ref={canvas} className="pose-canvas" aria-hidden="true" />
         <div className="analyzer-topbar">
           <span className="analyzer-identity">You · {definition.name}</span>
@@ -1427,6 +1520,23 @@ export function CameraAnalyzer({
               }}
             >
               Cancel camera setup
+            </button>
+          </div>
+        )}
+        {playbackBlocked && status === 'ready' && (
+          <div className="camera-loading" role="status">
+            <span>Camera playback paused. Tap to resume tracking.</span>
+            <button
+              className="button lime"
+              onClick={() => {
+                invalidateTracking('Camera resumed. Return to your starting position.');
+                void video.current
+                  ?.play()
+                  .then(() => setPlaybackBlocked(false))
+                  .catch(() => setPlaybackBlocked(true));
+              }}
+            >
+              Resume camera
             </button>
           </div>
         )}

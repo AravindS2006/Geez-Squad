@@ -822,7 +822,12 @@ export function CameraAnalyzer({
         else recoverInBrowser.current?.();
         return;
       }
-      if (inFlight.current && gap > 5000 && recoverInBrowser.current) {
+      if (
+        trackingBackend.current === 'CPU' &&
+        inFlight.current &&
+        gap > 5000 &&
+        recoverInBrowser.current
+      ) {
         recoverInBrowser.current();
         return;
       }

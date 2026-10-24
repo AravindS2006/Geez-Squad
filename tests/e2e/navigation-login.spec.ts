@@ -147,6 +147,11 @@ test('role menus group daily work, keep account controls visible, and expose mob
       await drawer.getByRole('link', { name: 'Camera practice', exact: true }).click();
       await expect(page).toHaveURL(/view=practice/);
       await expect(quick).toHaveCount(0);
+      await expect(page.getByRole('region', { name: 'Studio requests', exact: true })).toHaveCount(
+        0,
+      );
+      await page.getByRole('link', { name: 'Back to workspace', exact: true }).click();
+      await expect(page).not.toHaveURL(/view=practice/);
       await page.getByRole('button', { name: 'Open navigation' }).click();
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toHaveCount(0);

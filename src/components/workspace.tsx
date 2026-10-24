@@ -717,7 +717,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </div>
         )}
         <main className={`workspace-content ${activeView === 'studio' ? 'studio-content' : ''}`}>
-          {!data.demo && (
+          {!data.demo && !['studio', 'practice'].includes(activeView) && (
             <>
               <StudioJoinRequests />
               <StudioJoinRequests kind="coach" />

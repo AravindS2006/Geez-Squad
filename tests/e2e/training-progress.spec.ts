@@ -206,8 +206,11 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await trainee.waitForTimeout(350);
     await moveThroughAngles(trainee, [105, 120, 135, 150, 165, 180]);
     await expect(trainee.getByTestId('cumulative-reps')).toHaveText('02');
+    await trainee.getByRole('link', { name: 'Back to workspace', exact: true }).click();
+    await expect(trainee).not.toHaveURL(/view=practice/);
     await trainee.getByRole('button', { name: 'Open navigation' }).click();
     await trainee.getByRole('link', { name: 'Insights', exact: true }).click();
+    await expect(trainee).toHaveURL(/view=analytics/);
     await expect.poll(() => db.workoutSet.count({ where: { userId: users[1] } })).toBe(2);
     const interrupted = await db.workoutSet.findFirstOrThrow({
       where: { userId: users[1], completed: false },

@@ -24,6 +24,8 @@ for a permission grant arriving after its component was removed.
   Empty settings bars and the permanent side guide no longer consume the viewport.
   Assigned workout sequences remain available in a disclosure without shrinking
   the camera all the time.
+  Workspace-only studio invitation prompts stay outside camera/meeting views;
+  navigation journeys exercise the explicit Back to workspace transition.
 - The coach gallery overlays names, tracking state and metrics on the feed. The
   workout queue and compact-screen search tools open on demand. Normal paging is
   12 trainees on desktop and four on compact screens; the 36-person overview is

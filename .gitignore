@@ -26,3 +26,21 @@ prisma/postgres/schema.prisma
 skills-lock.json
 docs/screenshots/
 docs/accessibility-report.json
+
+# Never publish local credentials, database exports, or request captures.
+*.pem
+*.key
+*.p12
+*.pfx
+*.har
+*.log
+*.sqlite
+*.sqlite3
+*.dump
+*.bak
+.envrc
+.netrc
+.aws/
+.azure/
+cookies.json
+storageState.json

@@ -56,6 +56,15 @@ export function CoachMonitor({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [showSelf, setShowSelf] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  useEffect(() => {
+    const media = matchMedia('(max-width: 760px), (max-width: 950px) and (max-height: 550px)');
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   useEffect(() => {
     setDraft('');
   }, [focus]);
@@ -81,7 +90,7 @@ export function CoachMonitor({
       (p) =>
         p.name.toLowerCase().includes(query.toLowerCase()) && (!attentionOnly || needsAttention(p)),
     );
-  const pageSize = comfortable ? 12 : COACH_PAGE_SIZE;
+  const pageSize = comfortable ? (compact ? 4 : 12) : COACH_PAGE_SIZE;
   const lastPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
   const safePage = Math.min(page, lastPage);
   const visible = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
@@ -129,32 +138,44 @@ export function CoachMonitor({
             <Hand size={14} /> {helpCount} hands · Attention
           </button>
         </div>
-        <label className="monitor-search">
-          <Search size={15} />
-          <input
-            aria-label="Find a trainee"
-            placeholder="Find trainee"
-            value={query}
+        <button
+          className="monitor-tools-toggle"
+          type="button"
+          aria-label="Gallery tools"
+          aria-expanded={toolsOpen}
+          aria-controls="gallery-tools"
+          onClick={() => setToolsOpen(!toolsOpen)}
+        >
+          <Search size={18} />
+        </button>
+        <div id="gallery-tools" className={`monitor-tools ${toolsOpen ? 'is-open' : ''}`}>
+          <label className="monitor-search">
+            <Search size={15} />
+            <input
+              aria-label="Find a trainee"
+              placeholder="Find trainee"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          <select
+            aria-label="Gallery density"
+            value={comfortable ? 'comfortable' : 'overview'}
             onChange={(e) => {
-              setQuery(e.target.value);
+              setComfortable(e.target.value === 'comfortable');
               setPage(0);
             }}
-          />
-        </label>
-        <select
-          aria-label="Gallery density"
-          value={comfortable ? 'comfortable' : 'overview'}
-          onChange={(e) => {
-            setComfortable(e.target.value === 'comfortable');
-            setPage(0);
-          }}
-        >
-          <option value="overview">Overview · 36</option>
-          <option value="comfortable">Larger · 12</option>
-        </select>
-        <button type="button" aria-pressed={showSelf} onClick={() => setShowSelf(!showSelf)}>
-          My preview
-        </button>
+          >
+            <option value="overview">Overview · 36</option>
+            <option value="comfortable">Larger · {compact ? 4 : 12}</option>
+          </select>
+          <button type="button" aria-pressed={showSelf} onClick={() => setShowSelf(!showSelf)}>
+            My preview
+          </button>
+        </div>
       </div>
       <div className="monitor-body">
         <div className="monitor-gallery-wrap">
@@ -164,6 +185,7 @@ export function CoachMonitor({
               {
                 '--gallery-columns': columns,
                 '--gallery-rows': Math.ceil(visible.length / columns) || 1,
+                '--mobile-columns': Math.min(columns, 2),
                 '--mobile-rows': Math.ceil(visible.length / 2) || 1,
                 '--compact-rows': Math.ceil(visible.length / 3) || 1,
               } as CSSProperties
@@ -312,82 +334,84 @@ export function CoachMonitor({
                 </div>
               )}
             </div>
-            <div className="monitor-detail-stats">
-              <strong>
-                {selectedMetric
-                  ? `${selectedMetric.targetUnit === 'seconds' || isHoldExercise(item.exercise) ? `${selectedMetric.holdSeconds}s hold` : `${selectedMetric.reps} reps`}`
-                  : 'No recent tracking'}
-              </strong>
-              <span>
-                {selectedMetric
-                  ? ['manual', 'timer'].includes(selectedMetric.measurementSource ?? '')
-                    ? 'Manual tracking · coach observation'
-                    : `${Math.round(selectedMetric.confidence * 100)}% landmark confidence`
-                  : 'Waiting for a fresh summary'}
-              </span>
-            </div>
-            <p>{selectedMetric?.cue || 'Use the live video to observe this trainee.'}</p>
-            {selectedMetric?.armMode && (
-              <div className="inspector-arm-summary">
-                <strong>{armModeLabels[selectedMetric.armMode]}</strong>
+            <div className="monitor-inspector-content">
+              <div className="monitor-detail-stats">
+                <strong>
+                  {selectedMetric
+                    ? `${selectedMetric.targetUnit === 'seconds' || isHoldExercise(item.exercise) ? `${selectedMetric.holdSeconds}s hold` : `${selectedMetric.reps} reps`}`
+                    : 'No recent tracking'}
+                </strong>
                 <span>
-                  Left {selectedMetric.arms?.left.reps ?? '—'} · Right{' '}
-                  {selectedMetric.arms?.right.reps ?? '—'}
+                  {selectedMetric
+                    ? ['manual', 'timer'].includes(selectedMetric.measurementSource ?? '')
+                      ? 'Manual tracking · coach observation'
+                      : `${Math.round(selectedMetric.confidence * 100)}% landmark confidence`
+                    : 'Waiting for a fresh summary'}
                 </span>
               </div>
-            )}
-            {selectedMetric && (
-              <small>
-                {selectedMetric.rangeDegrees == null
-                  ? 'Range —'
-                  : `${Math.round(selectedMetric.rangeDegrees)}° range`}{' '}
-                ·{' '}
-                {selectedMetric.repSeconds == null
-                  ? 'Tempo —'
-                  : `${selectedMetric.repSeconds.toFixed(1)}s / rep`}
-              </small>
-            )}
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setSending(true);
-                try {
-                  if (await onCue(draft, selected.id)) setDraft('');
-                } finally {
-                  setSending(false);
-                }
-              }}
-            >
-              <label htmlFor="monitor-cue">Private coaching cue</label>
-              <textarea
-                id="monitor-cue"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={600}
-                rows={2}
-                placeholder="One clear correction…"
-              />
-              <button
-                className="button lime"
-                disabled={sending || !draft.trim() || item.status !== 'live'}
+              <p>{selectedMetric?.cue || 'Use the live video to observe this trainee.'}</p>
+              {selectedMetric?.armMode && (
+                <div className="inspector-arm-summary">
+                  <strong>{armModeLabels[selectedMetric.armMode]}</strong>
+                  <span>
+                    Left {selectedMetric.arms?.left.reps ?? '—'} · Right{' '}
+                    {selectedMetric.arms?.right.reps ?? '—'}
+                  </span>
+                </div>
+              )}
+              {selectedMetric && (
+                <small>
+                  {selectedMetric.rangeDegrees == null
+                    ? 'Range —'
+                    : `${Math.round(selectedMetric.rangeDegrees)}° range`}{' '}
+                  ·{' '}
+                  {selectedMetric.repSeconds == null
+                    ? 'Tempo —'
+                    : `${selectedMetric.repSeconds.toFixed(1)}s / rep`}
+                </small>
+              )}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setSending(true);
+                  try {
+                    if (await onCue(draft, selected.id)) setDraft('');
+                  } finally {
+                    setSending(false);
+                  }
+                }}
               >
-                <Send size={15} />
-                {sending ? 'Sending…' : 'Send private cue'}
+                <label htmlFor="monitor-cue">Private coaching cue</label>
+                <textarea
+                  id="monitor-cue"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  maxLength={600}
+                  rows={2}
+                  placeholder="One clear correction…"
+                />
+                <button
+                  className="button lime"
+                  disabled={sending || !draft.trim() || item.status !== 'live'}
+                >
+                  <Send size={15} />
+                  {sending ? 'Sending…' : 'Send private cue'}
+                </button>
+              </form>
+              {selected.helpRequested && (
+                <button className="button outline" onClick={() => onHelp(selected.id)}>
+                  Mark help addressed
+                </button>
+              )}
+              <button
+                className="button outline"
+                disabled={!connected || busy}
+                onClick={() => onMute(selected.id)}
+              >
+                <MicOff size={15} />
+                Mute trainee
               </button>
-            </form>
-            {selected.helpRequested && (
-              <button className="button outline" onClick={() => onHelp(selected.id)}>
-                Mark help addressed
-              </button>
-            )}
-            <button
-              className="button outline"
-              disabled={!connected || busy}
-              onClick={() => onMute(selected.id)}
-            >
-              <MicOff size={15} />
-              Mute trainee
-            </button>
+            </div>
           </aside>
         )}
       </div>

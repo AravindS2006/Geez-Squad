@@ -26,6 +26,7 @@ import {
   Maximize,
   Maximize2,
   Minimize2,
+  Dumbbell,
 } from 'lucide-react';
 import type { Room, Participant, Track } from 'livekit-client';
 import type { Analysis } from '@/lib/pose-engine';
@@ -41,6 +42,7 @@ import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
 import { CoachMonitor } from './coach-monitor';
+import roomStyles from './meeting-workspace.module.css';
 import { sessionElapsedSeconds } from '@/lib/session-timing';
 import { useTimeFormat } from './time-provider';
 import {
@@ -138,8 +140,32 @@ export function Studio({
   const [coachToolsOpen, setCoachToolsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [workoutOpen, setWorkoutOpen] = useState(false);
+  const workoutToggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!workoutOpen) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setWorkoutOpen(false);
+        workoutToggle.current?.focus();
+      }
+    };
+    const outside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Element &&
+        !event.target.closest('#meeting-workout-queue, .meeting-workout-toggle')
+      )
+        setWorkoutOpen(false);
+    };
+    document.addEventListener('keydown', key);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      document.removeEventListener('keydown', key);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [workoutOpen]);
   const [coachVideoLayout, setCoachVideoLayout] = useState<CoachVideoLayout>({
-    size: 'small',
+    size: roomFeatures.meeting ? 'medium' : 'small',
     minimized: false,
     position: 'top-right',
   });
@@ -849,7 +875,7 @@ export function Studio({
   return (
     <div
       ref={meetingRef}
-      className={`live-studio meeting-room ${roomFeatures.meeting ? 'meeting-v2' : ''} ${coach ? 'coach-meeting' : 'trainee-meeting'}`}
+      className={`live-studio meeting-room ${roomFeatures.meeting ? `meeting-v2 ${roomStyles.room}` : ''} ${coach ? 'coach-meeting' : 'trainee-meeting'}`}
       inert={!hydrated}
       aria-busy={!hydrated}
     >
@@ -903,17 +929,86 @@ export function Studio({
             <strong>{exerciseDefinition(item.exercise, customExercises).name}</strong>
           )}
         </div>
+        {roomFeatures.meeting && (coach || !!item.workout?.length) && (
+          <button
+            ref={workoutToggle}
+            className="meeting-workout-toggle icon-button"
+            aria-label="Workout queue"
+            aria-expanded={workoutOpen}
+            aria-controls="meeting-workout-queue"
+            onClick={() => setWorkoutOpen(!workoutOpen)}
+          >
+            <Dumbbell size={20} />
+            <span>Workout</span>
+          </button>
+        )}
       </header>
-      {!!item.workout?.length && (
-        <nav className="meeting-workout-queue" aria-label="Class workout sequence">
-          <span>Workout</span>
-          {item.workout.map((block, index) => (
+      {((roomFeatures.meeting && coach) || !!item.workout?.length) && (
+        <nav
+          id="meeting-workout-queue"
+          className="meeting-workout-queue"
+          aria-label="Class workout sequence"
+          hidden={roomFeatures.meeting && !workoutOpen}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setWorkoutOpen(false);
+              workoutToggle.current?.focus();
+            }
+          }}
+        >
+          {roomFeatures.meeting ? (
+            <div className="meeting-workout-panel-heading">
+              <strong>Class workout</strong>
+              <button
+                onClick={() => {
+                  setWorkoutOpen(false);
+                  workoutToggle.current?.focus();
+                }}
+                aria-label="Close workout queue"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          ) : (
+            <span>Workout</span>
+          )}
+          {roomFeatures.meeting && coach && (
+            <label className="meeting-workout-picker">
+              Movement
+              <select
+                aria-label="Workout exercise"
+                value={item.exercise}
+                disabled={busy || item.status !== 'live'}
+                onChange={(e) => {
+                  void control('exercise', e.target.value);
+                  setWorkoutOpen(false);
+                  workoutToggle.current?.focus();
+                }}
+              >
+                {[...exercises, ...customExercises]
+                  .filter((e) => roomFeatures.library || e.profileId)
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          {!item.workout?.length && (
+            <p>Choose a movement for this class. Trainees control their own sets.</p>
+          )}
+          {item.workout?.map((block, index) => (
             <button
               type="button"
               key={block.id ?? index}
               aria-current={item.activeBlockId === block.id ? 'step' : undefined}
               disabled={!coach || busy || item.status !== 'live'}
-              onClick={() => void control('exercise', block.exercise, block.id)}
+              onClick={() => {
+                void control('exercise', block.exercise, block.id);
+                setWorkoutOpen(false);
+                workoutToggle.current?.focus();
+              }}
             >
               <small>{String(index + 1).padStart(2, '0')}</small>
               <span>
@@ -1098,9 +1193,9 @@ export function Studio({
                           requestAnimationFrame(() => enlargeCoachVideoRef.current?.focus());
                       }}
                     >
-                      <option value="small">Small</option>
-                      <option value="medium">Medium</option>
-                      <option value="large">Large</option>
+                      <option value="small">Picture in picture</option>
+                      <option value="medium">Balanced</option>
+                      <option value="large">Coach focus</option>
                     </select>
                     <button
                       ref={enlargeCoachVideoRef}
@@ -1255,6 +1350,7 @@ export function Studio({
                 <button
                   className="button outline"
                   disabled={busy}
+                  aria-label={item.paused ? 'Resume' : 'Pause class'}
                   onClick={() => void control(item.paused ? 'resume' : 'pause')}
                 >
                   {item.paused ? <Play size={17} /> : <Pause size={17} />}
@@ -1295,12 +1391,23 @@ export function Studio({
                   }}
                 >
                   <LogOut size={17} />
-                  <span>Leave video</span>
+                  <span className="meeting-full-label">Leave video</span>
+                  <span className="meeting-mobile-label" aria-hidden="true">
+                    Leave
+                  </span>
                 </button>
               )}
               {coach && item.status === 'live' && (
-                <button className="button danger" onClick={() => setEnding(true)}>
-                  End session
+                <button
+                  className="button danger meeting-end"
+                  aria-label="End session"
+                  onClick={() => setEnding(true)}
+                >
+                  <LogOut size={17} />
+                  <span className="meeting-full-label">End session</span>
+                  <span className="meeting-mobile-label" aria-hidden="true">
+                    End
+                  </span>
                 </button>
               )}
             </div>

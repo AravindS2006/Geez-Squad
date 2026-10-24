@@ -77,6 +77,7 @@ import {
 import { planBlocks } from '@/lib/workout-run';
 import { MemberMembership } from './member-membership';
 import { NutritionManager } from './nutrition-manager';
+import { CameraPractice } from './camera-practice';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
@@ -716,7 +717,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           </div>
         )}
         <main className={`workspace-content ${activeView === 'studio' ? 'studio-content' : ''}`}>
-          {!data.demo && (
+          {!data.demo && !['studio', 'practice'].includes(activeView) && (
             <>
               <StudioJoinRequests />
               <StudioJoinRequests kind="coach" />
@@ -1886,168 +1887,6 @@ function SessionRows({
         </div>
       ))}
     </div>
-  );
-}
-const Camera = dynamic(() => import('./workout-player').then((m) => m.WorkoutPlayer), {
-  ssr: false,
-});
-function CameraPractice({ data }: { data: WorkspaceData }) {
-  const assignment = data.assignments.find((a) => a.userId === data.user.id);
-  const rawPlan = data.plans.find((p) => p.id === assignment?.planId);
-  const plan = rawPlan ? { ...rawPlan, blocks: planBlocks(rawPlan) } : undefined;
-  const [exercise, setExercise] = useState<ClassView['exercise']>(
-    plan?.blocks[0]?.exercise ?? 'squat',
-  );
-  const [saveHistory, setSaveHistory] = useState(false);
-  const [assignedBlock, setAssignedBlock] = useState(plan ? 0 : -1);
-  const [readyNext, setReadyNext] = useState(false);
-  const [runId] = useState(() => crypto.randomUUID());
-  const definition = exerciseDefinition(exercise, data.customExercises);
-  return (
-    <section className="meeting-practice">
-      <div className="practice-heading">
-        <div>
-          <span className="eyebrow">CAMERA PRACTICE</span>
-          <h1>Focus on your movement.</h1>
-          <p>Choose a movement, position your camera, then start your set.</p>
-        </div>
-        <label>
-          Movement
-          <select
-            aria-label="Exercise to practice"
-            value={exercise}
-            onChange={(event) => {
-              setAssignedBlock(-1);
-              setReadyNext(false);
-              setExercise(event.target.value as ClassView['exercise']);
-            }}
-          >
-            {[...exercises, ...(data.customExercises ?? [])]
-              .filter((x) => data.features?.library !== false || x.profileId)
-              .map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name}
-                </option>
-              ))}
-          </select>
-        </label>
-      </div>
-      <div className="practice-options">
-        {plan && (
-          <label>
-            Assigned plan: {plan.name}
-            <select
-              aria-label="Assigned plan exercise"
-              value={assignedBlock}
-              onChange={(event) => {
-                const index = Number(event.target.value);
-                setAssignedBlock(index);
-                setReadyNext(false);
-                if (index >= 0) setExercise(plan.blocks[index].exercise);
-              }}
-            >
-              <option value={-1}>Choose an exercise</option>
-              {plan.blocks.map((block, index) => (
-                <option key={index} value={index}>
-                  {index + 1}. {exerciseName(block.exercise)} · {block.sets} sets
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {!data.demo && (
-          <label className="history-consent">
-            <input
-              type="checkbox"
-              checked={saveHistory}
-              onChange={(event) => setSaveHistory(event.target.checked)}
-            />
-            <span>Save workout history to my profile and share with my coach</span>
-          </label>
-        )}
-      </div>
-      <div className="practice-studio-grid">
-        <div className="practice-session">
-          <Camera
-            runId={runId}
-            customExercises={data.customExercises}
-            features={data.features}
-            onWorkoutComplete={() => setReadyNext(true)}
-            exercise={exercise}
-            block={
-              assignedBlock >= 0 && plan?.blocks[assignedBlock]?.exercise === exercise
-                ? plan.blocks[assignedBlock]
-                : undefined
-            }
-            saveForUser={saveHistory ? data.user.id : undefined}
-            historyUserId={!data.demo ? data.user.id : undefined}
-          />
-        </div>
-        <aside className="practice-coaching-guide panel" aria-label="Movement guide">
-          <span className="eyebrow">YOUR MOVEMENT GUIDE</span>
-          <ExerciseArt exercise={exercise} />
-          <h2>{definition.name}</h2>
-          <p>{definition.equipment}</p>
-          <h3>Set up your space</h3>
-          <p>{definition.view}</p>
-          <h3>Move with intention</h3>
-          <ol>
-            {definition.instructions.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
-          <div className="practice-steps">
-            <span>01 · Frame your full movement</span>
-            <span>02 · Choose your set and arm mode</span>
-            <span>03 · Start when you’re ready</span>
-          </div>
-          <p>
-            Keep hands and feet inside the frame. If tracking becomes uncertain, pause and reframe
-            or choose manual tracking.
-          </p>
-        </aside>
-      </div>
-      {plan && assignedBlock >= 0 && (
-        <section className="panel workout-queue" aria-label="Assigned workout sequence">
-          <h3>{plan.name}</h3>
-          <ol>
-            {plan.blocks.map((b, i) => (
-              <li key={b.id} aria-current={i === assignedBlock ? 'step' : undefined}>
-                {exerciseDefinition(b.exercise, data.customExercises).name} · {b.sets} sets{' '}
-                {i < assignedBlock
-                  ? '· finished or skipped'
-                  : i === assignedBlock
-                    ? '· current'
-                    : ''}
-              </li>
-            ))}
-          </ol>
-          {assignedBlock < plan.blocks.length - 1 ? (
-            <button
-              className="button dark"
-              onClick={() => {
-                const next = assignedBlock + 1;
-                setAssignedBlock(next);
-                setExercise(plan.blocks[next].exercise);
-                setReadyNext(false);
-              }}
-            >
-              {readyNext ? 'Next exercise' : 'Finish early and skip to next exercise'}
-            </button>
-          ) : (
-            readyNext && (
-              <p role="status">Assigned workout finished. Review your saved sets in Insights.</p>
-            )
-          )}
-        </section>
-      )}
-      <p className="practice-privacy">
-        Camera frames are processed on this device.{' '}
-        {saveHistory
-          ? 'Set summaries are saved to your profile and available to your coach.'
-          : 'Practice history stays on this page unless you enable saving.'}
-      </p>
-    </section>
   );
 }
 function PlanForm({

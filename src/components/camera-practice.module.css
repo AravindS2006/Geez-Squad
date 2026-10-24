@@ -1,0 +1,367 @@
+.practice:global(.meeting-practice) {
+  --practice-line: #354349;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 480px;
+  padding: 12px 20px max(8px, env(safe-area-inset-bottom));
+  gap: 10px;
+  background: #10181c;
+  color: #eef5ef;
+}
+.practice .heading {
+  min-height: 52px;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+.heading > div {
+  flex: 1;
+}
+.heading :global(.eyebrow) {
+  color: #bfdc97;
+  font-size: 9px;
+}
+.practice .heading h1 {
+  font-size: clamp(18px, 2vw, 26px);
+  margin: 3px 0 0;
+  color: #f2f6f3;
+}
+.practice .heading label {
+  color: #b8c6c8;
+  gap: 3px;
+  min-width: 160px;
+}
+.heading select,
+.options select {
+  min-height: 44px;
+  max-width: 260px;
+  border: 1px solid var(--practice-line);
+  border-radius: 10px;
+  background: #202d32;
+  color: #f0f6f2;
+  padding: 8px 12px;
+}
+.back,
+.guideToggle,
+.guideHeading button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--practice-line);
+  border-radius: 10px;
+  color: #edf6f0;
+  background: #202d32;
+  cursor: pointer;
+}
+.guideToggle[aria-expanded='true'] {
+  color: #d0eea1;
+  border-color: #91ad6e;
+}
+.practice .options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0;
+  min-height: 28px;
+  background: transparent;
+  border: 0;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.options :global(.history-consent) {
+  margin: 0;
+  color: #c1cfc7;
+  font-size: 12px;
+}
+.options :global(.history-consent) input {
+  width: 20px;
+  height: 20px;
+}
+.options > label {
+  color: #d0dbc9;
+}
+.practice .studio {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  gap: 0;
+}
+.practice .session {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+}
+.session :global(.workout-player) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+.session :global(.workout-capability) {
+  padding: 0 4px;
+  gap: 12px;
+  color: #aebfb4;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+.session :global(.workout-capability > span:nth-child(2)) {
+  display: none;
+}
+.session :global(.workout-capability .text-link) {
+  color: #c6e5a5;
+  min-height: 32px;
+}
+.session :global(.workout-capability > span:first-child) {
+  color: #c6e5a5;
+  border-color: #587044;
+}
+.practice .session :global(.meeting-analyzer) {
+  flex: 1;
+  min-height: 0;
+  border-color: var(--practice-line);
+  border-radius: 14px;
+}
+.practice .session :global(.camera-view) {
+  flex: 1;
+  min-height: 220px;
+  height: auto;
+}
+.session :global(.analyzer-topbar) {
+  background: linear-gradient(#10181ce6, #10181c66);
+}
+.session :global(.analyzer-settings-button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+.session :global(.analyzer-footer) {
+  background: #1a272d;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow-y: auto;
+}
+.session :global(.analyzer-cue p) {
+  color: #d2dfd4;
+  font-size: 12px;
+}
+.session :global(.analyzer-progress) {
+  padding: 8px 4px 0;
+}
+.session :global(.set-progress > div > strong),
+.session :global(.set-progress > div > span) {
+  color: #dbe7dc;
+}
+.session :global(.manual-workout) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #1a272d;
+  color: #eef6ed;
+  border-color: var(--practice-line);
+}
+.practice .session :global(.manual-camera) {
+  min-height: 180px;
+  flex: 1;
+  padding: 12px;
+}
+.practice .session :global(.manual-camera video) {
+  height: clamp(180px, 48dvh, 700px);
+  max-height: none;
+}
+.session :global(.manual-instructions) {
+  display: none;
+}
+.session :global(.manual-counter),
+.session :global(.manual-workout .set-progress) {
+  color: #eef6ed;
+}
+.practice .guide {
+  position: absolute;
+  top: 38px;
+  right: 8px;
+  bottom: 8px;
+  width: min(350px, calc(100% - 16px));
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 10px;
+  border: 1px solid #53604c;
+  border-radius: 14px;
+  overflow-y: auto;
+  background: #f6f8f0;
+  color: #263523;
+  z-index: 8;
+  box-shadow: 0 12px 40px #0006;
+}
+.practice .guide[hidden] {
+  display: none;
+}
+.guideHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.guideHeading button {
+  color: #31432c;
+  background: #e9eedf;
+  border-color: #cad4bd;
+}
+.guide :global(.exercise-art) {
+  height: 90px;
+  width: 100%;
+  flex-shrink: 0;
+}
+.guide h2 {
+  font-size: 24px;
+  margin: 0;
+}
+.guide h3 {
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+.guide p,
+.guide li {
+  color: #4b5c45;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.guide ol {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+}
+.guide :global(.practice-steps) {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.practice .privacy {
+  color: #a6b7ae;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+  flex-shrink: 0;
+}
+.practice :is(button, a, input, select):focus-visible {
+  outline: 3px solid #c7ed9b;
+  outline-offset: 3px;
+}
+.practice .guide :is(button, a):focus-visible {
+  outline-color: #486b27;
+}
+.practice :global(.workout-queue) {
+  max-height: 30dvh;
+  overflow: auto;
+  background: #202d32;
+  padding: 12px;
+  color: #eef4e9;
+}
+.practice :global(.workout-queue li) {
+  color: #c8d8bf;
+}
+.practice :global(.workout-queue li[aria-current='step']) {
+  color: #1e321b;
+}
+.sequence {
+  position: relative;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.sequence summary {
+  cursor: pointer;
+  min-height: 32px;
+  padding: 6px 8px;
+  color: #cae7ad;
+}
+.sequence > section {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 9;
+  margin: 0;
+  border: 1px solid #53644b;
+  box-shadow: 0 -8px 24px #0005;
+}
+@media (max-width: 760px) {
+  .practice:global(.meeting-practice) {
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+    gap: 6px;
+    min-height: 460px;
+  }
+  .practice .heading {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 6px 10px;
+  }
+  .heading > div {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .practice .heading h1 {
+    font-size: 20px;
+  }
+  .practice .heading label {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex: 1;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+  }
+  .heading select {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    max-width: none;
+    font-size: 13px;
+  }
+  .guideToggle {
+    grid-column: 3;
+    grid-row: 1;
+    padding: 10px;
+  }
+  .guideToggle > span {
+    display: none;
+  }
+  .session :global(.workout-capability) {
+    gap: 8px;
+    font-size: 11px;
+    min-height: 32px;
+  }
+  .session :global(.analyzer-footer) {
+    padding: 6px 8px;
+    max-height: 43%;
+  }
+  .session :global(.analyzer-cue p) {
+    font-size: 11px;
+  }
+  .practice .privacy {
+    font-size: 10px;
+  }
+}
+@media (max-height: 550px) {
+  .practice:global(.meeting-practice) {
+    min-height: 0;
+  }
+  .practice .heading h1 {
+    font-size: 17px;
+  }
+  .heading :global(.eyebrow) {
+    display: none;
+  }
+  .practice .session :global(.camera-view) {
+    min-height: 100px;
+  }
+  .practice .privacy {
+    display: none;
+  }
+}

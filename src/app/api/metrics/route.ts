@@ -6,6 +6,11 @@ import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/sec
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
 import { metricElapsedSeconds } from '@/lib/metric-policy';
+import { splitMeasurement } from '@/lib/measurement-contract';
+import { requireExercise } from '@/lib/exercise-access';
+import type { Prisma } from '@prisma/client';
+import { planBlocks } from '@/lib/workout-run';
+import type { Block } from '@/lib/types';
 async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
@@ -29,6 +34,40 @@ async function handlePOST(request: Request) {
             )
               throw new ApiError(409, 'This exercise has changed or paused.');
             await requireParticipation(item.studioId, user.id, undefined, tx);
+            const definition = await requireExercise(data.exercise, item.studioId);
+            const source =
+              data.measurementSource ??
+              (definition.profileId
+                ? 'automatic'
+                : definition.targetUnit === 'seconds'
+                  ? 'timer'
+                  : 'manual');
+            if (
+              source !== 'automatic' &&
+              (data.score !== null ||
+                data.confidence !== 0 ||
+                data.quality != null ||
+                data.rangeDegrees != null ||
+                data.repSeconds != null ||
+                data.arms)
+            )
+              throw new ApiError(400, 'Manual summaries cannot contain inferred measurements.');
+            if (item.activeBlockId && item.workoutSnapshot) {
+              const block = planBlocks({
+                id: item.planId ?? item.id,
+                blocks: item.workoutSnapshot as unknown as Block[],
+              }).find((b) => b.id === item.activeBlockId);
+              if (block?.armMode && data.armMode !== block.armMode)
+                throw new ApiError(
+                  409,
+                  'Use the coach-assigned workout mode or reload this page.',
+                  'CLIENT_UPDATE_REQUIRED',
+                );
+            }
+            if (data.blockId && data.blockId !== item.activeBlockId)
+              throw new ApiError(409, 'The current workout block changed.');
+            if (data.targetUnit && data.targetUnit !== definition.targetUnit)
+              throw new ApiError(400, 'Use the exercise target unit.');
             const previous = enrollment.metric;
             if (previous?.revision === data.revision && data.reps < previous.reps)
               throw new ApiError(409, 'Stale rep count.');
@@ -50,6 +89,11 @@ async function handlePOST(request: Request) {
               throw new ApiError(400, 'Hold summary changed too quickly.');
             const validScore = data.confidence >= 0.65 ? data.score : null;
             const values = {
+              measurement: {
+                ...splitMeasurement(data).measurement,
+                measurementSource: source,
+                targetUnit: definition.targetUnit,
+              } as Prisma.InputJsonValue,
               exercise: data.exercise,
               revision: data.revision,
               reps: data.reps,

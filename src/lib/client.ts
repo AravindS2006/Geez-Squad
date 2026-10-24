@@ -10,7 +10,9 @@ export class ApiClientError extends Error {
   }
 }
 export async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...options, cache: 'no-store' });
+  const headers = new Headers(options?.headers);
+  headers.set('X-Coaching-Client', '2');
+  const response = await fetch(url, { ...options, headers, cache: 'no-store' });
   const result = await response.json().catch(() => null);
   const requestId = result?.requestId || response.headers.get('X-Request-ID') || undefined;
   if (!response.ok || result === null)

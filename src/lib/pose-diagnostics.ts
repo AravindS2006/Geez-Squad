@@ -1,10 +1,10 @@
-import type { Analysis, Landmark } from './pose-engine';
+import type { Analysis, Landmark, PoseState } from './pose-engine';
 import type { ExerciseId } from './types';
 import type { WorkoutConfig } from './workout-config';
 
 type DiagnosticConfig = Pick<
   WorkoutConfig,
-  'side' | 'topAngle' | 'bottomAngle' | 'minRepMs' | 'calibrationSource'
+  'side' | 'topAngle' | 'bottomAngle' | 'minRepMs' | 'calibrationSource' | 'armMode'
 >;
 
 type DiagnosticPoint = {
@@ -14,7 +14,8 @@ type DiagnosticPoint = {
   visibility: number | null;
   presence: number | null;
 };
-type DiagnosticFrame = {
+export type DiagnosticFrame = {
+  mediaTimeMs?: number;
   timestamp: number;
   exercise: ExerciseId;
   config: DiagnosticConfig;
@@ -26,6 +27,17 @@ type DiagnosticFrame = {
   mode: string;
   stage: string;
   continuity: string;
+  rejectedJoints?: number;
+  limbStates?: Record<
+    string,
+    {
+      stage: string;
+      bottomSeen: boolean;
+      returnSeen: boolean;
+      observedMs: number;
+      source: string | null;
+    }
+  >;
   analysis: {
     tracked: boolean;
     reps: number;
@@ -37,6 +49,9 @@ type DiagnosticFrame = {
     geometrySource: string | null;
     trackedSide: string | null;
     rejectionReason: string | null;
+    arms?: Analysis['arms'];
+    repEvents?: Analysis['repEvents'];
+    technique?: Analysis['technique'];
   };
   poses: DiagnosticPoint[][];
   worldPoses: DiagnosticPoint[][];
@@ -65,6 +80,7 @@ export function recordPoseDiagnostics(
   buffer: PoseDiagnosticBuffer,
   input: {
     timestamp: number;
+    mediaTimeMs?: number;
     exercise: ExerciseId;
     config: DiagnosticConfig;
     width: number;
@@ -78,6 +94,8 @@ export function recordPoseDiagnostics(
     analysis: Analysis;
     poses: Landmark[][];
     worldPoses?: Landmark[][];
+    state?: PoseState;
+    rejectedJoints?: number;
   },
 ): void {
   if (!Number.isFinite(input.timestamp) || input.timestamp < 0) return;
@@ -86,12 +104,14 @@ export function recordPoseDiagnostics(
   const result = input.analysis;
   buffer.frames.push({
     timestamp: input.timestamp,
+    ...(Number.isFinite(input.mediaTimeMs) ? { mediaTimeMs: input.mediaTimeMs } : {}),
     exercise: input.exercise,
     config: {
       side: input.config.side,
       topAngle: input.config.topAngle,
       bottomAngle: input.config.bottomAngle,
       minRepMs: input.config.minRepMs,
+      ...(input.config.armMode ? { armMode: input.config.armMode } : {}),
       ...(input.config.calibrationSource
         ? { calibrationSource: input.config.calibrationSource }
         : {}),
@@ -104,6 +124,23 @@ export function recordPoseDiagnostics(
     mode: input.mode,
     stage: input.stage,
     continuity: input.continuity,
+    rejectedJoints: input.rejectedJoints,
+    ...(input.state
+      ? {
+          limbStates: Object.fromEntries(
+            Object.entries(input.state.limbs ?? { selected: input.state }).map(([side, s]) => [
+              side,
+              {
+                stage: s.stage,
+                bottomSeen: s.bottomSeen,
+                returnSeen: s.returnMovementSeen,
+                observedMs: s.observedMs,
+                source: s.geometrySource,
+              },
+            ]),
+          ),
+        }
+      : {}),
     analysis: {
       tracked: result.tracked,
       reps: result.reps,
@@ -115,6 +152,8 @@ export function recordPoseDiagnostics(
       geometrySource: result.geometrySource ?? null,
       trackedSide: result.trackedSide ?? null,
       rejectionReason: result.rejectionReason ?? null,
+      ...(result.arms ? { arms: structuredClone(result.arms) } : {}),
+      ...(result.repEvents ? { repEvents: result.repEvents, technique: result.technique } : {}),
     },
     poses: points(input.poses),
     worldPoses: points(input.worldPoses),

@@ -69,7 +69,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
         action: 'savePlan',
         name: 'Assigned foundations',
         description: 'One controlled squat',
-        blocks: [{ exercise: 'squat', sets: 1, reps: 1, rest: 0, loadKg: 5 }],
+        blocks: [{ exercise: 'squat', sets: 1, reps: 1, rest: 0, loadKg: 5, loadBasis: 'total' }],
       },
     });
     expect(createdPlan.ok()).toBe(true);
@@ -158,6 +158,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
       exercise: 'squat',
       loadKg: 5,
     });
+    expect(saved[0].measurement).toMatchObject({ loadBasis: 'total' });
     expect(saved[0].qualityScore).toBeGreaterThan(0);
     expect(saved[0].trackedMs).toBeGreaterThan(0);
     await trainee.getByText('Measurement details', { exact: true }).click();
@@ -189,12 +190,14 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     // Leaving an unfinished, consented set must retain its measured work once.
     await trainee.goto('/app?view=practice');
     await trainee.getByLabel('Assigned plan exercise').selectOption('0');
+    await trainee.getByRole('button', { name: 'New workout', exact: true }).click();
     await trainee.getByLabel('Save workout history to my profile and share with my coach').check();
     await trainee.getByRole('button', { name: 'Workout settings', exact: true }).click();
     await trainee.getByLabel('Reps per set').fill('2');
     await trainee.getByRole('button', { name: 'Close dialog' }).click();
     await trainee.getByRole('button', { name: 'Enable camera', exact: true }).click();
     await expect(trainee.getByText('Pose detected', { exact: true })).toBeVisible();
+    await expect(trainee.getByTestId('cumulative-reps')).toHaveText('01');
     await trainee.getByRole('button', { name: 'Start set', exact: true }).click();
     await expect(trainee.getByRole('button', { name: 'Pause set', exact: true })).toBeVisible({
       timeout: 15000,
@@ -202,7 +205,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await moveThroughAngles(trainee, [165, 150, 135, 120, 105, 95]);
     await trainee.waitForTimeout(350);
     await moveThroughAngles(trainee, [105, 120, 135, 150, 165, 180]);
-    await expect(trainee.getByTestId('cumulative-reps')).toHaveText('01');
+    await expect(trainee.getByTestId('cumulative-reps')).toHaveText('02');
     await trainee.getByRole('button', { name: 'Open navigation' }).click();
     await trainee.getByRole('link', { name: 'Insights', exact: true }).click();
     await expect.poll(() => db.workoutSet.count({ where: { userId: users[1] } })).toBe(2);

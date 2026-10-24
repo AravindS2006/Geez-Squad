@@ -17,5 +17,13 @@ export default async function LiveStudio({ params }: { params: Promise<{ id: str
   const data = await workspaceData(user.id, id);
   const item = data.classes.find((c) => c.id === id);
   if (!item) notFound();
-  return <StudioPage item={item} user={data.user} services={data.services} />;
+  return (
+    <StudioPage
+      item={item}
+      user={data.user}
+      services={data.services}
+      customExercises={data.customExercises}
+      features={data.features}
+    />
+  );
 }

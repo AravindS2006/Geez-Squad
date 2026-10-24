@@ -8,6 +8,7 @@ import { ApiError } from './security';
 import {
   addDays,
   studioToday,
+  classOverlap,
   type OperationsCommand,
   type OperationsData,
 } from './studio-operations';
@@ -158,6 +159,46 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
               const owner = await tx.studio.findUniqueOrThrow({ where: { id: studioId } });
               const selectedHost = hostId ?? owner.ownerId;
               await requireStudio(selectedHost, 'coach', studioId, tx);
+              if (fields.status === 'scheduled') {
+                const candidates = await tx.studioClass.findMany({
+                  where: {
+                    studioId,
+                    status: 'scheduled',
+                    ...(id ? { id: { not: id } } : {}),
+                    startsAt: {
+                      gt: new Date(Date.parse(startsAt) - 240 * 60000),
+                      lt: new Date(Date.parse(startsAt) + fields.duration * 60000),
+                    },
+                  },
+                });
+                const collision = candidates.find(
+                  (other) =>
+                    classOverlap({ startsAt, duration: fields.duration }, other) &&
+                    ((other.hostId ?? owner.ownerId) === selectedHost ||
+                      other.location.trim().toLowerCase() === fields.location.trim().toLowerCase()),
+                );
+                const online = await tx.classSession.findMany({
+                  where: {
+                    studioId,
+                    hostId: selectedHost,
+                    status: { in: ['scheduled', 'live'] },
+                    startsAt: {
+                      gt: new Date(Date.parse(startsAt) - 240 * 60000),
+                      lt: new Date(Date.parse(startsAt) + fields.duration * 60000),
+                    },
+                  },
+                });
+                if (
+                  collision ||
+                  online.some((other) =>
+                    classOverlap({ startsAt, duration: fields.duration }, other),
+                  )
+                )
+                  throw new ApiError(
+                    409,
+                    'This trainer or studio space already has an overlapping class. Choose another time, trainer, or space.',
+                  );
+              }
               const existing = id
                 ? await tx.studioClass.findFirst({
                     where: { id, studioId },
@@ -397,6 +438,31 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
                   update: {},
                 })
               ).id;
+              break;
+            }
+            case 'removeAttendance': {
+              await assertOwned('studioMember', c.memberId);
+              const row = await tx.studioAttendance.findFirst({
+                where: { studioId, memberId: c.memberId, date: c.date },
+              });
+              if (row) {
+                targetId = row.id;
+                await tx.studioAttendance.delete({ where: { id: row.id } });
+              }
+              // The audit reason contains no nutrition or camera information.
+              await tx.auditEvent.create({
+                data: {
+                  actorId,
+                  action: 'attendance.correction',
+                  targetId: row?.id ?? c.memberId,
+                  detailsJson: {
+                    reason: c.reason,
+                    memberId: c.memberId,
+                    date: c.date,
+                    removed: !!row,
+                  },
+                },
+              });
               break;
             }
             case 'enquiry': {

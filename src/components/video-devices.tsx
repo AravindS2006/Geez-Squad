@@ -24,6 +24,12 @@ export function VideoDevices({
   const video = useRef<HTMLVideoElement>(null);
   const capture = useRef<MediaStream | null>(null);
   const generation = useRef(0);
+  const micCapture = useRef<MediaStream | null>(null),
+    micContext = useRef<AudioContext | null>(null);
+  const micFrame = useRef<number | null>(null),
+    micGeneration = useRef(0);
+  const [testingMic, setTestingMic] = useState(false),
+    [micLevel, setMicLevel] = useState(0);
   useEffect(() => {
     let active = true;
     const refresh = async () => {
@@ -39,6 +45,10 @@ export function VideoDevices({
       generation.current++;
       navigator.mediaDevices?.removeEventListener('devicechange', refresh);
       capture.current?.getTracks().forEach((t) => t.stop());
+      micGeneration.current++;
+      micCapture.current?.getTracks().forEach((t) => t.stop());
+      if (micFrame.current !== null) cancelAnimationFrame(micFrame.current);
+      void micContext.current?.close();
     };
   }, []);
   function stopPreview() {
@@ -48,6 +58,56 @@ export function VideoDevices({
     if (video.current) video.current.srcObject = null;
     setPreviewing(false);
     setLoading(false);
+  }
+  function stopMicrophoneTest() {
+    micGeneration.current++;
+    if (micFrame.current !== null) cancelAnimationFrame(micFrame.current);
+    micFrame.current = null;
+    micCapture.current?.getTracks().forEach((t) => t.stop());
+    micCapture.current = null;
+    void micContext.current?.close();
+    micContext.current = null;
+    setTestingMic(false);
+    setMicLevel(0);
+  }
+  async function testMicrophone() {
+    stopMicrophoneTest();
+    const run = micGeneration.current;
+    setError('');
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: preferences.microphoneId ? { deviceId: { exact: preferences.microphoneId } } : true,
+      });
+      if (run !== micGeneration.current) {
+        media.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const context = new AudioContext(),
+        analyser = context.createAnalyser();
+      micCapture.current = media;
+      micContext.current = context;
+      context.createMediaStreamSource(media).connect(analyser);
+      analyser.fftSize = 256;
+      const samples = new Uint8Array(analyser.fftSize);
+      await context.resume();
+      setTestingMic(true);
+      const sample = () => {
+        if (run !== micGeneration.current) return;
+        analyser.getByteTimeDomainData(samples);
+        const rms = Math.sqrt(
+          samples.reduce((sum, value) => sum + ((value - 128) / 128) ** 2, 0) / samples.length,
+        );
+        setMicLevel(Math.min(1, rms * 5));
+        micFrame.current = requestAnimationFrame(sample);
+      };
+      sample();
+    } catch {
+      if (run === micGeneration.current) {
+        stopMicrophoneTest();
+        setError('Microphone test unavailable. Check permissions or choose another device.');
+      }
+    }
   }
   async function startPreview(cameraId = preferences.cameraId) {
     const run = ++generation.current;
@@ -137,7 +197,10 @@ export function VideoDevices({
         Microphone
         <select
           value={preferences.microphoneId}
-          onChange={(e) => onChange({ ...preferences, microphoneId: e.target.value })}
+          onChange={(e) => {
+            stopMicrophoneTest();
+            onChange({ ...preferences, microphoneId: e.target.value });
+          }}
         >
           <option value="">Default microphone</option>
           {devices
@@ -151,6 +214,21 @@ export function VideoDevices({
       </label>
       {preview && (
         <>
+          <div className="prejoin-microphone">
+            <button
+              className="button outline"
+              type="button"
+              onClick={() => (testingMic ? stopMicrophoneTest() : void testMicrophone())}
+            >
+              {testingMic ? 'Stop microphone test' : 'Test microphone'}
+            </button>
+            {testingMic && (
+              <label>
+                Local microphone level
+                <meter min={0} max={1} value={micLevel} aria-label="Microphone input level" />
+              </label>
+            )}
+          </div>
           <label className="checkbox-label">
             <input
               type="checkbox"

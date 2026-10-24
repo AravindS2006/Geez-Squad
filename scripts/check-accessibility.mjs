@@ -44,6 +44,7 @@ for (const path of [
   '/demo?view=analytics',
   '/demo?view=settings',
   '/demo?view=practice',
+  '/demo?view=nutrition',
   '/login',
   '/privacy',
 ]) {

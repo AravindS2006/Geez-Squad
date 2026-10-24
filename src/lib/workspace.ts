@@ -6,6 +6,11 @@ import { sessionEditVersion } from './session-management';
 import { compareSessions } from './session-timing';
 import { studioAccess, classPermissionView } from './studio-access';
 import type { Prisma } from '@prisma/client';
+import { customDefinition } from './exercise-access';
+import { measurementData } from './measurement-contract';
+import { historyInclude, workoutView } from './workout-history';
+import { planBlocks } from './workout-run';
+import { coachingFeatures } from './coaching-features';
 export async function workspaceData(userId: string, classId?: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
@@ -103,7 +108,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     db.billingSubscription.findUnique({ where: { userId } }),
     db.workoutSet.findMany({
       where: setVisibility,
-      include: { user: { select: { name: true } }, class: { select: { title: true } } },
+      include: historyInclude,
       orderBy: { endedAt: 'desc' },
       take: 500,
     }),
@@ -149,6 +154,8 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
       participantCount: c._count.enrollments,
       status: c.status,
       exercise: c.exercise as ExerciseId,
+      activeBlockId: c.activeBlockId,
+      controlSequence: c.controlSequence,
       revision: c.revision,
       paused: c.paused,
       startedAt: c.startedAt?.toISOString() ?? null,
@@ -158,7 +165,10 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
         hosts.find((h) => h.id === permissions.hostId)?.name ??
         (permissions.hostId === c.studio.ownerId ? c.studio.owner.name : 'Former coach'),
       planId: c.planId,
-      workout: (c.plan?.blocks ?? []) as unknown as Block[],
+      workout: planBlocks({
+        id: c.planId ?? c.id,
+        blocks: (c.workoutSnapshot ?? c.plan?.blocks ?? []) as unknown as Block[],
+      }),
       participants: c.enrollments
         .filter((e) => permissions.canManage || e.userId === userId)
         .map((e) => ({
@@ -167,6 +177,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
           helpRequested: e.helpRequested,
           metric: e.metric
             ? {
+                ...measurementData(e.metric.measurement),
                 exercise: e.metric.exercise,
                 revision: e.metric.revision,
                 reps: e.metric.reps,
@@ -195,6 +206,15 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     };
   });
   return {
+    features: coachingFeatures(studio?.coachingFeatures),
+    customExercises: studio
+      ? (
+          await db.customExercise.findMany({
+            where: { studioId: studio.id },
+            orderBy: { name: 'asc' },
+          })
+        ).map(customDefinition)
+      : [],
     coaches:
       studio && coach
         ? await db.user.findMany({
@@ -263,19 +283,11 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
       id: p.id,
       name: p.name,
       description: p.description,
-      blocks: p.blocks as unknown as Block[],
+      blocks: planBlocks({ id: p.id, blocks: p.blocks as unknown as Block[] }),
       canEdit: !!access?.admin || p.createdById === userId,
     })),
     classes: classViews.sort(compareSessions),
-    workoutSets: sets.map(({ user: person, class: session, ...set }) => ({
-      ...set,
-      exercise: set.exercise as ExerciseId,
-      userName: person.name,
-      classTitle: session?.title ?? null,
-      startedAt: set.startedAt.toISOString(),
-      endedAt: set.endedAt.toISOString(),
-      createdAt: set.createdAt.toISOString(),
-    })),
+    workoutSets: sets.map(workoutView),
     checkIns: checkIns.map(({ user: person, ...entry }) => ({
       ...entry,
       userName: person.name,

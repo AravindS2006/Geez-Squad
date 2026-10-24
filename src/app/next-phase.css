@@ -1,0 +1,443 @@
+.meeting-practice {
+  height: auto;
+  min-height: calc(100dvh - 145px);
+  gap: 20px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+.practice-heading h1 {
+  font-size: clamp(26px, 3vw, 38px);
+  letter-spacing: -0.04em;
+}
+.practice-heading p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.practice-heading select {
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-width: 100%;
+}
+.practice-studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 20px;
+  align-items: start;
+}
+.practice-session {
+  min-width: 0;
+}
+.practice-session .workout-player {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.practice-session .meeting-analyzer {
+  min-height: 630px;
+}
+.practice-session .meeting-analyzer .camera-view {
+  min-height: 430px;
+  height: clamp(430px, 62dvh, 780px);
+  flex: auto;
+}
+.practice-session .camera-video,
+.practice-session .pose-canvas {
+  object-fit: contain;
+}
+.practice-session .manual-camera {
+  min-height: 430px;
+}
+.practice-session .manual-camera video {
+  height: clamp(400px, 60dvh, 700px);
+  max-height: none;
+}
+.practice-coaching-guide {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.practice-coaching-guide .exercise-art {
+  height: 150px;
+  width: 100%;
+}
+.practice-coaching-guide h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.practice-coaching-guide h3 {
+  margin: 6px 0 0;
+  font-size: 15px;
+}
+.practice-coaching-guide p,
+.practice-coaching-guide li {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #4b5845;
+}
+.practice-coaching-guide ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.practice-steps {
+  display: grid;
+  gap: 10px;
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+}
+.practice-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  gap: 16px;
+}
+.practice-options .history-consent {
+  flex-direction: row;
+  align-items: center;
+}
+.practice-privacy {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.nutrition-workspace {
+  display: grid;
+  gap: 22px;
+}
+.nutrition-workspace h1 {
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: -0.035em;
+  margin-block: 8px;
+}
+.nutrition-workspace h2 {
+  font-size: 21px;
+}
+.nutrition-workspace p {
+  color: #53614c;
+  line-height: 1.6;
+}
+.nutrition-toolbar,
+.nutrition-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.nutrition-toolbar label,
+.nutrition-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.nutrition-workspace input:not([type='checkbox']),
+.nutrition-workspace select,
+.nutrition-workspace textarea {
+  min-height: 46px;
+  border: 1px solid #b5bfac;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  color: #263321;
+  width: 100%;
+  max-width: 100%;
+}
+.nutrition-workspace textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+.nutrition-sharing {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  background: #edf2e6;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.nutrition-sharing input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.nutrition-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.nutrition-stats article {
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+}
+.nutrition-stats article > span {
+  color: #53614c;
+  font-size: 13px;
+}
+.nutrition-stats strong {
+  font-size: clamp(22px, 3vw, 32px);
+  font-weight: 600;
+}
+.nutrition-stats small,
+.nutrition-workspace small {
+  color: #53614c;
+  line-height: 1.5;
+}
+.nutrition-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.nutrition-journal,
+.nutrition-targets,
+.nutrition-week {
+  padding: 24px;
+  min-width: 0;
+}
+.nutrition-form {
+  display: grid;
+  gap: 16px;
+}
+.nutrition-form h3 {
+  margin-bottom: 0;
+}
+.nutrition-form > button {
+  justify-self: start;
+  min-height: 44px;
+}
+.nutrition-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.nutrition-entry-list {
+  padding: 0;
+  margin: 20px 0;
+  list-style: none;
+}
+.nutrition-entry-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.nutrition-entry-list li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.nutrition-entry-list .eyebrow {
+  font-size: 10px;
+}
+.nutrition-week > div {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+.nutrition-week article {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+  background: #f0f4e9;
+  padding: 14px 6px;
+  border-radius: 8px;
+}
+.nutrition-week article span {
+  font-size: 12px;
+}
+.nutrition-week article strong {
+  font-size: 24px;
+}
+.connection-banner {
+  position: fixed;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 24px);
+  padding: 12px 20px;
+  border: 1px solid #d1ed9e;
+  border-radius: 12px;
+  background: #263321;
+  color: #fff;
+  font-size: 13px;
+  box-shadow: 0 6px 24px #0003;
+}
+.app-install {
+  position: fixed;
+  z-index: 50;
+  right: 18px;
+  top: max(10px, env(safe-area-inset-top));
+  max-width: 300px;
+  background: #f4f8ed;
+  color: #263321;
+  border: 1px solid #b5bfac;
+  border-radius: 10px;
+  font-size: 13px;
+  box-shadow: 0 4px 18px #0001;
+}
+.app-install summary {
+  cursor: pointer;
+  padding: 12px;
+  min-height: 44px;
+}
+.app-install p {
+  padding: 0 12px;
+  line-height: 1.6;
+}
+.app-install button {
+  margin: 0 12px 12px;
+}
+.operations-insights {
+  padding: 22px;
+  margin-bottom: 20px;
+}
+.operations-insights h2 {
+  font-size: 19px;
+  margin-top: 0;
+}
+.operations-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.operations-insights-grid article {
+  border: 1px solid var(--line);
+  padding: 16px;
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.operations-insights-grid strong {
+  font-size: 24px;
+  font-weight: 600;
+}
+.operations-insights-grid span,
+.operations-insights-grid small {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #53614c;
+}
+.coach-workload {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 20px;
+}
+.coach-workload th,
+.coach-workload td {
+  padding: 12px 6px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.attendance-correction {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  margin: 16px 0;
+  border-radius: 12px;
+}
+.attendance-correction label {
+  display: grid;
+  gap: 8px;
+}
+.nutrition-workspace :is(button, input, select, textarea):focus-visible,
+.practice-studio-grid :is(button, input, select):focus-visible,
+.app-install summary:focus-visible {
+  outline: 3px solid #42672d;
+  outline-offset: 3px;
+}
+@media (max-width: 1200px) {
+  .practice-studio-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .practice-coaching-guide {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .practice-coaching-guide .exercise-art {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .nutrition-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nutrition-stats {
+    gap: 8px;
+  }
+  .nutrition-stats article {
+    padding: 14px;
+  }
+  .practice-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .practice-heading label {
+    min-width: 0;
+  }
+  .practice-session .meeting-analyzer .camera-view {
+    height: 60dvh;
+    min-height: 400px;
+  }
+  .practice-session .meeting-analyzer {
+    min-height: 600px;
+  }
+  .operations-insights-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .nutrition-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nutrition-stats article {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+  }
+  .nutrition-stats article small {
+    grid-column: 1 / -1;
+  }
+  .nutrition-week > div {
+    gap: 4px;
+  }
+  .nutrition-week article {
+    padding: 10px 2px;
+  }
+  .nutrition-week article span,
+  .nutrition-week article small {
+    font-size: 10px;
+  }
+  .nutrition-journal,
+  .nutrition-targets,
+  .nutrition-week {
+    padding: 16px;
+  }
+  .practice-coaching-guide {
+    display: flex;
+  }
+  .practice-options {
+    padding: 14px;
+  }
+}

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { loggedRoute } from '@/lib/request-log';
+import { requirePhysicalClassAvailability } from '@/lib/teaching-availability';
 import {
   linkAcceptedMember,
   requireParticipation,
@@ -10,7 +11,7 @@ import { logEvent } from '@/lib/logger';
 import { requestContext } from '@/lib/request-log';
 import { studioToday } from '@/lib/studio-operations';
 import { createHash, randomBytes } from 'node:crypto';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { db } from '@/lib/db';
 import { commandSchema } from '@/lib/validation';
 import { MAX_CLASS_CLIENTS } from '@/lib/class-policy';
@@ -26,6 +27,10 @@ import {
   requireClass,
 } from '@/lib/security';
 import { RoomServiceClient, TrackSource } from 'livekit-server-sdk';
+import { validateBlocks, requireExercise } from '@/lib/exercise-access';
+import { planBlocks } from '@/lib/workout-run';
+import type { Block } from '@/lib/types';
+import { notifyMeeting } from '@/lib/meeting-events';
 import {
   studioAccess,
   requireTraineeAccess,
@@ -192,6 +197,7 @@ async function handlePOST(request: Request) {
       }
       case 'savePlan': {
         const owned = requireCoach();
+        const blocks = await validateBlocks(data.blocks, owned.id);
         const plan = await writeTransaction(
           () =>
             db.$transaction(
@@ -201,7 +207,7 @@ async function handlePOST(request: Request) {
                 const fields = {
                   name: data.name,
                   description: data.description,
-                  blocks: data.blocks,
+                  blocks,
                 };
                 return data.id
                   ? tx.workoutPlan.update({ where: { id: data.id }, data: fields })
@@ -355,6 +361,13 @@ async function handlePOST(request: Request) {
                     })
                   : null;
                 if (data.planId && !plan) throw new ApiError(404, 'Plan not found.');
+                await requirePhysicalClassAvailability(
+                  tx,
+                  owned.id,
+                  hostId,
+                  data.startsAt,
+                  data.duration,
+                );
                 return tx.classSession.create({
                   data: {
                     studioId: owned.id,
@@ -405,6 +418,13 @@ async function handlePOST(request: Request) {
                     409,
                     'This session changed while you were editing. Refresh and reopen it.',
                   );
+                await requirePhysicalClassAvailability(
+                  tx,
+                  owned.id,
+                  hostId,
+                  data.startsAt,
+                  data.duration,
+                );
                 const members = await tx.membership.findMany({
                   where: { studioId: owned.id },
                   select: { userId: true },
@@ -623,6 +643,17 @@ async function handlePOST(request: Request) {
           throw new ApiError(409, 'The session state has changed. Refresh and retry.');
         if (data.control === 'exercise' && !data.exercise)
           throw new ApiError(400, 'Choose an exercise.');
+        const linkedPlan = item.planId
+          ? await db.workoutPlan.findUnique({ where: { id: item.planId } })
+          : null;
+        const blocks = planBlocks({
+          id: item.planId ?? item.id,
+          blocks: (item.workoutSnapshot ?? linkedPlan?.blocks ?? []) as unknown as Block[],
+        });
+        const selectedBlock = data.blockId ? blocks.find((b) => b.id === data.blockId) : undefined;
+        if (data.blockId && (!selectedBlock || selectedBlock.exercise !== data.exercise))
+          throw new ApiError(400, 'Choose a current workout block.');
+        if (data.exercise) await requireExercise(data.exercise, item.studioId);
         if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
         const change =
           data.control === 'start'
@@ -631,23 +662,30 @@ async function handlePOST(request: Request) {
                 startedAt: new Date(),
                 paused: false,
                 videoRoomName: newVideoRoomName(item.id),
+                workoutSnapshot: blocks,
+                ...(blocks[0] ? { exercise: blocks[0].exercise, activeBlockId: blocks[0].id } : {}),
               }
             : data.control === 'end'
               ? { status: 'completed', endedAt: new Date(), paused: true }
               : data.control === 'cancel'
                 ? { status: 'cancelled', endedAt: new Date() }
                 : data.control === 'exercise'
-                  ? { exercise: data.exercise, revision: { increment: 1 } }
+                  ? {
+                      exercise: data.exercise,
+                      activeBlockId: selectedBlock?.id ?? null,
+                      revision: { increment: 1 },
+                    }
                   : { paused: data.control === 'pause' };
         const updated = await db.classSession.updateMany({
           where: { id: item.id, status: allowed, revision: item.revision, hostId: item.hostId },
-          data: change,
+          data: { ...change, controlSequence: { increment: 1 } },
         });
         if (!updated.count)
           throw new ApiError(409, 'Another update was applied. Refresh and retry.');
         await db.auditEvent.create({
           data: { actorId: user.id, action: data.control, targetId: item.id },
         });
+        after(() => notifyMeeting({ ...item, controlSequence: item.controlSequence + 1 }));
         if (data.control === 'end')
           await deleteRoom(existingVideoRoomName(item), [
             item.studio.ownerId,
@@ -717,6 +755,7 @@ async function handlePOST(request: Request) {
             kind: data.kind,
           },
         });
+        after(() => notifyMeeting(item, target ? [target, user.id] : undefined));
         break;
       }
       case 'profile':

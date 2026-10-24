@@ -5,6 +5,7 @@ import type { Participant } from 'livekit-client';
 import type { ClassView } from '@/lib/types';
 import { COACH_PAGE_SIZE } from '@/lib/meeting-policy';
 import { isHoldExercise } from '@/lib/exercise-profiles';
+import { armModeLabels } from '@/lib/exercise-library';
 import { Avatar } from './ui';
 
 export function freshMetric(person: ClassView['participants'][number], item: ClassView) {
@@ -50,7 +51,7 @@ export function CoachMonitor({
 }) {
   const [query, setQuery] = useState('');
   const [attentionOnly, setAttentionOnly] = useState(false);
-  const [comfortable, setComfortable] = useState(false);
+  const [comfortable, setComfortable] = useState(true);
   const [page, setPage] = useState(0);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -63,8 +64,12 @@ export function CoachMonitor({
     const metric = freshMetric(p, item);
     return (
       p.helpRequested ||
-      (connected && people.has(p.id) && (!metric || metric.confidence < 0.65)) ||
-      (metric?.score != null && metric.score < 70)
+      (connected &&
+        people.has(p.id) &&
+        (!metric ||
+          (!['manual', 'timer'].includes(metric.measurementSource ?? '') &&
+            metric.confidence < 0.65))) ||
+      metric?.technique === 'adjust'
     );
   };
   const filtered = [...item.participants]
@@ -202,16 +207,34 @@ export function CoachMonitor({
                     <span>
                       <strong>
                         {metric
-                          ? isHoldExercise(item.exercise)
+                          ? metric.targetUnit === 'seconds' || isHoldExercise(item.exercise)
                             ? `${metric.holdSeconds}s`
                             : metric.reps
                           : '—'}
                       </strong>{' '}
-                      {isHoldExercise(item.exercise) ? 'hold' : 'reps'}
+                      {metric?.targetUnit === 'seconds' || isHoldExercise(item.exercise)
+                        ? 'hold'
+                        : 'reps'}
                     </span>
                     <span>
-                      <strong>{metric?.score == null ? '—' : Math.round(metric.score)}</strong> form
+                      <strong>
+                        {metric?.measurementSource === 'manual' ||
+                        metric?.measurementSource === 'timer'
+                          ? 'Manual'
+                          : !metric
+                            ? '—'
+                            : metric.technique === 'adjust'
+                              ? 'Adjust'
+                              : metric.technique === 'steady'
+                                ? 'Steady'
+                                : 'Uncertain'}
+                      </strong>
                     </span>
+                    {metric?.arms && (
+                      <span className="tile-arm-counts">
+                        L {metric.arms.left.reps} · R {metric.arms.right.reps}
+                      </span>
+                    )}
                     <span
                       className={`monitor-tracking ${(metric?.confidence ?? 0) >= 0.65 ? 'tracked' : 'uncertain'}`}
                       title={item.paused ? 'Paused' : metric ? metric.phase : 'No recent tracking'}
@@ -292,16 +315,27 @@ export function CoachMonitor({
             <div className="monitor-detail-stats">
               <strong>
                 {selectedMetric
-                  ? `${isHoldExercise(item.exercise) ? `${selectedMetric.holdSeconds}s hold` : `${selectedMetric.reps} reps`}`
+                  ? `${selectedMetric.targetUnit === 'seconds' || isHoldExercise(item.exercise) ? `${selectedMetric.holdSeconds}s hold` : `${selectedMetric.reps} reps`}`
                   : 'No recent tracking'}
               </strong>
               <span>
                 {selectedMetric
-                  ? `${Math.round(selectedMetric.confidence * 100)}% confidence`
+                  ? ['manual', 'timer'].includes(selectedMetric.measurementSource ?? '')
+                    ? 'Manual tracking · coach observation'
+                    : `${Math.round(selectedMetric.confidence * 100)}% landmark confidence`
                   : 'Waiting for a fresh summary'}
               </span>
             </div>
             <p>{selectedMetric?.cue || 'Use the live video to observe this trainee.'}</p>
+            {selectedMetric?.armMode && (
+              <div className="inspector-arm-summary">
+                <strong>{armModeLabels[selectedMetric.armMode]}</strong>
+                <span>
+                  Left {selectedMetric.arms?.left.reps ?? '—'} · Right{' '}
+                  {selectedMetric.arms?.right.reps ?? '—'}
+                </span>
+              </div>
+            )}
             {selectedMetric && (
               <small>
                 {selectedMetric.rangeDegrees == null

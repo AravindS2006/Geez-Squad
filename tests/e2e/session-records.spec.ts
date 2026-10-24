@@ -299,7 +299,7 @@ test('exercise history recovers a pending save and exposes records beyond the fi
     await expect(page.locator('.workout-record')).toHaveCount(50);
     await expect(page.locator('.workout-record').first()).toContainText('0s');
     await expect(page.locator('.workout-record').first()).toContainText('target 30s');
-    await page.getByRole('button', { name: 'Show more exercise records' }).click();
+    await page.getByRole('button', { name: 'Load older exercise records' }).click();
     await expect(page.locator('.workout-record')).toHaveCount(52);
     await page.getByText('Exercise record details', { exact: true }).first().click();
     await expect(page.locator('.workout-record-details').first()).toContainText('Active 5s');

@@ -282,9 +282,11 @@ export const exerciseIds = Object.keys(exerciseProfiles) as [
   ProfileExerciseId,
   ...ProfileExerciseId[],
 ];
-export function getExerciseProfile(exercise: ProfileExerciseId): ExerciseProfile {
-  return exerciseProfiles[exercise];
+export function getExerciseProfile(exercise: string): ExerciseProfile {
+  const result = (exerciseProfiles as Record<string, ExerciseProfile>)[exercise];
+  if (!result) throw new Error('This exercise has no automatic measurement profile.');
+  return result;
 }
-export function isHoldExercise(exercise: ProfileExerciseId): boolean {
-  return getExerciseProfile(exercise).isHold;
+export function isHoldExercise(exercise: string): boolean {
+  return (exerciseProfiles as Record<string, ExerciseProfile>)[exercise]?.isHold ?? false;
 }

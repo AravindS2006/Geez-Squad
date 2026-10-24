@@ -503,14 +503,14 @@ describe('profile v3 movement pipeline', () => {
       ),
     ).toBe(true);
   });
-  it('rejects a wrong curl posture even when elbow movement reaches both endpoints', () => {
+  it('records a completed curl while retaining feedback for an elevated upper arm', () => {
     const state = initialPoseState();
     for (let i = 0; i < 60; i++) {
       const angle = 125 + 45 * Math.cos((i / 48) * Math.PI * 2);
       frame(state, angle, 100 + (i * 1000) / 24, curl(angle, 80));
     }
-    expect(state.reps).toBe(0);
-    expect(state.rejectionReason).toBe('form');
+    expect(state.reps).toBe(1);
+    expect(state.lastRepQuality).toBeLessThan(80);
   });
   it('uses trustworthy world geometry and safely falls back from non-finite world landmarks', () => {
     const image = curl(90);

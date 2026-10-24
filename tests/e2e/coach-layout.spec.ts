@@ -17,7 +17,8 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
   page,
   browser,
 }) => {
-  test.setTimeout(60000);
+  // Five viewport sizes, every floating position, node preservation, and two axe scans.
+  test.setTimeout(90000);
   const fixtureId = randomUUID();
   const coachEmail = `coach-layout-${fixtureId}@example.test`;
   const traineeEmail = `trainee-layout-${fixtureId}@example.test`;
@@ -127,7 +128,10 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
       const label = (await page
         .locator('.analyzer-progress > div:first-child > strong')
         .boundingBox())!;
-      expect(Math.abs(progress.x - label.x)).toBeLessThanOrEqual(1);
+      const inset = await page
+        .locator('.analyzer-progress')
+        .evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
+      expect(Math.abs(progress.x + inset - label.x)).toBeLessThanOrEqual(1);
       const overlays = [
         '.tracking-badge',
         '.analyzer-hud',

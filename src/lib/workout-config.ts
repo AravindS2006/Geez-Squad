@@ -1,5 +1,6 @@
 import type { Block, ExerciseId } from './types';
 import { getExerciseProfile } from './exercise-profiles';
+import { exerciseDefinition, isAutomaticExercise, type ArmMode } from './exercise-library';
 
 export type WorkoutConfig = {
   sets: number;
@@ -11,19 +12,29 @@ export type WorkoutConfig = {
   bottomAngle: number;
   minRepMs: number;
   loadKg: number | null;
+  loadBasis?: 'per-hand' | 'total';
+  armMode?: ArmMode;
 };
 
 export function defaultWorkoutConfig(exercise: ExerciseId, block?: Block): WorkoutConfig {
-  const profile = getExerciseProfile(exercise);
+  const profile = isAutomaticExercise(exercise) ? getExerciseProfile(exercise) : null;
   return {
     sets: block?.sets ?? 3,
-    target: block?.reps ?? (profile.isHold ? 30 : exercise === 'pushup' ? 10 : 12),
+    target:
+      block?.reps ??
+      (exerciseDefinition(exercise).targetUnit === 'seconds'
+        ? 30
+        : exercise === 'pushup'
+          ? 10
+          : 12),
     rest: block?.rest ?? 60,
     side: 'auto',
-    topAngle: profile.topAngle,
-    bottomAngle: profile.bottomAngle,
-    minRepMs: profile.minRepMs,
+    topAngle: profile?.topAngle ?? 155,
+    bottomAngle: profile?.bottomAngle ?? 90,
+    minRepMs: profile?.minRepMs ?? 500,
     loadKg: block?.loadKg ?? null,
+    ...(block?.armMode ? { armMode: block.armMode } : {}),
+    ...(block?.loadBasis ? { loadBasis: block.loadBasis } : {}),
   };
 }
 
@@ -34,7 +45,7 @@ export function normalizeWorkoutConfig(
 ): WorkoutConfig {
   input = input && typeof input === 'object' ? input : {};
   const defaults = defaultWorkoutConfig(exercise);
-  const profile = getExerciseProfile(exercise);
+  const profile = isAutomaticExercise(exercise) ? getExerciseProfile(exercise) : null;
   const bounded = (value: unknown, fallback: number, min: number, max: number) =>
     Math.round(
       Math.max(
@@ -45,7 +56,7 @@ export function normalizeWorkoutConfig(
   const topAngle = bounded(
     input.topAngle,
     defaults.topAngle,
-    profile.signal === 'shoulder' ? 50 : 110,
+    profile?.signal === 'shoulder' ? 50 : 110,
     175,
   );
   const minimumGap = 25;
@@ -54,6 +65,12 @@ export function normalizeWorkoutConfig(
     target: bounded(input.target, defaults.target, 1, 120),
     rest: bounded(input.rest, defaults.rest, 0, 300),
     side: input.side === 'left' || input.side === 'right' ? input.side : 'auto',
+    ...(exerciseDefinition(exercise).modes.includes(input.armMode as ArmMode)
+      ? { armMode: input.armMode }
+      : {}),
+    ...(input.loadBasis === 'per-hand' || input.loadBasis === 'total'
+      ? { loadBasis: input.loadBasis }
+      : {}),
     ...((input.side === 'left' || input.side === 'right') &&
     (input.calibrationSource === '2d' || input.calibrationSource === '3d')
       ? { calibrationSource: input.calibrationSource }
@@ -62,7 +79,7 @@ export function normalizeWorkoutConfig(
     bottomAngle: bounded(
       input.bottomAngle,
       defaults.bottomAngle,
-      profile.signal === 'shoulder' ? 5 : 35,
+      profile?.signal === 'shoulder' ? 5 : 35,
       topAngle - minimumGap,
     ),
     minRepMs: bounded(input.minRepMs, defaults.minRepMs, 350, 3000),

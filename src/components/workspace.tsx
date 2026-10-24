@@ -67,12 +67,22 @@ import { StudioJoinRequests } from './studio-join-requests';
 import { InPersonTrainees } from './in-person-trainees';
 import { HostedClasses } from './hosted-classes';
 import { MyBookings } from './my-bookings';
+import { ExerciseLibraryManager } from './exercise-library-manager';
+import {
+  exerciseDefinition,
+  armModeLabels,
+  usesHoldTime,
+  type ExerciseDefinition,
+} from '@/lib/exercise-library';
+import { planBlocks } from '@/lib/workout-run';
 import { MemberMembership } from './member-membership';
+import { NutritionManager } from './nutrition-manager';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
 });
 const nav = [
+  { id: 'nutrition', name: 'Nutrition', icon: Activity },
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
   { id: 'members', name: 'Members', icon: Users },
   { id: 'memberships', name: 'Memberships', icon: CreditCard },
@@ -213,17 +223,20 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           items: ['dashboard', 'members', 'attendance', 'classes', 'sessions'],
         },
         { name: 'Memberships & payments', items: ['memberships', 'payments'] },
-        { name: 'Coaching', items: ['coaching', 'clients', 'plans', 'analytics', 'practice'] },
+        {
+          name: 'Coaching',
+          items: ['coaching', 'clients', 'plans', 'analytics', 'nutrition', 'practice'],
+        },
         { name: 'Administration', items: ['enquiries', 'staff', 'studio-details'] },
       ]
     : coach
       ? [
           { name: 'Daily coaching', items: ['coaching', 'clients', 'sessions', 'classes'] },
-          { name: 'Training & progress', items: ['plans', 'analytics', 'practice'] },
+          { name: 'Training & progress', items: ['plans', 'analytics', 'nutrition', 'practice'] },
         ]
       : [
           { name: 'Your studio', items: ['dashboard', 'benefits', 'sessions'] },
-          { name: 'Your training', items: ['plans', 'practice', 'analytics'] },
+          { name: 'Your training', items: ['plans', 'practice', 'analytics', 'nutrition'] },
         ];
   if (coach && trainee && !data.demo)
     navigationGroups.push({ name: 'Your membership', items: ['benefits'] });
@@ -262,6 +275,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
       'settings',
       'studio',
       'practice',
+      'nutrition',
       'setup',
       'members',
       'memberships',
@@ -1190,6 +1204,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 title="Your workout plans"
                 detail={`${searchPlans.length} plans ready for your studio`}
               />
+              {coach && <ExerciseLibraryManager data={data} onRefresh={refresh} />}
               <div className="plan-grid">
                 {searchPlans.map((p, i) => (
                   <button
@@ -1440,12 +1455,15 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             </>
           )}
           {activeView === 'practice' && <CameraPractice data={data} />}
+          {activeView === 'nutrition' && <NutritionManager workspace={data} />}
           {activeView === 'studio' && (
             <Studio
               initialClass={activeClass || upcoming[0]}
               user={data.user}
               demo={data.demo}
               services={data.services}
+              customExercises={data.customExercises}
+              features={data.features}
               onExit={() => {
                 setActiveClass(null);
                 go('sessions');
@@ -1615,6 +1633,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           )}
           {modal === 'plan' && (
             <PlanForm
+              customExercises={data.customExercises}
               plan={selectedPlan}
               editable={coach && selectedPlan?.canEdit !== false}
               busy={busy}
@@ -1869,15 +1888,21 @@ function SessionRows({
     </div>
   );
 }
-const Camera = dynamic(() => import('./camera-analyzer').then((m) => m.CameraAnalyzer), {
+const Camera = dynamic(() => import('./workout-player').then((m) => m.WorkoutPlayer), {
   ssr: false,
 });
 function CameraPractice({ data }: { data: WorkspaceData }) {
-  const [exercise, setExercise] = useState<ClassView['exercise']>('squat');
-  const [saveHistory, setSaveHistory] = useState(false);
-  const [assignedBlock, setAssignedBlock] = useState(-1);
   const assignment = data.assignments.find((a) => a.userId === data.user.id);
-  const plan = data.plans.find((p) => p.id === assignment?.planId);
+  const rawPlan = data.plans.find((p) => p.id === assignment?.planId);
+  const plan = rawPlan ? { ...rawPlan, blocks: planBlocks(rawPlan) } : undefined;
+  const [exercise, setExercise] = useState<ClassView['exercise']>(
+    plan?.blocks[0]?.exercise ?? 'squat',
+  );
+  const [saveHistory, setSaveHistory] = useState(false);
+  const [assignedBlock, setAssignedBlock] = useState(plan ? 0 : -1);
+  const [readyNext, setReadyNext] = useState(false);
+  const [runId] = useState(() => crypto.randomUUID());
+  const definition = exerciseDefinition(exercise, data.customExercises);
   return (
     <section className="meeting-practice">
       <div className="practice-heading">
@@ -1891,13 +1916,19 @@ function CameraPractice({ data }: { data: WorkspaceData }) {
           <select
             aria-label="Exercise to practice"
             value={exercise}
-            onChange={(event) => setExercise(event.target.value as ClassView['exercise'])}
+            onChange={(event) => {
+              setAssignedBlock(-1);
+              setReadyNext(false);
+              setExercise(event.target.value as ClassView['exercise']);
+            }}
           >
-            {exercises.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.name}
-              </option>
-            ))}
+            {[...exercises, ...(data.customExercises ?? [])]
+              .filter((x) => data.features?.library !== false || x.profileId)
+              .map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
           </select>
         </label>
       </div>
@@ -1911,6 +1942,7 @@ function CameraPractice({ data }: { data: WorkspaceData }) {
               onChange={(event) => {
                 const index = Number(event.target.value);
                 setAssignedBlock(index);
+                setReadyNext(false);
                 if (index >= 0) setExercise(plan.blocks[index].exercise);
               }}
             >
@@ -1934,16 +1966,81 @@ function CameraPractice({ data }: { data: WorkspaceData }) {
           </label>
         )}
       </div>
-      <Camera
-        exercise={exercise}
-        block={
-          assignedBlock >= 0 && plan?.blocks[assignedBlock]?.exercise === exercise
-            ? plan.blocks[assignedBlock]
-            : undefined
-        }
-        saveForUser={saveHistory ? data.user.id : undefined}
-        historyUserId={!data.demo ? data.user.id : undefined}
-      />
+      <div className="practice-studio-grid">
+        <div className="practice-session">
+          <Camera
+            runId={runId}
+            customExercises={data.customExercises}
+            features={data.features}
+            onWorkoutComplete={() => setReadyNext(true)}
+            exercise={exercise}
+            block={
+              assignedBlock >= 0 && plan?.blocks[assignedBlock]?.exercise === exercise
+                ? plan.blocks[assignedBlock]
+                : undefined
+            }
+            saveForUser={saveHistory ? data.user.id : undefined}
+            historyUserId={!data.demo ? data.user.id : undefined}
+          />
+        </div>
+        <aside className="practice-coaching-guide panel" aria-label="Movement guide">
+          <span className="eyebrow">YOUR MOVEMENT GUIDE</span>
+          <ExerciseArt exercise={exercise} />
+          <h2>{definition.name}</h2>
+          <p>{definition.equipment}</p>
+          <h3>Set up your space</h3>
+          <p>{definition.view}</p>
+          <h3>Move with intention</h3>
+          <ol>
+            {definition.instructions.map((step, i) => (
+              <li key={i}>{step}</li>
+            ))}
+          </ol>
+          <div className="practice-steps">
+            <span>01 · Frame your full movement</span>
+            <span>02 · Choose your set and arm mode</span>
+            <span>03 · Start when you’re ready</span>
+          </div>
+          <p>
+            Keep hands and feet inside the frame. If tracking becomes uncertain, pause and reframe
+            or choose manual tracking.
+          </p>
+        </aside>
+      </div>
+      {plan && assignedBlock >= 0 && (
+        <section className="panel workout-queue" aria-label="Assigned workout sequence">
+          <h3>{plan.name}</h3>
+          <ol>
+            {plan.blocks.map((b, i) => (
+              <li key={b.id} aria-current={i === assignedBlock ? 'step' : undefined}>
+                {exerciseDefinition(b.exercise, data.customExercises).name} · {b.sets} sets{' '}
+                {i < assignedBlock
+                  ? '· finished or skipped'
+                  : i === assignedBlock
+                    ? '· current'
+                    : ''}
+              </li>
+            ))}
+          </ol>
+          {assignedBlock < plan.blocks.length - 1 ? (
+            <button
+              className="button dark"
+              onClick={() => {
+                const next = assignedBlock + 1;
+                setAssignedBlock(next);
+                setExercise(plan.blocks[next].exercise);
+                setReadyNext(false);
+              }}
+            >
+              {readyNext ? 'Next exercise' : 'Finish early and skip to next exercise'}
+            </button>
+          ) : (
+            readyNext && (
+              <p role="status">Assigned workout finished. Review your saved sets in Insights.</p>
+            )
+          )}
+        </section>
+      )}
       <p className="practice-privacy">
         Camera frames are processed on this device.{' '}
         {saveHistory
@@ -1954,19 +2051,23 @@ function CameraPractice({ data }: { data: WorkspaceData }) {
   );
 }
 function PlanForm({
+  customExercises = [],
   plan,
   editable,
   busy,
   onSubmit,
   onDelete,
 }: {
+  customExercises?: ExerciseDefinition[];
   plan: Plan | null;
   editable: boolean;
   busy: boolean;
   onSubmit: (c: Command) => void;
   onDelete: () => void;
 }) {
-  const [blocks, setBlocks] = useState<Block[]>(plan?.blocks || starterBlocks),
+  const [blocks, setBlocks] = useState<Block[]>(
+      plan ? planBlocks(plan) : starterBlocks.map((b) => ({ ...b, id: crypto.randomUUID() })),
+    ),
     [confirm, setConfirm] = useState(false);
   return (
     <form
@@ -2007,7 +2108,7 @@ function PlanForm({
       </label>
       <div className="plan-blocks">
         {blocks.map((b, i) => (
-          <div className="plan-block" key={i}>
+          <div className="plan-block" key={b.id ?? i}>
             <span className="block-number">{String(i + 1).padStart(2, '0')}</span>
             <label>
               Exercise
@@ -2018,12 +2119,20 @@ function PlanForm({
                 onChange={(e) =>
                   setBlocks((s) =>
                     s.map((x, j) =>
-                      j === i ? { ...x, exercise: e.target.value as Block['exercise'] } : x,
+                      j === i
+                        ? {
+                            ...x,
+                            exercise: e.target.value as Block['exercise'],
+                            armMode: undefined,
+                            targetUnit: exerciseDefinition(e.target.value, customExercises)
+                              .targetUnit,
+                          }
+                        : x,
                     ),
                   )
                 }
               >
-                {exercises.map((x) => (
+                {[...exercises, ...customExercises].map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.name}
                   </option>
@@ -2032,7 +2141,7 @@ function PlanForm({
             </label>
             {(['sets', 'reps', 'rest'] as const).map((key) => (
               <label key={key}>
-                {key === 'reps' && isHoldExercise(b.exercise)
+                {key === 'reps' && usesHoldTime(b.exercise, customExercises)
                   ? 'Hold (s)'
                   : key === 'rest'
                     ? 'Rest (s)'
@@ -2077,6 +2186,50 @@ function PlanForm({
                 }
               />
             </label>
+            {b.exercise === 'curl' && (
+              <label>
+                Curl mode
+                <select
+                  aria-label={`Curl mode for exercise ${i + 1}`}
+                  value={b.armMode ?? ''}
+                  disabled={!editable}
+                  onChange={(e) =>
+                    setBlocks((s) =>
+                      s.map((x, j) =>
+                        j === i ? { ...x, armMode: e.target.value as Block['armMode'] } : x,
+                      ),
+                    )
+                  }
+                >
+                  <option value="">Trainee chooses before starting</option>
+                  {Object.entries(armModeLabels).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label>
+              Load basis
+              <select
+                value={b.loadBasis ?? ''}
+                disabled={!editable}
+                onChange={(e) =>
+                  setBlocks((s) =>
+                    s.map((x, j) =>
+                      j === i
+                        ? { ...x, loadBasis: (e.target.value || undefined) as Block['loadBasis'] }
+                        : x,
+                    ),
+                  )
+                }
+              >
+                <option value="">Unspecified</option>
+                <option value="per-hand">Per hand</option>
+                <option value="total">Total external load</option>
+              </select>
+            </label>
             {editable && (
               <button
                 type="button"
@@ -2097,7 +2250,10 @@ function PlanForm({
             type="button"
             className="button outline"
             onClick={() =>
-              setBlocks((s) => [...s, { exercise: 'squat', sets: 3, reps: 12, rest: 60 }])
+              setBlocks((s) => [
+                ...s,
+                { id: crypto.randomUUID(), exercise: 'squat', sets: 3, reps: 12, rest: 60 },
+              ])
             }
             disabled={blocks.length >= 20}
           >

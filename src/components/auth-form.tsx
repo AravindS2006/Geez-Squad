@@ -134,8 +134,14 @@ export function AuthForm({
         if (session.error)
           throw new Error('Your account could not be loaded. Please retry shortly.');
         if (!session.data) {
-          setNotice('Check your email to verify your account, then sign in.');
-          setMode('verify');
+          if (mode === 'signup' && passwordResetEnabled) {
+            setNotice('Check your email to verify your account, then sign in.');
+            setMode('verify');
+          } else {
+            throw new Error(
+              'Your session could not be established. Allow cookies for this site, then sign in again.',
+            );
+          }
         } else window.location.href = signedInDestination;
       }
     } catch (err) {
@@ -339,7 +345,7 @@ export function AuthForm({
               Need to verify your email?
             </button>
           )}
-          {signupEnabled && (
+          {(signupEnabled || mode !== 'login') && (
             <p className="auth-switch">
               {mode === 'login' ? 'New to Geez Squad?' : 'Already have an account?'}{' '}
               <button

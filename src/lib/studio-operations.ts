@@ -63,6 +63,12 @@ export const operationsSchema = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('attendance'), memberId: id, date }),
   z.object({
+    action: z.literal('removeAttendance'),
+    memberId: id,
+    date,
+    reason: z.string().trim().min(5).max(300),
+  }),
+  z.object({
     action: z.literal('enquiry'),
     id: id.optional(),
     name: text.min(2),
@@ -93,6 +99,7 @@ export const operationsSchema = z.discriminatedUnion('action', [
 ]);
 export type OperationsCommand = z.infer<typeof operationsSchema>;
 export type StudioMember = {
+  primaryCoach?: { coachId: string; assignedAt: string | Date } | null;
   userId?: string | null;
   accessStatus?: string;
   id: string;
@@ -408,7 +415,66 @@ export function applyDemoOperation(
             attendance: [{ id: newId, memberId: c.memberId, date: c.date }, ...data.attendance],
           };
     }
+    case 'removeAttendance':
+      return {
+        ...data,
+        attendance: data.attendance.filter((a) => a.memberId !== c.memberId || a.date !== c.date),
+      };
   }
+}
+export function classOverlap(
+  a: { startsAt: string | Date; duration: number },
+  b: { startsAt: string | Date; duration: number },
+) {
+  const startA = new Date(a.startsAt).getTime(),
+    startB = new Date(b.startsAt).getTime();
+  return startA < startB + b.duration * 60000 && startB < startA + a.duration * 60000;
+}
+export function managementInsights(data: OperationsData, today: string) {
+  const week = addDays(today, -6),
+    nextWeek = addDays(today, 7);
+  const active = data.members.filter(
+    (m) =>
+      m.status === 'active' &&
+      data.terms.some((t) => t.memberId === m.id && termStatus(t, today) === 'active'),
+  );
+  const quiet = active.filter(
+    (m) => !data.attendance.some((a) => a.memberId === m.id && a.date >= week && a.date <= today),
+  );
+  const expiring = active.filter((m) => {
+    const t = currentTerm(data, m.id, today);
+    return (
+      t &&
+      t.endsOn <= nextWeek &&
+      !data.terms.some(
+        (next) => next.memberId === m.id && next.status !== 'cancelled' && next.startsOn > t.endsOn,
+      )
+    );
+  });
+  const workload = (data.coaches ?? []).map((coach) => {
+    const classes = data.studioClasses.filter(
+      (s) =>
+        s.hostId === coach.id &&
+        s.status === 'scheduled' &&
+        studioToday(new Date(s.startsAt)) >= today &&
+        studioToday(new Date(s.startsAt)) <= nextWeek,
+    );
+    return {
+      ...coach,
+      clients: data.members.filter(
+        (m) => m.status === 'active' && m.primaryCoach?.coachId === coach.id,
+      ).length,
+      classes: classes.length,
+      minutes: classes.reduce((sum, s) => sum + s.duration, 0),
+    };
+  });
+  return {
+    active,
+    quiet,
+    expiring,
+    workload,
+    unassigned: active.filter((m) => m.userId && !m.primaryCoach).length,
+  };
 }
 export function demoOperations(): OperationsData {
   const today = studioToday();

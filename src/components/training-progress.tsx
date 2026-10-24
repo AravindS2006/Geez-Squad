@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Activity, Download, CheckCircle2, Timer, CalendarDays } from 'lucide-react';
 import type { WorkspaceData, WorkoutSetView, ClientView } from '@/lib/types';
 import { exercises, exerciseName } from '@/lib/catalog';
-import { summarizeWorkouts, workoutCsv } from '@/lib/progress-metrics';
+import { summarizeWorkouts, workoutCsv, effectiveWorkoutSet } from '@/lib/progress-metrics';
+import { fetchJson } from '@/lib/client';
+import { armModeLabels } from '@/lib/exercise-library';
 import { traineeInsight } from '@/lib/coaching-insights';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { pendingWorkoutSets, retryWorkoutSets } from '@/lib/workout-save';
@@ -60,9 +62,63 @@ export function TrainingProgress({
   }, [data.user.id]);
   useEffect(() => setVisibleRecords(50), [days, client, exercise, source]);
   const { dateLabel, timeLabel, timeZone } = useTimeFormat();
+  type HistoryPage = {
+    records: WorkoutSetView[];
+    totals?: ReturnType<typeof summarizeWorkouts>;
+    nextCursor: string | null;
+    byUser?: Record<string, ReturnType<typeof summarizeWorkouts>>;
+    breakdown?: {
+      exercise: string;
+      name: string;
+      version: string;
+      summary: ReturnType<typeof summarizeWorkouts>;
+      recentQuality: number[];
+    }[];
+  };
+  const [history, setHistory] = useState<HistoryPage | null>(null);
+  const [historyError, setHistoryError] = useState('');
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const historyQuery = new URLSearchParams({
+    days: String(days),
+    exercise,
+    source,
+    timeZone,
+    ...(client !== 'all'
+      ? { userId: client }
+      : data.user.role === 'coach'
+        ? { cohort: 'true' }
+        : {}),
+  }).toString();
+  const workoutSnapshot = `${data.workoutSets.length}:${data.workoutSets[0]?.id ?? ''}`;
+  const historyKey = `${data.user.id}:${historyQuery}:${historyRevision}:${workoutSnapshot}`;
+  const latestHistoryKey = useRef(historyKey);
+  latestHistoryKey.current = historyKey;
+  useEffect(() => {
+    if (data.demo) return;
+    const controller = new AbortController();
+    setHistoryBusy(true);
+    setHistoryError('');
+    setHistory(null);
+    void fetchJson<HistoryPage>(`/api/workout-history?${historyQuery}`, {
+      signal: controller.signal,
+    })
+      .then((page) => {
+        if (!controller.signal.aborted) setHistory(page);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setHistoryError(error instanceof Error ? error.message : 'History could not load.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setHistoryBusy(false);
+      });
+    return () => controller.abort();
+  }, [data.demo, data.user.id, historyQuery, historyRevision, workoutSnapshot]);
   const coach = data.user.role === 'coach';
   const cohort = coach && client === 'all';
-  const sets = data.workoutSets
+  const sets = (history?.records ?? data.workoutSets)
+    .map(effectiveWorkoutSet)
     .filter(
       (set) =>
         Date.parse(set.endedAt) >= Date.now() - days * 86400000 &&
@@ -75,7 +131,19 @@ export function TrainingProgress({
         (source === 'all' || (source === 'live' ? !!set.classId : !set.classId)),
     )
     .sort((a, b) => Date.parse(b.endedAt) - Date.parse(a.endedAt));
-  const totals = summarizeWorkouts(sets, timeZone);
+  const totals = history?.totals ?? summarizeWorkouts(sets, timeZone);
+  const displayExercises = [
+    ...exercises,
+    ...(data.customExercises ?? []),
+    ...(history?.breakdown ?? [])
+      .filter(
+        (b, i, all) =>
+          all.findIndex((g) => g.exercise === b.exercise) === i &&
+          !exercises.some((e) => e.id === b.exercise) &&
+          !data.customExercises?.some((e) => e.id === b.exercise),
+      )
+      .map((b) => ({ id: b.exercise, name: b.name })),
+  ];
   const checkIns = data.checkIns
     .filter(
       (entry) =>
@@ -115,9 +183,29 @@ export function TrainingProgress({
         <button
           className="button outline"
           disabled={!sets.length}
-          onClick={() => {
+          onClick={async () => {
+            let records = sets;
+            if (!data.demo) {
+              setHistoryBusy(true);
+              try {
+                records = [];
+                let cursor: string | null = null;
+                do {
+                  const page: HistoryPage = await fetchJson(
+                    `/api/workout-history?${historyQuery}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+                  );
+                  records.push(...page.records);
+                  cursor = page.nextCursor;
+                } while (cursor);
+              } catch {
+                setHistoryError('Export could not load all records. Retry when connected.');
+                return;
+              } finally {
+                setHistoryBusy(false);
+              }
+            }
             const url = URL.createObjectURL(
-              new Blob([workoutCsv(sets)], { type: 'text/csv;charset=utf-8' }),
+              new Blob([workoutCsv(records)], { type: 'text/csv;charset=utf-8' }),
             );
             const link = document.createElement('a');
             link.href = url;
@@ -130,6 +218,15 @@ export function TrainingProgress({
           Export CSV
         </button>
       </div>
+      {historyBusy && <p role="status">Loading complete workout history…</p>}
+      {historyError && (
+        <p className="inline-error" role="alert">
+          {historyError}{' '}
+          <button className="text-link" onClick={() => setHistoryRevision((n) => n + 1)}>
+            Retry history
+          </button>
+        </p>
+      )}
       {!data.demo && (pending > 0 || saveMessage) && (
         <div className="inline-notice record-recovery">
           <p role="status">
@@ -201,7 +298,7 @@ export function TrainingProgress({
           Exercise
           <select value={exercise} onChange={(event) => setExercise(event.target.value)}>
             <option value="all">All exercises</option>
-            {exercises.map((item) => (
+            {displayExercises.map((item) => (
               <option value={item.id} key={item.id}>
                 {item.name}
               </option>
@@ -222,9 +319,11 @@ export function TrainingProgress({
           label={cohort ? 'Trainees with saved activity' : 'Training days'}
           value={
             cohort
-              ? new Set(
-                  sets.filter((set) => set.reps > 0 || set.holdMs > 0).map((set) => set.userId),
-                ).size
+              ? history?.byUser
+                ? Object.values(history.byUser).filter((s) => s.reps > 0 || s.holdMs > 0).length
+                : new Set(
+                    sets.filter((set) => set.reps > 0 || set.holdMs > 0).map((set) => set.userId),
+                  ).size
               : totals.trainingDays
           }
           detail={`Within the selected ${days} days`}
@@ -279,10 +378,12 @@ export function TrainingProgress({
           />
           <div className="trainee-progress-list">
             {data.clients.map((person) => {
-              const summary = summarizeWorkouts(
-                sets.filter((set) => set.userId === person.id),
-                timeZone,
-              );
+              const summary =
+                history?.byUser?.[person.id] ??
+                summarizeWorkouts(
+                  sets.filter((set) => set.userId === person.id),
+                  timeZone,
+                );
               return (
                 <button
                   className="trainee-progress-row"
@@ -325,12 +426,21 @@ export function TrainingProgress({
                 detail="Compare the same movement and rule version with your coach"
               />
               <div className="exercise-progress-grid">
-                {exercises
-                  .filter((item) => sets.some((set) => set.exercise === item.id))
+                {displayExercises
+                  .filter(
+                    (item) =>
+                      history?.breakdown?.some((g) => g.exercise === item.id) ??
+                      sets.some((set) => set.exercise === item.id),
+                  )
                   .flatMap((item) =>
                     [
                       ...new Set(
-                        sets
+                        [
+                          ...(history?.breakdown
+                            ?.filter((g) => g.exercise === item.id)
+                            .map((g) => ({ exercise: g.exercise, ruleVersion: g.version })) ??
+                            sets),
+                        ]
                           .filter((set) => set.exercise === item.id)
                           .map((set) => set.ruleVersion),
                       ),
@@ -338,12 +448,19 @@ export function TrainingProgress({
                       const records = sets.filter(
                           (set) => set.exercise === item.id && set.ruleVersion === version,
                         ),
-                        summary = summarizeWorkouts(records, timeZone);
-                      const recentQuality = records
-                        .filter((set) => set.qualityScore !== null)
-                        .slice(0, 5)
-                        .reverse()
-                        .map((set) => Math.round(set.qualityScore!));
+                        summary =
+                          history?.breakdown?.find(
+                            (g) => g.exercise === item.id && g.version === version,
+                          )?.summary ?? summarizeWorkouts(records, timeZone);
+                      const recentQuality =
+                        history?.breakdown?.find(
+                          (g) => g.exercise === item.id && g.version === version,
+                        )?.recentQuality ??
+                        records
+                          .filter((set) => set.qualityScore !== null)
+                          .slice(0, 5)
+                          .reverse()
+                          .map((set) => Math.round(set.qualityScore!));
                       return (
                         <article key={`${item.id}-${version}`} className="exercise-progress-card">
                           <h3>{item.name}</h3>
@@ -392,7 +509,7 @@ export function TrainingProgress({
           <section className="panel">
             <SectionTitle
               title="Recent workout sets"
-              detail={`Showing ${Math.min(visibleRecords, sets.length)} of ${sets.length} records in this view · ${timeZone}`}
+              detail={`Showing ${Math.min(visibleRecords, sets.length)} of ${totals.sets} records in this view · ${timeZone}`}
             />
             <div className="workout-record-list">
               {sets.slice(0, visibleRecords).map((set) => (
@@ -401,6 +518,7 @@ export function TrainingProgress({
                   set={set}
                   date={`${dateLabel(set.endedAt)} · ${timeLabel(set.endedAt)}`}
                   coach={coach}
+                  onCorrected={() => setHistoryRevision((n) => n + 1)}
                 />
               ))}
             </div>
@@ -410,6 +528,38 @@ export function TrainingProgress({
                 onClick={() => setVisibleRecords((count) => count + 50)}
               >
                 Show more exercise records
+              </button>
+            )}
+            {history?.nextCursor && (
+              <button
+                className="button outline"
+                disabled={historyBusy}
+                onClick={async () => {
+                  setHistoryBusy(true);
+                  try {
+                    const page = await fetchJson<HistoryPage>(
+                      `/api/workout-history?${historyQuery}&cursor=${encodeURIComponent(history.nextCursor!)}`,
+                    );
+                    if (latestHistoryKey.current !== historyKey) return;
+                    setHistory((current) =>
+                      current
+                        ? {
+                            ...current,
+                            records: [...current.records, ...page.records],
+                            nextCursor: page.nextCursor,
+                          }
+                        : current,
+                    );
+                    setVisibleRecords((n) => n + 50);
+                  } catch {
+                    if (latestHistoryKey.current === historyKey)
+                      setHistoryError('More records could not load. Please retry.');
+                  } finally {
+                    if (latestHistoryKey.current === historyKey) setHistoryBusy(false);
+                  }
+                }}
+              >
+                Load older exercise records
               </button>
             )}
           </section>
@@ -478,7 +628,8 @@ export function TrainingProgress({
       )}
       <p className="microcopy">
         Camera scores estimate visible movement. Load and check-ins are self-reported. Missing
-        measurements stay unavailable. Showing up to the latest 500 sets.
+        measurements stay unavailable. History totals include every matching saved set. Load more to
+        browse earlier records.
       </p>
     </div>
   );
@@ -487,34 +638,50 @@ function WorkoutRecord({
   set,
   date,
   coach,
+  onCorrected,
 }: {
   set: WorkoutSetView;
   date: string;
   coach: boolean;
+  onCorrected?: () => void;
 }) {
+  const [editing, setEditing] = useState(false),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState('');
+  const hold = set.targetUnit === 'seconds' || isHoldExercise(set.exercise);
   return (
     <article className="workout-record">
       <div>
-        <strong>{exerciseName(set.exercise)}</strong>
+        <strong>{set.exerciseLabel ?? exerciseName(set.exercise)}</strong>
         <span>
           {coach ? `${set.userName} · ` : ''}
           {set.classTitle ?? 'Practice'} · {date}
         </span>
       </div>
       <div>
-        <strong>
-          {isHoldExercise(set.exercise) ? `${Math.round(set.holdMs / 1000)}s` : `${set.reps} reps`}
-        </strong>
+        <strong>{hold ? `${Math.round(set.holdMs / 1000)}s` : `${set.reps} reps`}</strong>
         <span>
           Set {set.setNumber} · target {set.target}
-          {isHoldExercise(set.exercise) ? 's' : ' reps'}
+          {hold ? 's' : ' reps'}
         </span>
       </div>
       <div>
         <strong>
-          {number(isHoldExercise(set.exercise) ? set.formScore : set.qualityScore, ' /100')}
+          {set.measurementSource === 'manual' || set.measurementSource === 'timer'
+            ? 'Reported'
+            : set.ruleVersion === 'profile-v8'
+              ? `${number(set.repSeconds, 's')}`
+              : number(hold ? set.formScore : set.qualityScore, ' /100')}
         </strong>
-        <span>{isHoldExercise(set.exercise) ? 'Form estimate' : 'Rep quality'}</span>
+        <span>
+          {set.measurementSource === 'manual' || set.measurementSource === 'timer'
+            ? 'Manual tracking'
+            : set.ruleVersion === 'profile-v8'
+              ? 'Rep tempo'
+              : hold
+                ? 'Form estimate'
+                : 'Rep quality'}
+        </span>
       </div>
       <span className={`pill ${set.completed ? 'target-complete' : ''}`}>
         {set.completed ? 'Target reached' : 'Finished early'}
@@ -530,6 +697,70 @@ function WorkoutRecord({
           {number(set.loadKg, 'kg')}
         </p>
         <p>{set.ruleVersion} · Missing measurements remain unavailable.</p>
+        {set.armMode && (
+          <p>
+            {armModeLabels[set.armMode]} · Left {set.arms?.left.reps ?? '—'} · Right{' '}
+            {set.arms?.right.reps ?? '—'}
+          </p>
+        )}
+        <p>Load basis: {set.loadBasis ?? 'unspecified · excluded from volume estimates'}</p>
+        {set.correction && (
+          <p>Corrected result · {set.correction.reason}. Original measurements are retained.</p>
+        )}
+        <button className="text-link" onClick={() => setEditing(!editing)}>
+          {editing ? 'Cancel correction' : 'Correct this result'}
+        </button>
+        {editing && (
+          <form
+            className="workout-correction-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              setBusy(true);
+              setMessage('');
+              try {
+                await fetchJson('/api/workout-sets/corrections', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    clientId: crypto.randomUUID(),
+                    setId: set.id,
+                    reps: hold ? 0 : Number(form.get('amount')),
+                    holdMs: hold ? Math.round(Number(form.get('amount')) * 1000) : 0,
+                    reason: form.get('reason'),
+                  }),
+                });
+                setEditing(false);
+                setMessage('Correction saved.');
+                onCorrected?.();
+              } catch (error) {
+                setMessage(error instanceof Error ? error.message : 'Correction could not save.');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <label>
+              {hold ? 'Seconds' : 'Repetitions'}
+              <input
+                name="amount"
+                type="number"
+                min={0}
+                max={hold ? Math.floor(set.activeMs / 1000) : 500}
+                defaultValue={hold ? Math.floor(set.holdMs / 1000) : set.reps}
+                required
+              />
+            </label>
+            <label>
+              Reason
+              <input name="reason" minLength={5} maxLength={400} required />
+            </label>
+            <button className="button outline" disabled={busy}>
+              Save correction
+            </button>
+          </form>
+        )}
+        {message && <p role="status">{message}</p>}
       </details>
     </article>
   );

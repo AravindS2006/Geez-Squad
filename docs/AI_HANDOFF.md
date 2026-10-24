@@ -91,8 +91,11 @@ feedback → workout/metric summaries. The worker imports local MediaPipe assets
 prepared by `scripts/prepare-assets.mjs`. Model, WASM and vision bundles are
 generated/ignored rather than committed. Check their HTTP status when startup fails.
 
-Heavy is attempted first, with GPU/CPU recovery and sustained-latency fallback to
-Full and Lite. Only one inference is in flight. The analyzed image and landmarks
+Desktop worker tracking attempts Heavy first. iPhone/iPad starts Full through the
+lazy HTML-canvas compatibility runtime in `pose-browser.ts`; worker graphics or
+video-bitmap failures on other browsers can also select that path. GPU/CPU recovery
+and sustained-latency fallback to Full/Lite remain bounded. A timer backs up stalled
+video-frame callbacks. Only one inference is in flight. The analyzed image and landmarks
 are presented together. Rendering smoothing, camera mirroring and UI resizing must
 not invent counting evidence, swap anatomical left/right, or replace the active
 camera stream. Stop owned tracks and workers on exit, but never stop a borrowed
@@ -179,6 +182,12 @@ The browser configuration uses installed Edge and synthetic media. `model.spec.t
 also executes the real WASM model. Synthetic landmark correctness and complete
 video-to-count accuracy are separate validation layers. No browser test proves
 physical device accuracy or a 60-minute distributed LiveKit class.
+
+Run `npx playwright install webkit`, then the isolated runner's
+`e2e --config playwright.webkit.config.ts` for WebKit mobile coverage. Its Windows
+engine lacks WebRTC camera devices; source pixels are substituted while WebGL,
+WASM, MediaPipe and rendering remain real. See `IPHONE_COMPATIBILITY_2026-10-24.md`
+for reproduction details and the physical-device checks still required.
 
 Playwright may clean `test-results/browser-runs`. Keep database/runtime helpers
 outside that subdirectory. Screenshots and traces stay local/ignored. CI does not

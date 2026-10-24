@@ -65,6 +65,10 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             npx playwright test
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            npx playwright install webkit
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            npx playwright test --config playwright.webkit.config.ts
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node scripts/check-accessibility.mjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } finally { Stop-Process -Id $geezSquadServer.Id -Force -ErrorAction SilentlyContinue }

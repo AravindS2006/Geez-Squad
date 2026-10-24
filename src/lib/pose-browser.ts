@@ -147,7 +147,11 @@ export class BrowserPoseTask {
       } catch (error) {
         if (this.delegate !== 'GPU' || this.fallbackUsed) throw error;
         this.fallbackUsed = true;
-        this.model.close();
+        try {
+          this.model.close();
+        } catch {
+          /* A lost Safari GPU context may already be closed. */
+        }
         this.model = undefined;
         await this.load(true);
         const recovered = this.model as PoseLandmarker | undefined;

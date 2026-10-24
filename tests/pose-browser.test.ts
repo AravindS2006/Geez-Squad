@@ -86,6 +86,9 @@ describe('iOS browser pose compatibility', () => {
     gpu.detectForVideo.mockImplementation(() => {
       throw new Error('context lost');
     });
+    gpu.close.mockImplementation(() => {
+      throw new Error('context already lost');
+    });
     media.create.mockResolvedValueOnce(gpu).mockResolvedValueOnce(cpu);
     const { instance, messages } = task();
     instance.postMessage(init);

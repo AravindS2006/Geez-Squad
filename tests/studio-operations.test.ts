@@ -9,6 +9,8 @@ import {
   studioToday,
   termStatus,
   validateTerm,
+  weeklyOccurrences,
+  MAX_REPEAT_WEEKS,
 } from '../src/lib/studio-operations';
 
 describe('studio membership lifecycle', () => {
@@ -143,5 +145,46 @@ describe('sample member access commands', () => {
   });
   it('seeds sample coaches so the team workload is not empty', () => {
     expect(demoOperations().coaches?.length).toBeGreaterThan(0);
+  });
+});
+
+describe('weekly studio class series', () => {
+  const base = {
+    action: 'studioClass' as const,
+    title: 'Morning strength',
+    trainer: 'Asha',
+    location: 'Main studio',
+    startsAt: '2030-01-07T03:30:00.000Z',
+    duration: 45,
+    capacity: 12,
+    status: 'scheduled' as const,
+  };
+  it('keeps the same India start time each week and bounds the series', () => {
+    const dates = weeklyOccurrences(base.startsAt, 4);
+    expect(dates).toEqual([
+      '2030-01-07T03:30:00.000Z',
+      '2030-01-14T03:30:00.000Z',
+      '2030-01-21T03:30:00.000Z',
+      '2030-01-28T03:30:00.000Z',
+    ]);
+    expect(weeklyOccurrences(base.startsAt)).toHaveLength(1);
+    expect(weeklyOccurrences(base.startsAt, 99)).toHaveLength(MAX_REPEAT_WEEKS);
+    expect(operationsSchema.safeParse({ ...base, repeatWeeks: 13 }).success).toBe(false);
+    expect(operationsSchema.safeParse({ ...base, repeatWeeks: 0 }).success).toBe(false);
+  });
+  it('creates separate editable classes in the demo studio', () => {
+    const d = demoOperations();
+    const next = applyDemoOperation(d, { ...base, repeatWeeks: 3 }, 'series');
+    const created = next.studioClasses.filter((s) => s.title === 'Morning strength');
+    expect(created.map((s) => s.id).sort()).toEqual(['series', 'series-w2', 'series-w3']);
+    expect(new Set(created.map((s) => s.startsAt)).size).toBe(3);
+    expect(created.every((s) => s.bookings.length === 0)).toBe(true);
+    expect(next.studioClasses).toHaveLength(d.studioClasses.length + 3);
+  });
+  it('rejects repeating an existing class', () => {
+    const d = applyDemoOperation(demoOperations(), base, 'one');
+    expect(() => applyDemoOperation(d, { ...base, id: 'one', repeatWeeks: 4 }, 'x')).toThrow(
+      'Only a new scheduled class can repeat weekly.',
+    );
   });
 });

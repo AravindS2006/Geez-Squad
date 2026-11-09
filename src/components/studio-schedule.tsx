@@ -163,6 +163,7 @@ export function StudioSchedule({
                 duration: Number(f.get('duration')),
                 capacity: Number(f.get('capacity')),
                 status: String(f.get('status')) as 'scheduled',
+                ...(item ? {} : { repeatWeeks: Number(f.get('repeatWeeks') || 1) }),
               });
               if (ok) setEditing(null);
             }}
@@ -248,21 +249,36 @@ export function StudioSchedule({
                 />
               </label>
             </div>
-            <label>
-              Class status
-              <select name="status" defaultValue={item?.status || 'scheduled'}>
-                <option value="scheduled">Scheduled</option>
-                {item && (
-                  <>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </>
-                )}
-              </select>
-            </label>
+            {item ? (
+              <label>
+                Class status
+                <select name="status" defaultValue={item.status}>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+            ) : (
+              <>
+                <input type="hidden" name="status" value="scheduled" />
+                <label>
+                  Repeats
+                  <select name="repeatWeeks" defaultValue="1">
+                    <option value="1">Does not repeat</option>
+                    {[4, 8, 12].map((weeks) => (
+                      <option key={weeks} value={weeks}>
+                        Weekly for {weeks} weeks
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <p className="ops-context-note">
               In-studio classes have their own roster. Use Live sessions for video coaching. Members
               need a valid membership on the class date to book.
+              {!item &&
+                ' A weekly series is saved only if every date is free for this host and room; each date can then be edited or cancelled on its own.'}
             </p>
             {error && (
               <p role="alert" className="inline-error">

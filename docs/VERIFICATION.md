@@ -14,6 +14,10 @@ The [studio management release](STUDIO_MANAGEMENT.md) replaces mixed-person form
 
 Local acceptance passed: 266 unit cases, 168 real authentication/API checks (including simultaneous meeting edits), 38 Edge browser cases, 20 accessibility scans, both deferred-email auth modes (9 closed-signup checks and 28 testing-signup checks), optimized build, TypeScript, formatting, and a production-dependency audit with zero known vulnerabilities. Browser management tests exercise the UI, API, database, reload, and both trainees' calendars. Release staging checks production build and database health; final canonical acceptance uses temporary synthetic accounts and removes their related records.
 
+## Account lifecycle and recurring classes (9 November 2026)
+
+Adds self-service account deletion (password + typed confirmation; studio owners and open subscriptions refused; studio records retained and unlinked) and weekly recurring studio classes (4/8/12 weeks, all-or-nothing overlap checks). No schema migration or new dependency. Local evidence: `node scripts/local-coaching-check.mjs account` (34 checks), `studio` (68), `roles` (111), `next` (50) and `api` against the isolated server; 478 unit cases; TypeScript and formatting; a browser pass that scheduled a four-week demo series and deleted a disposable account through Settings (wrong password rejected, correct password signs out with 401 afterwards). Not verified: PostgreSQL behaviour of the deletion transaction, LiveKit revocation against a real room, and the full Playwright/axe suites.
+
 ## Geez Squad accuracy and coaching release
 
 The [current release](GEEZ_SQUAD_RELEASE.md) adds synchronized camera/landmark rendering, the Heavy model with device recovery, guided range calibration, noise-tolerant form validation, full-roster scheduling and a consistent conference layout. Durable set history, measured progress, assignments, private notes, check-ins and account-scoped retries remain available. Twelve exercise profiles use version `profile-v4`; historical scores retain their original version. Domain-based email and paid billing stay deferred as requested.

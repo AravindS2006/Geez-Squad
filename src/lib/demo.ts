@@ -1,8 +1,10 @@
 import type { WorkspaceData } from './types';
 import { starterBlocks } from './catalog';
 export function demoData(): WorkspaceData {
+  // The sample class is always the next 6 pm session that has not finished yet.
   const day = new Date();
   day.setHours(18, 0, 0, 0);
+  if (day.getTime() + 45 * 60000 <= Date.now()) day.setDate(day.getDate() + 1);
   const clients = [
     ['ava', 'Ava Thompson', 'Build strength'],
     ['leo', 'Leo Martinez', 'Improve consistency'],

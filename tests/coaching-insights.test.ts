@@ -148,3 +148,10 @@ describe('isUpcomingSession', () => {
     expect(overview.upcoming.every((c) => isUpcomingSession(c))).toBe(true);
   });
 });
+
+describe('sample studio schedule', () => {
+  it('always offers an upcoming class to open', () => {
+    const data = demoData();
+    expect(data.classes.some((c) => isUpcomingSession(c))).toBe(true);
+  });
+});

@@ -133,7 +133,7 @@ input[type='radio'] {
 }
 
 /* ---------- Surfaces ---------- */
-:is(.panel, .ops-card, .stat-card, .ops-stat, .client-card, .workout-card, .session-list):not(
+:is(.panel, .ops-card, .stat-card, .ops-stat, .client-card, .workout-card):not(
   :is(.meeting-practice, .live-studio) *
 ) {
   background: var(--surface-1);

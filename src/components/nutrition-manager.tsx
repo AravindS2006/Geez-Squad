@@ -144,7 +144,7 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
       <div className="section-title">
         <div>
           <span className="eyebrow">EVERYDAY NUTRITION</span>
-          <h1>Small habits. A stronger you.</h1>
+          <h1>Nutrition</h1>
           <p>Log what you eat and drink. Set your own targets or review them with your coach.</p>
         </div>
       </div>

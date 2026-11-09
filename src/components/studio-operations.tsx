@@ -43,6 +43,7 @@ import {
   type StudioEnquiry,
   type StudioStaff,
   type StudioPayment,
+  managementInsights,
 } from '@/lib/studio-operations';
 import type { WorkspaceData } from '@/lib/types';
 import { StudioSchedule } from './studio-schedule';
@@ -283,14 +284,12 @@ export function StudioOperations({
     (t) => t.status !== 'cancelled' && t.startsOn <= today && outstanding(t, data.payments) > 0,
   );
   const totalDue = dueTerms.reduce((sum, t) => sum + outstanding(t, data.payments), 0);
-  const renewals = data.terms.filter(
-    (t) =>
-      termStatus(t, today) === 'active' &&
-      t.endsOn <= addDays(today, 7) &&
-      !data.terms.some(
-        (n) => n.memberId === t.memberId && n.startsOn > t.endsOn && n.status !== 'cancelled',
-      ),
-  );
+  // One renewal definition everywhere: active members whose current term ends
+  // within the next 7 days and who have no follow-on term booked.
+  const insight = managementInsights(data, today);
+  const renewals = insight.expiring
+    .map((m) => currentTerm(data, m.id, today))
+    .filter((t): t is NonNullable<typeof t> => !!t);
   const visits = data.attendance.filter((a) => a.date === today);
   const enquiryDue = data.enquiries.filter(
     (e) => !['won', 'lost'].includes(e.stage) && e.followUpOn <= today,
@@ -325,20 +324,20 @@ export function StudioOperations({
   ].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const title = (
     {
-      dashboard: 'A stronger studio starts here.',
-      members: 'Your people. Your squad.',
-      memberships: 'Memberships that move with you.',
-      attendance: 'Every visit counts.',
-      payments: 'A clear view of every rupee.',
-      enquiries: 'Turn a hello into a habit.',
-      staff: 'The people behind the progress.',
-      'studio-details': 'Make this studio yours.',
-      classes: 'Good energy. On the studio floor.',
+      dashboard: 'Studio overview',
+      members: 'Members',
+      memberships: 'Memberships',
+      attendance: 'Attendance',
+      payments: 'Payments',
+      enquiries: 'Enquiries',
+      staff: 'Team',
+      'studio-details': 'Studio details',
+      classes: 'Studio classes',
     } as Record<string, string>
   )[view];
   const subtitle = (
     {
-      dashboard: `Welcome back, ${workspace.user.name.split(' ')[0]}. Here’s how your studio is moving.`,
+      dashboard: `Welcome back, ${workspace.user.name.split(' ')[0]}. Here’s where your studio stands today.`,
       members: 'One home for your members, memberships, and next steps.',
       memberships: 'Create plans, assign memberships, and stay ahead of renewals.',
       attendance: 'A simple, reliable register for your in-studio members.',
@@ -572,7 +571,7 @@ export function StudioOperations({
         <div>
           <div className="ops-eyebrow">
             <span />
-            GEEZ SQUAD · STUDIO MANAGEMENT
+            STUDIO MANAGEMENT
           </div>
           <h1>{title}</h1>
           <p>{subtitle}</p>
@@ -646,7 +645,7 @@ export function StudioOperations({
           {error}
         </p>
       )}
-      {['dashboard', 'staff'].includes(view) && (
+      {view === 'staff' && (
         <OperationsInsights data={data} today={today} view={view} onNavigate={onNavigate} />
       )}
       {view === 'dashboard' && (
@@ -711,7 +710,7 @@ export function StudioOperations({
             <section className="ops-card ops-revenue">
               <CardHeading
                 title="Studio collections"
-                detail="Real payments. A healthier business."
+                detail="Recorded payments by month"
                 action={
                   <select
                     aria-label="Collection period"
@@ -777,10 +776,81 @@ export function StudioOperations({
                 </button>
               </div>
             </section>
+            <section className="ops-card ops-attention">
+              <CardHeading
+                title="Needs attention"
+                detail="Follow-ups that keep members on track."
+              />
+              <button className="ops-attention-row" onClick={() => onNavigate('memberships')}>
+                <span className="ops-stat-icon sand">
+                  <Clock3 size={19} />
+                </span>
+                <span>
+                  <strong>{renewals.length} upcoming renewals</strong>
+                  <small>Memberships ending in the next 7 days</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+              <button className="ops-attention-row" onClick={() => onNavigate('payments')}>
+                <span className="ops-stat-icon lilac">
+                  <Wallet size={19} />
+                </span>
+                <span>
+                  <strong>{money(totalDue)} to collect</strong>
+                  <small>{dueTerms.length} membership balances to follow up</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+              <button className="ops-attention-row" onClick={() => onNavigate('enquiries')}>
+                <span className="ops-stat-icon mint">
+                  <UserPlus size={19} />
+                </span>
+                <span>
+                  <strong>{enquiryDue.length} enquiries to follow up</strong>
+                  <small>Keep their first step moving forward</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+              <button className="ops-attention-row" onClick={() => onNavigate('attendance')}>
+                <span className="ops-stat-icon mint">
+                  <CalendarCheck size={19} />
+                </span>
+                <span>
+                  <strong>{insight.quiet.length} members not seen this week</strong>
+                  <small>Active members without a studio check-in in 7 days</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+              <button className="ops-attention-row" onClick={() => onNavigate('staff')}>
+                <span className="ops-stat-icon lime">
+                  <Users size={19} />
+                </span>
+                <span>
+                  <strong>{insight.unassigned} members without a coach</strong>
+                  <small>Connected members who need a primary coach</small>
+                </span>
+                <ChevronRight size={16} />
+              </button>
+            </section>
+          </div>
+          <div className="ops-dashboard-grid ops-secondary-grid">
+            <section className="ops-card">
+              <CardHeading
+                title="Members"
+                detail="Most recent members and their status"
+                action={
+                  <button className="text-link" onClick={() => onNavigate('members')}>
+                    All members
+                    <ArrowUpRight size={15} />
+                  </button>
+                }
+              />
+              {memberTable(data.members.filter((m) => m.status !== 'archived').slice(0, 5))}
+            </section>
             <section className="ops-card ops-agenda">
               <CardHeading
-                title="On the studio floor"
-                detail="A little structure. A lot of progress."
+                title="Today in the studio"
+                detail="Check-ins and the next classes"
                 action={
                   <span className="ops-mini-icon">
                     <CalendarCheck size={19} />
@@ -831,70 +901,10 @@ export function StudioOperations({
               {!upcoming.length && (
                 <p className="ops-muted">Your next great session starts with a plan.</p>
               )}
-              <button className="button outline full" onClick={onSchedule}>
+              <button className="button outline full" onClick={() => onNavigate('classes')}>
                 <Plus size={15} />
-                Schedule a session
+                Schedule a studio class
               </button>
-            </section>
-          </div>
-          <div className="ops-dashboard-grid ops-secondary-grid">
-            <section className="ops-card">
-              <CardHeading
-                title="Your growing squad"
-                detail="A familiar face behind every membership."
-                action={
-                  <button className="text-link" onClick={() => onNavigate('members')}>
-                    All members
-                    <ArrowUpRight size={15} />
-                  </button>
-                }
-              />
-              {memberTable(data.members.filter((m) => m.status !== 'archived').slice(0, 5))}
-            </section>
-            <section className="ops-card ops-attention">
-              <CardHeading
-                title="A little attention"
-                detail="Small follow-ups. Stronger connections."
-              />
-              <button className="ops-attention-row" onClick={() => onNavigate('memberships')}>
-                <span className="ops-stat-icon sand">
-                  <Clock3 size={19} />
-                </span>
-                <span>
-                  <strong>{renewals.length} upcoming renewals</strong>
-                  <small>Memberships ending in the next 7 days</small>
-                </span>
-                <ChevronRight size={16} />
-              </button>
-              <button className="ops-attention-row" onClick={() => onNavigate('payments')}>
-                <span className="ops-stat-icon lilac">
-                  <Wallet size={19} />
-                </span>
-                <span>
-                  <strong>{money(totalDue)} to collect</strong>
-                  <small>{dueTerms.length} membership balances to follow up</small>
-                </span>
-                <ChevronRight size={16} />
-              </button>
-              <button className="ops-attention-row" onClick={() => onNavigate('enquiries')}>
-                <span className="ops-stat-icon mint">
-                  <UserPlus size={19} />
-                </span>
-                <span>
-                  <strong>{enquiryDue.length} enquiries to follow up</strong>
-                  <small>Keep their first step moving forward</small>
-                </span>
-                <ChevronRight size={16} />
-              </button>
-              <div className="ops-coaching-callout">
-                <Sparkles size={20} />
-                <h3>Better together.</h3>
-                <p>Your live coaching, workout plans, and progress tools are right here too.</p>
-                <button className="text-link" onClick={() => onNavigate('coaching')}>
-                  Open coaching overview
-                  <ArrowUpRight size={15} />
-                </button>
-              </div>
             </section>
           </div>
         </>

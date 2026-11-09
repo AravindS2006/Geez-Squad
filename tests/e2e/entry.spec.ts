@@ -51,15 +51,11 @@ test('authenticated owners can enter the workspace and the demo remains separate
 
     await page.goto('/app');
     await expect(page).toHaveURL(/\/app$/);
-    await expect(
-      page.getByRole('heading', { name: 'A stronger studio starts here.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Studio overview', exact: true })).toBeVisible();
 
     await page.goto('/demo');
     await expect(page).toHaveURL(/\/demo$/);
-    await expect(
-      page.getByRole('heading', { name: 'A stronger studio starts here.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Studio overview', exact: true })).toBeVisible();
   } finally {
     const user = await db.user.findUnique({ where: { email } });
     if (user) {

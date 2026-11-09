@@ -28,14 +28,10 @@ test('a real coach account can onboard and persist a workout plan', async ({ pag
       page.getByRole('button', { name: 'Create my workspace' }).click(),
     ]);
     await page.waitForLoadState('domcontentloaded');
-    await expect(
-      page.getByRole('heading', { name: 'Your next chapter starts here.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible();
     await provisionTestAdmin(db, email);
     await page.reload();
-    await expect(
-      page.getByRole('heading', { name: 'A stronger studio starts here.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Studio overview', exact: true })).toBeVisible();
     await page.getByRole('link', { name: 'Workout plans' }).click();
     await page.getByRole('button', { name: 'Create plan', exact: true }).first().click();
     await page.getByLabel('Plan name').fill('Persisted foundations');
@@ -192,9 +188,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     await trainee.getByRole('checkbox', { name: /I am 18/ }).check();
     await trainee.getByRole('button', { name: 'Create my workspace' }).click();
     await trainee.getByRole('button', { name: 'Join studio' }).click();
-    await expect(
-      trainee.getByRole('heading', { name: 'Your next chapter starts here.' }),
-    ).toBeVisible();
+    await expect(trainee.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible();
     await coach.reload();
     await expect(coach.getByRole('heading', { name: 'Journey Trainee' })).toBeVisible();
     await grantStudioTerm(db, traineeEmail);

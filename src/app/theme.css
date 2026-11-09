@@ -1,0 +1,564 @@
+/*
+ * Performance studio theme. Loaded after every legacy global stylesheet and
+ * owns the shared component look: shell, cards, buttons, fields, tables,
+ * badges and metrics. Camera practice and the live room keep their measured
+ * geometry; `--outside-stage` scopes generic controls away from them.
+ */
+
+/* ---------- Base ---------- */
+body {
+  background: var(--surface-app);
+  color: var(--text-1);
+  font-size: var(--fs-base);
+  letter-spacing: -0.006em;
+  text-rendering: optimizeLegibility;
+}
+h1,
+h2,
+h3 {
+  color: var(--text-1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+p {
+  color: var(--text-2);
+}
+::selection {
+  background: var(--accent);
+  color: #1a2e05;
+}
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- Buttons (outside camera stages) ---------- */
+.button:not(:is(.meeting-practice, .live-studio) *) {
+  min-height: 40px;
+  padding: 0 16px;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.button:not(:is(.meeting-practice, .live-studio) *):active:not(:disabled) {
+  transform: translateY(1px);
+}
+.button.dark:not(:is(.meeting-practice, .live-studio) *) {
+  background: var(--brand);
+  color: #fff;
+}
+.button.dark:not(:is(.meeting-practice, .live-studio) *):hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+.button.lime:not(:is(.meeting-practice, .live-studio) *) {
+  background: var(--accent);
+  color: #1a2e05;
+}
+.button.lime:not(:is(.meeting-practice, .live-studio) *):hover:not(:disabled) {
+  background: #a3e635;
+}
+.button.outline:not(:is(.meeting-practice, .live-studio) *) {
+  background: var(--surface-1);
+  border-color: var(--border-2);
+  color: var(--text-1);
+}
+.button.outline:not(:is(.meeting-practice, .live-studio) *):hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: #c4c4bf;
+}
+.button.danger:not(:is(.meeting-practice, .live-studio) *) {
+  background: var(--danger);
+  color: #fff;
+}
+.button.small-button:not(:is(.meeting-practice, .live-studio) *) {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: var(--fs-sm);
+}
+.icon-button:not(:is(.meeting-practice, .live-studio) *) {
+  border-radius: 10px;
+  color: var(--text-2);
+}
+.icon-button:not(:is(.meeting-practice, .live-studio) *):hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+.text-link {
+  color: var(--text-1);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.text-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Fields ---------- */
+:is(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea):not(
+    :is(.meeting-practice, .live-studio) *
+  ) {
+  min-height: 40px;
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+:is(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea):not(
+    :is(.meeting-practice, .live-studio) *
+  ):hover {
+  border-color: #c4c4bf;
+}
+:is(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea):not(
+    :is(.meeting-practice, .live-studio) *
+  ):focus {
+  outline: none;
+  border-color: var(--text-1);
+  box-shadow: 0 0 0 3px rgb(17 17 17 / 8%);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--brand);
+}
+label {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+/* ---------- Surfaces ---------- */
+:is(.panel, .ops-card, .stat-card, .ops-stat, .client-card, .workout-card, .session-list):not(
+    :is(.meeting-practice, .live-studio) *
+  ) {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+:is(.client-card, .workout-card, .ops-stat):not(:is(.meeting-practice, .live-studio) *) {
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
+}
+:is(.client-card, .workout-card, .ops-stat):not(:is(.meeting-practice, .live-studio) *):hover {
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+.inline-notice:not(:is(.meeting-practice, .live-studio) *) {
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.inline-error:not(:is(.meeting-practice, .live-studio) *) {
+  border: 1px solid #f3c7c3;
+  border-radius: 12px;
+  background: var(--danger-soft);
+  color: #8a1c15;
+}
+
+/* ---------- Badges ---------- */
+:is(.pill, .ops-badge):not(:is(.meeting-practice, .live-studio) *) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.pill.live-pill {
+  background: var(--accent);
+  color: #1a2e05;
+}
+
+/* ---------- Metrics ---------- */
+:is(.stat-card, .ops-stat) > strong,
+.operations-insights-grid strong,
+.progress-metric strong {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+:is(.stat-card, .ops-stat) > div > span:first-child {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+:is(.stat-card, .ops-stat) > small {
+  color: var(--text-3);
+}
+.ops-stat-icon {
+  border-radius: 10px;
+}
+
+/* ---------- Tables ---------- */
+.ops-table th,
+.coach-workload th {
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-1);
+}
+.ops-table td,
+.coach-workload td {
+  border-bottom: 1px solid var(--border-1);
+  color: var(--text-1);
+}
+.ops-table tbody tr {
+  transition: background var(--dur-fast) var(--ease);
+}
+.ops-table tbody tr:hover {
+  background: #fafaf9;
+}
+
+/* ---------- Segmented controls and tabs ---------- */
+.segmented:not(:is(.meeting-practice, .live-studio) *) {
+  padding: 4px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+}
+.segmented:not(:is(.meeting-practice, .live-studio) *) button {
+  min-height: 34px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.segmented:not(:is(.meeting-practice, .live-studio) *) button.selected {
+  background: var(--surface-1);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+}
+
+/* ---------- Page header ---------- */
+.page-heading,
+.ops-heading {
+  margin: 0 0 28px;
+  gap: 24px;
+}
+:is(.page-heading .eyebrow, .ops-eyebrow) {
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.page-heading .eyebrow::before,
+.ops-eyebrow > span {
+  background: #84cc16;
+}
+:is(.page-heading, .ops-heading) h1 {
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+:is(.page-heading, .ops-heading) p {
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+}
+.greeting-spark {
+  display: none;
+}
+
+/* ---------- Modal ---------- */
+.modal:not(:is(.meeting-practice, .live-studio) *) {
+  border: 1px solid var(--border-1);
+  border-radius: 20px;
+  box-shadow: var(--shadow-3);
+}
+.modal::backdrop {
+  background: rgb(17 17 17 / 40%);
+  backdrop-filter: blur(2px);
+}
+
+/* ---------- App shell ---------- */
+.sidebar {
+  width: 248px;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border-1);
+}
+.main-shell {
+  margin-left: 248px;
+  width: calc(100% - 248px);
+}
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 224px;
+  }
+  .main-shell {
+    margin-left: 224px;
+    width: calc(100% - 224px);
+  }
+}
+@media (max-width: 760px) {
+  .sidebar {
+    width: min(300px, calc(100vw - 48px));
+  }
+  .main-shell {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+.sidebar .brand-link {
+  margin: 20px 20px 16px;
+}
+.sidebar .brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-1);
+}
+.sidebar .studio-selector {
+  margin: 0 12px 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  background: var(--surface-1);
+  transition: background var(--dur-fast) var(--ease);
+}
+.sidebar .studio-selector:hover {
+  background: var(--surface-2);
+}
+.studio-monogram {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--brand);
+  color: var(--accent);
+  font-size: var(--fs-md);
+}
+.studio-selector strong {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+.studio-selector small {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+.sidebar nav {
+  padding: 0 12px;
+}
+.nav-group + .nav-group {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-1);
+}
+.nav-label {
+  display: block;
+  margin: 0 10px 6px;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sidebar .nav-item {
+  min-width: 0;
+  min-height: 38px;
+  margin: 0 0 2px;
+  padding: 8px 10px;
+  gap: 10px;
+  border-radius: 9px;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  white-space: normal;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.sidebar .nav-item > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar .nav-item:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+.sidebar .nav-item.active {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+}
+.sidebar .nav-item.active svg {
+  color: var(--accent);
+}
+.sidebar .nav-item small {
+  flex-shrink: 0;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-align: center;
+}
+.sidebar .nav-item.active small {
+  background: rgb(255 255 255 / 16%);
+  color: #fff;
+}
+@media (pointer: coarse) {
+  .sidebar .nav-item {
+    min-height: 44px;
+  }
+}
+.sidebar .sidebar-account {
+  border-top: 1px solid var(--border-1);
+  background: var(--surface-1);
+}
+.sidebar-account .profile-button strong {
+  color: var(--text-1);
+  font-size: var(--fs-md);
+}
+.sidebar-account .profile-button small {
+  color: var(--text-3);
+}
+.sidebar-account-action:hover,
+.sidebar-account-action.active {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+.topbar {
+  height: 64px;
+  padding: 0 32px;
+  background: rgb(255 255 255 / 85%);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--border-1);
+  position: sticky;
+  top: 0;
+  z-index: 15;
+}
+.breadcrumb {
+  color: var(--text-3);
+  font-size: var(--fs-md);
+  gap: 10px;
+}
+.breadcrumb > .breadcrumb-root {
+  color: var(--text-3);
+}
+.breadcrumb strong {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.breadcrumb > span[aria-hidden] {
+  color: var(--border-2);
+}
+.top-actions {
+  gap: 10px;
+}
+.search-wrap {
+  width: 260px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.search-wrap:focus-within {
+  border-color: var(--text-1);
+  background: var(--surface-1);
+}
+.search-wrap input,
+.search-wrap input:focus {
+  min-height: 32px !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: var(--fs-md);
+}
+.search-wrap kbd {
+  border-color: var(--border-2);
+  border-radius: 6px;
+  background: var(--surface-1);
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+}
+.notification-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text-2);
+}
+.notification-button i {
+  background: #84cc16;
+  border-color: #fff;
+}
+.demo-banner {
+  padding: 8px 32px;
+  background: var(--brand);
+  border: 0;
+  color: #d4d4d0;
+  font-size: var(--fs-sm);
+}
+.demo-banner > a {
+  color: var(--accent);
+}
+.workspace-content:not(.studio-content):not(:has(.meeting-practice)) {
+  max-width: 1320px;
+  padding: 32px 40px 40px;
+}
+@media (max-width: 1200px) {
+  .workspace-content:not(.studio-content):not(:has(.meeting-practice)) {
+    padding: 28px 28px 36px;
+  }
+}
+@media (max-width: 760px) {
+  .topbar {
+    padding: 0 16px;
+    height: 60px;
+  }
+  .demo-banner {
+    padding: 8px 16px;
+  }
+  .workspace-content:not(.studio-content):not(:has(.meeting-practice)) {
+    padding: 20px 16px 28px;
+  }
+  .search-wrap {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .search-wrap kbd {
+    display: none;
+  }
+}
+.mobile-quick-access {
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-top: 1px solid var(--border-1);
+}

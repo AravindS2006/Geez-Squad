@@ -179,7 +179,7 @@ export function TrainingProgress({
       <div className="progress-toolbar">
         <div>
           <span className="eyebrow">TRAINING & CONSISTENCY</span>
-          <h1>Your progress, measured.</h1>
+          <h1>Insights</h1>
           <p>Completed sets, observed movement, and coach-supported progress.</p>
         </div>
         <button

@@ -40,7 +40,7 @@ export function CameraPractice({ data }: { data: WorkspaceData }) {
         </Link>
         <div>
           <span className="eyebrow">CAMERA PRACTICE</span>
-          <h1>Your space to move.</h1>
+          <h1>Camera practice</h1>
         </div>
         <label>
           Movement

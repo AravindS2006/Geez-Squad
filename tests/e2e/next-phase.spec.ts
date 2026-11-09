@@ -33,9 +33,7 @@ test('returning member resumes the workspace and can manage a private nutrition 
     await page.goto('http://localhost:3000/login?mode=verify');
     await expect(page).toHaveURL(/\/app/);
     await page.getByRole('link', { name: 'Nutrition', exact: true }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Small habits. A stronger you.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Nutrition', exact: true })).toBeVisible();
     await expect(page.getByLabel('Share my nutrition journal')).not.toBeChecked();
     await page.getByLabel('Food or drink', { exact: true }).fill('Oats and fruit');
     await page.getByLabel('Energy (kcal)', { exact: true }).fill('350');

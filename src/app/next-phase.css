@@ -11,7 +11,7 @@
   font-size: 21px;
 }
 .nutrition-workspace p {
-  color: #53614c;
+  color: #4f4f4c;
   line-height: 1.6;
 }
 .nutrition-toolbar,
@@ -32,11 +32,11 @@
 .nutrition-workspace select,
 .nutrition-workspace textarea {
   min-height: 46px;
-  border: 1px solid #b5bfac;
+  border: 1px solid #bcbbb8;
   border-radius: 8px;
   background: #fff;
   padding: 10px 12px;
-  color: #263321;
+  color: #282725;
   width: 100%;
   max-width: 100%;
 }
@@ -49,7 +49,7 @@
   gap: 12px;
   align-items: center;
   padding: 16px;
-  background: #edf2e6;
+  background: #f0f0ed;
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: var(--fs-base);
@@ -74,7 +74,7 @@
   gap: 10px;
 }
 .nutrition-stats article > span {
-  color: #53614c;
+  color: #4f4f4c;
   font-size: var(--fs-md);
 }
 .nutrition-stats strong {
@@ -83,7 +83,7 @@
 }
 .nutrition-stats small,
 .nutrition-workspace small {
-  color: #53614c;
+  color: #4f4f4c;
   line-height: 1.5;
 }
 .nutrition-grid {
@@ -145,7 +145,7 @@
   flex-direction: column;
   gap: 8px;
   text-align: center;
-  background: #f0f4e9;
+  background: #f3f2ef;
   padding: 14px 6px;
   border-radius: 8px;
 }
@@ -163,9 +163,9 @@
   z-index: 1000;
   max-width: calc(100% - 24px);
   padding: 12px 20px;
-  border: 1px solid #d1ed9e;
+  border: 1px solid #bbf760;
   border-radius: 12px;
-  background: #263321;
+  background: #282725;
   color: #fff;
   font-size: var(--fs-md);
   box-shadow: 0 6px 24px #0003;
@@ -176,9 +176,9 @@
   right: 18px;
   top: max(10px, env(safe-area-inset-top));
   max-width: 300px;
-  background: #f4f8ed;
-  color: #263321;
-  border: 1px solid #b5bfac;
+  background: #f7f6f3;
+  color: #282725;
+  border: 1px solid #bcbbb8;
   border-radius: 10px;
   font-size: var(--fs-md);
   box-shadow: 0 4px 18px #0001;
@@ -207,7 +207,7 @@
   margin: 0;
   border: 0;
   background: transparent;
-  color: #263321;
+  color: #282725;
   cursor: pointer;
 }
 body:has([aria-modal='true']) .app-install {
@@ -250,7 +250,7 @@ body:has([aria-modal='true']) .app-install {
 .operations-insights-grid small {
   font-size: var(--fs-md);
   line-height: 1.5;
-  color: #53614c;
+  color: #4f4f4c;
 }
 .coach-workload {
   width: 100%;

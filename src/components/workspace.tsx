@@ -814,15 +814,15 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">LET’S MAKE MOVEMENT MATTER</span>
+                  <span className="eyebrow">{coach ? 'COACHING' : 'YOUR TRAINING'}</span>
                   <h1>
-                    {coach ? 'A good day to make progress.' : 'Your next chapter starts here.'}
+                    {coach ? 'Coaching overview' : `Welcome back, ${data.user.name.split(' ')[0]}`}
                     <span className="greeting-spark">✳</span>
                   </h1>
                   <p>
                     {coach
-                      ? `Welcome back, ${data.user.name.split(' ')[0]}. A little guidance. A lot of possibility.`
-                      : `Welcome, ${data.user.name.split(' ')[0]}. Show up for yourself, one session at a time.`}
+                      ? 'Your sessions, clients who need attention, and recent check-ins.'
+                      : 'Your next session, assigned plan, and progress at a glance.'}
                   </p>
                 </div>
                 <button
@@ -1053,8 +1053,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'clients' && (
             <>
               <PageHeading
-                eyebrow="GROW TOGETHER"
-                title="People make the progress."
+                eyebrow="COACHING"
+                title="Coaching clients"
                 text="A clear view of every person you coach."
                 action={
                   admin ? (
@@ -1136,8 +1136,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'sessions' && (
             <>
               <PageHeading
-                eyebrow="A LITTLE STRUCTURE. A LOT OF PROGRESS."
-                title="Make time for movement."
+                eyebrow="LIVE COACHING"
+                title="Live sessions"
                 text="Your coaching calendar, all in one place."
                 action={
                   coach ? (
@@ -1192,8 +1192,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'plans' && (
             <>
               <PageHeading
-                eyebrow="TRAIN WITH INTENTION"
-                title="Good plans. Better movement."
+                eyebrow="PROGRAMMING"
+                title="Workout plans"
                 text="Give every session a clear purpose."
                 action={
                   coach ? (
@@ -1312,8 +1312,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'settings' && (
             <>
               <PageHeading
-                eyebrow="YOUR SPACE, YOUR WAY"
-                title="Make yourself at home."
+                eyebrow="ACCOUNT"
+                title="Settings"
                 text="Manage your profile, membership, and privacy."
               />
               <div className="settings-grid">
@@ -1837,7 +1837,7 @@ function SessionRows({
   if (!classes.length)
     return (
       <EmptyState
-        title="A little space for what’s next."
+        title="No sessions here yet"
         text="Sessions will appear here when they’re scheduled or completed."
       />
     );

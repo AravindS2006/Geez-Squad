@@ -1,16 +1,16 @@
 .auth-studio.auth-page {
   min-height: 100svh;
-  background: #faf9f5;
-  color: #203b30;
+  background: #faf9f6;
+  color: #2d2c2a;
   grid-template-columns: 1fr 1fr;
 }
 .auth-studio .auth-story {
   padding: 38px 9% 30px;
-  background: #203b30;
-  color: #faf9f5;
+  background: #2d2c2a;
+  color: #faf9f6;
 }
 .auth-studio .auth-story .brand {
-  color: #faf9f5;
+  color: #faf9f6;
   font-size: 25px;
 }
 .auth-studio .auth-story > div {
@@ -23,17 +23,17 @@
   margin: 20px 0;
 }
 .auth-studio .auth-story h2 em {
-  color: #d6ee9b;
+  color: #bdf961;
   font-weight: 400;
 }
 .auth-studio .auth-story p {
-  color: #d7dfd7;
+  color: #dddcd9;
   font-size: 15px;
   max-width: 350px;
 }
 .auth-studio .auth-story .eyebrow,
 .auth-studio .auth-story .auth-foot {
-  color: #d7dfd7;
+  color: #dddcd9;
   font-size: var(--fs-xs);
 }
 .auth-photo {
@@ -49,7 +49,7 @@
 .auth-studio .auth-benefits {
   gap: 16px;
   flex-wrap: wrap;
-  color: #d7dfd7;
+  color: #dddcd9;
   margin-top: 23px;
 }
 .auth-studio .auth-content {
@@ -81,12 +81,12 @@
 .auth-studio .auth-form input {
   background: #fff;
   min-height: 50px;
-  border-color: #d4dbd1;
+  border-color: #d9d8d6;
   border-radius: 8px;
   font-size: 15px;
 }
 .auth-studio .auth-form input:focus {
-  outline: 2px solid #52794a;
+  outline: 2px solid #5e5e5b;
   outline-offset: 2px;
 }
 .auth-studio .auth-form .full {
@@ -126,7 +126,7 @@
   gap: 20px;
   justify-content: space-between;
   padding: 20px 0;
-  border-top: 1px solid #e1e6dc;
+  border-top: 1px solid #e5e4e1;
 }
 .studio-request p {
   max-width: 650px;

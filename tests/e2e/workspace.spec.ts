@@ -5,7 +5,7 @@ test('sample studio supports navigation, plan edits, scheduling, and an isolated
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/demo');
-  await expect(page.getByRole('heading', { name: 'A stronger studio starts here.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Studio overview', exact: true })).toBeVisible();
   await expect(
     page.getByText('All client data and history are illustrative.', { exact: false }),
   ).toBeVisible();
@@ -51,7 +51,7 @@ test('mobile navigation closes with its close button, backdrop, Escape, and Sett
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/demo');
-  await expect(page.getByRole('heading', { name: 'A stronger studio starts here.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Studio overview', exact: true })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     JSON.stringify(
@@ -85,7 +85,7 @@ test('mobile navigation closes with its close button, backdrop, Escape, and Sett
   await expect(page.getByRole('dialog', { name: 'Workspace navigation' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('link', { name: /Coaching clients/ }).click();
-  await expect(page.getByRole('heading', { name: 'People make the progress.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Coaching clients', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

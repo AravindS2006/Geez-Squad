@@ -87,6 +87,14 @@ type CoachVideoLayout = {
   position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 };
 const coachVideoPreferenceKey = 'geez-squad:coach-video-layout:v1';
+/** Phones keep the coach floating so the trainee's own camera stays the main view. */
+const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
+/** A coach cue stays readable for this long, then gives the screen back (chat keeps it). */
+const CUE_VISIBLE_MS = 20000;
+/** Polling interval while the tab is hidden (analysis is already stopped there). */
+const HIDDEN_POLL_MS = 15000;
+/** Unchanged live summaries are re-sent this often; coach freshness is 12 s. */
+const METRIC_HEARTBEAT_MS = 9000;
 export function Studio({
   initialClass,
   user,
@@ -170,6 +178,7 @@ export function Studio({
     minimized: false,
     position: 'top-right',
   });
+  const [dismissedCueId, setDismissedCueId] = useState<string | null>(null);
   const [cameraHeight, setCameraHeight] = useState(0);
   const [cameraTop, setCameraTop] = useState(0);
   const onCameraBounds = useCallback((height: number, top: number) => {
@@ -207,6 +216,7 @@ export function Studio({
     current = useRef(item),
     latestAnalysis = useRef<{ value: Analysis; at: number } | null>(null),
     lastShared = useRef(0),
+    lastSharedBody = useRef(''),
     metricBusy = useRef(false),
     mounted = useRef(true),
     joinGeneration = useRef(0);
@@ -266,6 +276,8 @@ export function Studio({
             ? saved.position
             : 'top-right',
         });
+      else if (window.matchMedia?.(compactRoomQuery).matches)
+        setCoachVideoLayout((layout) => ({ ...layout, size: 'small' }));
     } catch {
       // The meeting remains usable when device storage is unavailable.
     }
@@ -335,12 +347,23 @@ export function Studio({
           );
         }
       }
-      if (active) timer = setTimeout(poll, Math.min(15000, 3000 * (failures + 1)));
+      if (active)
+        timer = setTimeout(
+          poll,
+          document.hidden ? HIDDEN_POLL_MS : Math.min(15000, 3000 * (failures + 1)),
+        );
     }
+    const resume = () => {
+      if (!active || document.hidden) return;
+      clearTimeout(timer);
+      void poll();
+    };
     void poll();
+    document.addEventListener('visibilitychange', resume);
     return () => {
       active = false;
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', resume);
     };
   }, [demo, initialClass?.id, refreshSignal]);
   useEffect(() => {
@@ -350,6 +373,7 @@ export function Studio({
   useEffect(() => {
     latestAnalysis.current = null;
     lastShared.current = 0;
+    lastSharedBody.current = '';
   }, [item?.revision, item?.exercise]);
   useEffect(() => {
     if (demo || coach) return;
@@ -378,36 +402,43 @@ export function Studio({
               cue: 'Camera analysis is unavailable. Re-enable your camera.',
             };
       if (Date.now() - snapshot.at >= 2000) reportCoachingHealth('stale_summary', consent && !demo);
+      const summary = {
+        classId: c.id,
+        exercise: c.exercise,
+        revision: c.revision,
+        reps: a.reps,
+        holdSeconds: a.holdSeconds,
+        score: a.score,
+        confidence: a.confidence,
+        phase: a.phase,
+        cue: a.cue,
+        quality: a.lastRepQuality ?? null,
+        rangeDegrees: a.rangeDegrees ?? null,
+        repSeconds: a.lastRepSeconds ?? null,
+        trackingCoverage: a.trackingCoverage ?? null,
+        rejectedReps: a.rejectedReps ?? 0,
+        schemaVersion: 2,
+        blockId: c.activeBlockId ?? null,
+        armMode: a.armMode ?? null,
+        arms: a.arms ?? null,
+        technique: a.technique ?? null,
+        measurementSource: a.measurementSource ?? 'automatic',
+        targetUnit: a.targetUnit,
+      };
+      const body = JSON.stringify(summary);
+      // An unchanged summary is only re-sent as a heartbeat, often enough that the
+      // coach view (12 s freshness window) keeps showing the trainee as live.
+      if (body === lastSharedBody.current && Date.now() - lastShared.current < METRIC_HEARTBEAT_MS)
+        return;
       metricBusy.current = true;
       lastShared.current = Date.now();
       try {
         await fetchJson('/api/metrics', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            classId: c.id,
-            exercise: c.exercise,
-            revision: c.revision,
-            reps: a.reps,
-            holdSeconds: a.holdSeconds,
-            score: a.score,
-            confidence: a.confidence,
-            phase: a.phase,
-            cue: a.cue,
-            quality: a.lastRepQuality ?? null,
-            rangeDegrees: a.rangeDegrees ?? null,
-            repSeconds: a.lastRepSeconds ?? null,
-            trackingCoverage: a.trackingCoverage ?? null,
-            rejectedReps: a.rejectedReps ?? 0,
-            schemaVersion: 2,
-            blockId: c.activeBlockId ?? null,
-            armMode: a.armMode ?? null,
-            arms: a.arms ?? null,
-            technique: a.technique ?? null,
-            measurementSource: a.measurementSource ?? 'automatic',
-            targetUnit: a.targetUnit,
-          }),
+          body,
         });
+        lastSharedBody.current = body;
         setAnalysisWarning('');
       } catch (err) {
         setAnalysisWarning(
@@ -791,6 +822,14 @@ export function Studio({
       // Sizing still works without saving a device preference.
     }
   }
+  const latestCueId = [...messages]
+    .reverse()
+    .find((m) => m.kind === 'cue' && (!m.recipientId || m.recipientId === user.id))?.id;
+  useEffect(() => {
+    if (!latestCueId) return;
+    const timer = window.setTimeout(() => setDismissedCueId(latestCueId), CUE_VISIBLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [latestCueId]);
   if (!item)
     return (
       <EmptyState
@@ -811,6 +850,7 @@ export function Studio({
   const lastCue = [...messages]
     .reverse()
     .find((m) => m.kind === 'cue' && (!m.recipientId || m.recipientId === user.id));
+  const visibleCue = lastCue && lastCue.id !== dismissedCueId ? lastCue : null;
   const sessionDetails = (
     <>
       <div className="meeting-schedule-bar">
@@ -1270,10 +1310,18 @@ export function Studio({
               </div>
             )}
           </div>
-          {!coach && lastCue && (
+          {!coach && visibleCue && (
             <div className="human-cue meeting-human-cue" role="status">
               <strong>{item.coachName}</strong>
-              <p>{lastCue.text}</p>
+              <p>{visibleCue.text}</p>
+              <button
+                className="meeting-cue-dismiss"
+                aria-label="Dismiss coach message"
+                title="Dismiss (the message stays in chat)"
+                onClick={() => setDismissedCueId(visibleCue.id)}
+              >
+                <X size={16} />
+              </button>
             </div>
           )}
           <footer className="meeting-dock" aria-label="Meeting controls">

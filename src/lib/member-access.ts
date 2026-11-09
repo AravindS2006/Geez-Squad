@@ -16,15 +16,14 @@ export async function participation(
   date = studioToday(),
   store: Store = db,
 ) {
-  const member = await store.studioMember.findUnique({
-    where: { studioId_userId: { studioId, userId } },
-  });
-  const accepted = await store.membership.findUnique({
-    where: { studioId_userId: { studioId, userId } },
-  });
-  const grant = await store.studioRoleGrant.findUnique({
-    where: { studioId_userId_role: { studioId, userId, role: 'trainee' } },
-  });
+  // Independent lookups; inside a transaction Prisma still runs them on its one connection.
+  const [member, accepted, grant] = await Promise.all([
+    store.studioMember.findUnique({ where: { studioId_userId: { studioId, userId } } }),
+    store.membership.findUnique({ where: { studioId_userId: { studioId, userId } } }),
+    store.studioRoleGrant.findUnique({
+      where: { studioId_userId_role: { studioId, userId, role: 'trainee' } },
+    }),
+  ]);
   if (!member || !accepted || (grant && grant.status !== 'active'))
     return { allowed: false, reason: 'Accept your studio request to participate.' };
   if (member.status !== 'active')

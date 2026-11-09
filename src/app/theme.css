@@ -8,19 +8,16 @@
 /* ---------- Base ---------- */
 body {
   background: var(--surface-app);
-  color: var(--text-1);
   font-size: var(--fs-base);
   letter-spacing: -0.006em;
   text-rendering: optimizeLegibility;
 }
-h1,
-h2,
-h3 {
+:is(h1, h2, h3):not(:is(.meeting-practice, .live-studio) *) {
   color: var(--text-1);
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-p {
+p:not(:is(.meeting-practice, .live-studio) *) {
   color: var(--text-2);
 }
 ::selection {
@@ -101,8 +98,8 @@ p {
 
 /* ---------- Fields ---------- */
 :is(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea):not(
-    :is(.meeting-practice, .live-studio) *
-  ) {
+  :is(.meeting-practice, .live-studio) *
+) {
   min-height: 40px;
   border: 1px solid var(--border-2);
   border-radius: 10px;
@@ -129,15 +126,15 @@ input[type='checkbox'],
 input[type='radio'] {
   accent-color: var(--brand);
 }
-label {
+label:not(:is(.meeting-practice, .live-studio) *) {
   color: var(--text-2);
   font-weight: 500;
 }
 
 /* ---------- Surfaces ---------- */
 :is(.panel, .ops-card, .stat-card, .ops-stat, .client-card, .workout-card, .session-list):not(
-    :is(.meeting-practice, .live-studio) *
-  ) {
+  :is(.meeting-practice, .live-studio) *
+) {
   background: var(--surface-1);
   border: 1px solid var(--border-1);
   border-radius: var(--radius-lg);
@@ -561,4 +558,88 @@ label {
   background: rgb(255 255 255 / 92%);
   backdrop-filter: saturate(1.4) blur(10px);
   border-top: 1px solid var(--border-1);
+}
+
+/* ---------- Next-session hero: ink card, lime action ---------- */
+.session-hero {
+  min-height: 0;
+  padding: 28px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgb(190 242 100 / 18%), transparent 55%), var(--brand);
+  color: #fff;
+}
+.session-hero .motion-art,
+.session-hero .hero-decoration {
+  display: none;
+}
+.session-hero .hero-copy {
+  max-width: none;
+}
+.session-hero .hero-kicker {
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.session-hero .status-dot {
+  background: var(--accent);
+}
+.session-hero .hero-copy h2 {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.session-hero .hero-copy p {
+  color: #c9c9c4;
+  font-size: var(--fs-md);
+}
+.session-hero .avatar-stack .avatar {
+  border-color: var(--brand);
+}
+.session-hero .avatar-stack > span:last-child:not(.avatar) {
+  color: #d4d4d0;
+}
+.session-hero .button.dark {
+  background: var(--accent);
+  color: #1a2e05;
+}
+.session-hero .button.dark:hover:not(:disabled) {
+  background: #a3e635;
+}
+
+/* ---------- Workout plan covers: quiet, typographic ---------- */
+.workout-cover {
+  height: 120px;
+  background: var(--surface-2) !important;
+  border-bottom: 1px solid var(--border-1);
+}
+.workout-cover.lime {
+  background:
+    radial-gradient(120% 120% at 100% 100%, rgb(190 242 100 / 45%), transparent 60%),
+    var(--surface-2) !important;
+}
+.workout-cover > .exercise-art {
+  position: absolute;
+  right: 18px;
+  bottom: 14px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  color: var(--text-1);
+  stroke-width: 1.5;
+}
+.workout-cover > .pill {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  color: var(--text-1);
+  letter-spacing: 0.04em;
+}
+.workout-info .eyebrow {
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+}
+.workout-info h3 {
+  font-size: 17px;
 }

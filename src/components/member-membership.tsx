@@ -48,7 +48,7 @@ export function MemberMembership() {
       {rows.map((m) => {
         const term = selectCurrentTerm(m.terms, today);
         const due = m.terms
-          .filter((t) => t.status !== 'cancelled')
+          .filter((t) => t.status !== 'cancelled' && t.startsOn <= today)
           .reduce(
             (s, t) =>
               s + Math.max(0, t.feePaise - t.payments.reduce((s, p) => s + p.amountPaise, 0)),
@@ -58,7 +58,7 @@ export function MemberMembership() {
           <div key={m.id}>
             <div>
               <strong>
-                {m.studio.name} · {term?.planName || 'No plan assigned'}
+                {m.studio.name} · {term?.planName || 'No membership yet'}
               </strong>
               <p>
                 {term
@@ -70,9 +70,11 @@ export function MemberMembership() {
                   ? 'Active'
                   : m.status !== 'active'
                     ? m.status
-                    : term && term.startsOn > today
-                      ? 'Upcoming'
-                      : 'Membership ended'}
+                    : !term
+                      ? 'No membership'
+                      : term.startsOn > today
+                        ? 'Upcoming'
+                        : 'Membership ended'}
               </span>
             </div>
             <div>

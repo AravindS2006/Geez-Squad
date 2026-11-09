@@ -286,7 +286,9 @@ export function TrainingProgress({
           <label>
             Client
             <select value={client} onChange={(event) => setClient(event.target.value)}>
-              <option value="all">All studio trainees</option>
+              <option value="all">
+                {data.permissions?.admin || data.demo ? 'All studio trainees' : 'All your trainees'}
+              </option>
               <option value={data.user.id}>My practice</option>
               {data.clients.map((person) => (
                 <option value={person.id} key={person.id}>

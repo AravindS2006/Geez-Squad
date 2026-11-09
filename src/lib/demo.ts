@@ -89,7 +89,7 @@ export function demoData(): WorkspaceData {
         endedAt: new Date(Date.now() - n * 86400000).toISOString(),
         coachId: 'demo-coach',
         coachName: 'Alex Morgan',
-        planId: 'foundation',
+        planId: n === 2 ? 'upper' : 'foundation',
         participants: clients.slice(0, 4).map((c, i) => ({
           id: c.id,
           name: c.name,

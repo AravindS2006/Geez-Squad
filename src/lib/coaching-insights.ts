@@ -46,16 +46,24 @@ export function traineeInsight(data: WorkspaceData, person: ClientView, now = Da
   };
 }
 
+/** Live now, or scheduled and not yet over. Missed scheduled classes are excluded. */
+export function isUpcomingSession(
+  item: { status: string; startsAt: string; duration: number },
+  now = Date.now(),
+) {
+  return (
+    item.status === 'live' ||
+    (item.status === 'scheduled' && Date.parse(item.startsAt) + item.duration * 60000 > now)
+  );
+}
+
 export function coachingOverview(data: WorkspaceData, timeZone = 'UTC', now = Date.now()) {
   const coach = data.user.role === 'coach';
   const trainees = data.clients.map((person) => traineeInsight(data, person, now));
   const upcoming = data.classes.filter(
-    (item) =>
-      item.status === 'live' ||
-      (item.status === 'scheduled' &&
-        Date.parse(item.startsAt) >= now &&
-        Date.parse(item.startsAt) <= now + 7 * 86400000),
+    (item) => isUpcomingSession(item, now) && Date.parse(item.startsAt) <= now + 7 * 86400000,
   );
+  const studioWide = data.permissions?.admin ?? data.demo === true;
   const ownSets = data.workoutSets.filter(
     (set) =>
       set.userId === data.user.id &&
@@ -82,9 +90,9 @@ export function coachingOverview(data: WorkspaceData, timeZone = 'UTC', now = Da
     cards: coach
       ? [
           {
-            label: 'Studio trainees',
+            label: studioWide ? 'Studio trainees' : 'Your trainees',
             value: data.clients.length,
-            detail: 'Current studio members',
+            detail: studioWide ? 'Current studio members' : 'Trainees assigned to you',
           },
           {
             label: 'Upcoming sessions',

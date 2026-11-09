@@ -9,7 +9,14 @@ import { planBlocks } from '@/lib/workout-run';
 import { ExerciseArt } from './ui';
 import { WorkoutPlayer } from './workout-player';
 import styles from './camera-practice.module.css';
-export function CameraPractice({ data }: { data: WorkspaceData }) {
+export function CameraPractice({
+  data,
+  initialExercise,
+}: {
+  data: WorkspaceData;
+  /** Movement picked from the library; takes precedence over the assigned plan. */
+  initialExercise?: ClassView['exercise'];
+}) {
   const assignment = data.assignments.find((a) => a.userId === data.user.id);
   const rawPlan = data.plans.find((p) => p.id === assignment?.planId);
   const plan = useMemo(
@@ -18,10 +25,10 @@ export function CameraPractice({ data }: { data: WorkspaceData }) {
   );
   const [guideOpen, setGuideOpen] = useState(false);
   const [exercise, setExercise] = useState<ClassView['exercise']>(
-    plan?.blocks[0]?.exercise ?? 'squat',
+    initialExercise ?? plan?.blocks[0]?.exercise ?? 'squat',
   );
   const [saveHistory, setSaveHistory] = useState(false);
-  const [assignedBlock, setAssignedBlock] = useState(plan ? 0 : -1);
+  const [assignedBlock, setAssignedBlock] = useState(plan && !initialExercise ? 0 : -1);
   const [readyNext, setReadyNext] = useState(false);
   const [runId] = useState(() => crypto.randomUUID());
   const definition = exerciseDefinition(exercise, data.customExercises);
@@ -194,7 +201,11 @@ export function CameraPractice({ data }: { data: WorkspaceData }) {
               </button>
             ) : (
               readyNext && (
-                <p role="status">Assigned workout finished. Review your saved sets in Insights.</p>
+                <p role="status">
+                  {saveHistory
+                    ? 'Assigned workout finished. Review your saved sets in Insights.'
+                    : 'Assigned workout finished. Turn on saving next time to keep these sets in Insights.'}
+                </p>
               )
             )}
           </section>

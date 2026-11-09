@@ -60,7 +60,7 @@ import { TrainingProgress, CheckInForm, ClientCoaching } from './training-progre
 import { ScheduleForm } from './session-form';
 import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
-import { coachingOverview } from '@/lib/coaching-insights';
+import { coachingOverview, isUpcomingSession } from '@/lib/coaching-insights';
 import { compareSessions } from '@/lib/session-timing';
 import { StudioOperations } from './studio-operations';
 import { StudioJoinRequests } from './studio-join-requests';
@@ -295,10 +295,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
       : coach && !admin
         ? 'coaching'
         : 'dashboard';
+  const [practiceExercise, setPracticeExercise] = useState<ClassView['exercise']>();
+  useEffect(() => {
+    if (activeView !== 'practice') setPracticeExercise(undefined);
+  }, [activeView]);
   const showQuickAccess = !['studio', 'practice'].includes(activeView);
-  const upcoming = data.classes
-    .filter((c) => c.status === 'scheduled' || c.status === 'live')
-    .sort(compareSessions);
+  const upcoming = data.classes.filter((c) => isUpcomingSession(c)).sort(compareSessions);
   const history = data.classes
     .filter((c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - 30 * 86400000)
     .sort(compareSessions);
@@ -547,7 +549,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
   }
   async function openClass(c: ClassView) {
     if (data.demo) {
-      setActiveClass({ ...c, status: 'live', startedAt: new Date().toISOString() });
+      // The sample room previews a running class; finished classes open as they are.
+      setActiveClass(
+        c.status === 'scheduled' || c.status === 'live'
+          ? { ...c, status: 'live', startedAt: c.startedAt ?? new Date().toISOString() }
+          : c,
+      );
       go('studio');
       return;
     }
@@ -740,7 +747,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             ![
               'clients',
               'plans',
-              'dashboard',
+              ...(admin ? ['dashboard'] : []),
               'members',
               'memberships',
               'attendance',
@@ -748,7 +755,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               'enquiries',
               'staff',
               'studio-details',
-              'classes',
+              ...(admin ? ['classes'] : []),
             ].includes(activeView) && (
               <div className="search-results panel">
                 <SectionTitle
@@ -902,8 +909,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                           <Avatar key={p.id} name={p.name} index={i} small />
                         ))}
                         <span>
-                          {upcoming[0].participants.length}{' '}
-                          {coach ? 'clients joining' : 'your enrollment'}
+                          {upcoming[0].participantCount ?? upcoming[0].participants.length}{' '}
+                          {coach ? 'enrolled' : 'enrolled including you'}
                         </span>
                       </div>
                     )}
@@ -1065,7 +1072,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 }
               />
               <div className="list-toolbar">
-                <span>{searchClients.length} clients in your studio</span>
+                <span>
+                  {searchClients.length === data.clients.length
+                    ? `${data.clients.length} ${admin ? 'clients in your studio' : 'trainees assigned to you'}`
+                    : `${searchClients.length} of ${data.clients.length} shown`}
+                </span>
                 <span className="pill">
                   <Users size={14} /> Active members
                 </span>
@@ -1275,6 +1286,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     className="exercise-tile"
                     key={e.id}
                     onClick={() => {
+                      setPracticeExercise(e.id as ClassView['exercise']);
                       go('practice');
                     }}
                   >
@@ -1409,7 +1421,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                       Payment services are{' '}
                       {data.services.billing
                         ? 'configured for your studio.'
-                        : 'not connected yet. Contact the studio admin for payment options.'}
+                        : 'not connected yet. Online payments will be available once a payment provider is configured for this studio. Record payments manually in Payments meanwhile.'}
                     </p>
                     <button
                       className="button outline"
@@ -1463,7 +1475,13 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               </div>
             </>
           )}
-          {activeView === 'practice' && <CameraPractice data={data} />}
+          {activeView === 'practice' && (
+            <CameraPractice
+              key={practiceExercise ?? 'default'}
+              data={data}
+              initialExercise={practiceExercise}
+            />
+          )}
           {activeView === 'nutrition' && <NutritionManager workspace={data} />}
           {activeView === 'studio' && (
             <Studio
@@ -1724,7 +1742,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               <p>
                 {data.demo
                   ? 'This sample shows the coaching experience. All people and history are illustrative. Use camera practice for actual local pose analysis.'
-                  : `You’re signed in as ${data.user.name}, with the ${data.user.role} role.`}
+                  : `You’re signed in as ${data.user.name}, with the ${admin ? 'admin' : coach ? 'coach' : 'trainee'} role.`}
               </p>
               <Link className="button lime" href={data.demo ? '/login' : '/app?view=settings'}>
                 {data.demo ? 'Create your own studio' : 'Manage your profile'}

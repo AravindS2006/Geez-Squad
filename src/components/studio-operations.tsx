@@ -65,6 +65,7 @@ type Editor = {
   kind: 'member' | 'offer' | 'term' | 'payment' | 'enquiry' | 'staff' | 'receipt';
   id?: string;
   memberId?: string;
+  offerId?: string;
   name?: string;
   phone?: string;
 };
@@ -371,7 +372,7 @@ export function StudioOperations({
           t?.planName || '',
           t?.endsOn || '',
           data!.terms
-            .filter((t) => t.memberId === m.id && t.status !== 'cancelled')
+            .filter((t) => t.memberId === m.id && t.status !== 'cancelled' && t.startsOn <= today)
             .reduce((s, t) => s + outstanding(t, data!.payments), 0) / 100,
         ];
       }),
@@ -399,8 +400,11 @@ export function StudioOperations({
               const t = currentTerm(data, m.id, today);
               const status =
                 m.status !== 'active' ? m.status : t ? termStatus(t, today) : 'no plan';
+              // Balance due counts terms that have started; upcoming renewals are not yet owed.
               const due = data.terms
-                .filter((t) => t.memberId === m.id && t.status !== 'cancelled')
+                .filter(
+                  (t) => t.memberId === m.id && t.status !== 'cancelled' && t.startsOn <= today,
+                )
                 .reduce((s, t) => s + outstanding(t, data.payments), 0);
               return (
                 <tr key={m.id}>
@@ -939,7 +943,7 @@ export function StudioOperations({
             </button>
           </div>
           <div className="ops-table-caption">
-            {members.length} members{query ? ` matching “${search}”` : ''}
+            {members.length} members{query ? ` matching “${localSearch || search}”` : ''}
           </div>
           {memberTable(members)}
         </section>
@@ -978,7 +982,7 @@ export function StudioOperations({
                     <button
                       className="button dark"
                       disabled={!p.active}
-                      onClick={() => open({ kind: 'term' })}
+                      onClick={() => open({ kind: 'term', offerId: p.id })}
                     >
                       Assign plan
                       <ArrowUpRight size={15} />
@@ -1397,7 +1401,13 @@ export function StudioOperations({
                       lost: 'Closed',
                     }[stage]
                   }
-                  <small>{data.enquiries.filter((e) => e.stage === stage).length}</small>
+                  <small>
+                    {
+                      data.enquiries.filter(
+                        (e) => e.stage === stage && matches(e.name, e.phone, e.interest),
+                      ).length
+                    }
+                  </small>
                 </h2>
                 {data.enquiries
                   .filter((e) => e.stage === stage && matches(e.name, e.phone, e.interest))
@@ -1883,7 +1893,7 @@ export function StudioOperations({
                     </select>
                   </Field>
                   <Field label="Membership plan">
-                    <select name="offerId" required defaultValue="">
+                    <select name="offerId" required defaultValue={editor.offerId ?? ''}>
                       <option value="" disabled>
                         Select a plan
                       </option>

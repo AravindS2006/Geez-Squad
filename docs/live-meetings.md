@@ -4,7 +4,7 @@ The website opens /app; signed-out visitors are sent to login. The sample worksp
 
 The coach opens a session, starts the class, and joins live video. Enrolled trainees join the same room after choosing their devices and agreeing to sharing. Microphones start off to reduce noise.
 
-The waiting room shows the scheduled time and local time zone and updates automatically when the coach reschedules or starts. Copy session link shares an authenticated room URL; sign-in returns to that room. During live calls, session details and link copying are in Options. Elapsed meeting time includes pauses and stops at the actual end timestamp; the planned duration does not automatically end the class. See the [session and exercise-record corrections](SESSION_RECORDS_2026-10-13.md).
+The waiting room shows the scheduled time and local time zone and updates automatically when the coach reschedules or starts. Copy session link shares an authenticated room URL; sign-in returns to that room. During live calls, session details and link copying are in Options. Elapsed meeting time includes pauses and stops at the actual end timestamp; the planned duration does not automatically end the class. See the [session and exercise-record corrections](archive/SESSION_RECORDS_2026-10-13.md).
 
 The coach's gallery shows up to 36 trainees per page, with a larger-tile option and pagination for larger classes. Selecting a trainee highlights their tile without hiding others. Each tile shows recent repetitions or plank hold time, a form estimate, tracking phase, and the latest correction. Stale or low-confidence scores are unavailable rather than presented as successful form.
 

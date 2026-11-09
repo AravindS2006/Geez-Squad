@@ -226,8 +226,8 @@ that old alert or suppress an unfamiliar new finding without investigation.
 - `COACHING_PHASE_2026-10-24.md`: measurement/data contracts, curated library,
   rollout switches, pilot targets and the initial phase's architecture acceptance map.
 - `DEPLOYMENT.md`, `OPERATIONS.md`, `SECURITY.md`: environment/recovery and secrets.
-- `BUG_AUDIT_2026-10-23.md`: account roles, assignments and feedback boundaries.
-- `pose-engine-v3.md`, `POSE_RELIABILITY_2026-10-13.md`: historical algorithm context;
+- `archive/BUG_AUDIT_2026-10-23.md`: account roles, assignments and feedback boundaries.
+- `pose-engine-v3.md`, `archive/POSE_RELIABILITY_2026-10-13.md`: historical algorithm context;
   inspect current implementation/rule versions before reusing old assumptions.
 
 Physical exercise validation, the device matrix (including iPhone Safari), and a

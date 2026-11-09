@@ -1,6 +1,6 @@
 # Geez Squad production setup status
 
-Updated 9 October 2026 for the Geez Squad release. The canonical app origin is [geez-squad.vercel.app](https://geez-squad.vercel.app). Full physical-device, accuracy and public-launch acceptance remain separate work; see [VERIFICATION.md](VERIFICATION.md).
+Updated 9 October 2026 for the Geez Squad release. The canonical app origin is [geez-squad.vercel.app](https://geez-squad.vercel.app). Full physical-device, accuracy and public-launch acceptance remain separate work; see [VERIFICATION.md](../VERIFICATION.md).
 
 | Item | Status |
 | --- | --- |

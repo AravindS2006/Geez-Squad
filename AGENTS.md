@@ -10,36 +10,34 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Geez Squad: agent entry point
 
-Read [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) before changing unfamiliar areas. It is
-the current architecture and workflow map; dated audits describe earlier releases.
-`CLAUDE.md` points here so agents share the same context. Follow the user's current
-scope and authorization instead of treating historical plans as unfinished tasks.
+Fitness studio + live video coaching app (Next.js App Router, React 19, Prisma,
+Better Auth, LiveKit, on-device MediaPipe). Keep this file short: it loads into every
+session. Open deeper docs only for the area you touch.
+
+## Read on demand
+
+| Touching | Open first |
+| --- | --- |
+| Anything unfamiliar | `docs/AI_HANDOFF.md` (architecture map, contracts, verification matrix) |
+| UI, tokens, primitives, views | `docs/AI_HANDOFF.md` → "UI system" |
+| Camera, pose, counting | `docs/AI_HANDOFF.md` → "Camera and counting contracts", `docs/COACHING_PHASE_2026-10-24.md` |
+| Deploy, env, email, LiveKit | `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md` |
+| Secrets, publishing | `SECURITY.md` |
+| Past decisions | `docs/archive/` (historical only; never treat as open tasks) |
 
 ## Working agreements
 
-- Keep the existing Next.js, React, Better Auth, Prisma, MediaPipe and LiveKit stack.
-  Use the Node 22.22+ runtime declared by `package.json`.
-- Read source and relevant installed Next.js guides before editing. Preserve the
-  generated block above; Next.js updates it during development.
-- Use a dedicated local database for verification. The `local-coaching-check.mjs`
-  runner isolates database, auth, provider settings and temporary files. Never run
-  fixture scripts against production, or print/publish environment values.
-- Keep camera ownership, worker/bitmap cleanup and stable video DOM nodes intact.
-  Count only observed frames; visual interpolation is never counting evidence.
-- Keep automatic counts monotonic, corrections append-only, and workout run/block
-  identities stable. Exercise selection and curl arm mode are explicit contracts.
-- Automatic exercises remain beta until physical pilot gates pass. Do not describe
-  synthetic landmark tests or fake-camera tests as physical accuracy validation.
-- Preserve studio, membership, assignment and private-cue authorization in every
-  API path. Staff job titles alone never grant application permissions.
-- Keep nutrition private by default and retain affirmative sharing/history consent.
-- Use scoped CSS modules for camera/meeting geometry. Do not add competing global
-  layout overrides. Preserve full-body `contain` sizing and safe-area controls.
-- Pair additive SQLite and PostgreSQL migrations. Preserve old records and queues;
-  never fabricate historical arm counts, load semantics, or validation results.
-- Run checks appropriate to the changed boundary; see the handoff verification
-  matrix. Review desktop, portrait and landscape for camera UI changes.
-- Run `npm run security:scan` before publication. Never bypass the installed
-  pre-push guard. Keep traces, cookies, keys, local databases and `.vercel/` ignored.
-- Record actual verification, remaining limitations and canonical documentation
-  changes in the delivery note. No secrets or private recordings belong in docs.
+- Keep the stack and Node ^22.22 from `package.json`. Read source and the installed
+  Next.js guide before editing; keep the generated block above.
+- Verify with the isolated runner `node scripts/local-coaching-check.mjs` (own DB/auth).
+  Never run fixtures against production or print environment values.
+- Camera: keep ownership, worker/bitmap cleanup and stable video DOM nodes. Count only
+  observed frames. Automatic exercises stay beta; synthetic tests are not accuracy proof.
+- Records: monotonic automatic counts, append-only corrections, stable run/block IDs.
+- Authorization: preserve studio, membership, assignment and private-cue checks in every
+  API path. Job titles never grant permissions. Nutrition is private by default.
+- Layout: camera/meeting geometry lives in CSS modules; keep `contain` sizing, safe
+  areas and 44px controls. New UI uses tokens + `src/components/ui/` primitives.
+- Schema: additive, paired SQLite + PostgreSQL migrations.
+- Before publishing: `npm run security:scan`; never bypass the pre-push guard. Record
+  actual checks and remaining limits in the delivery note.

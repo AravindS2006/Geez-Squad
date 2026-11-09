@@ -12,12 +12,13 @@ body {
   letter-spacing: -0.006em;
   text-rendering: optimizeLegibility;
 }
-:is(h1, h2, h3):not(:is(.meeting-practice, .live-studio) *) {
+/* Zero-specificity defaults: any component rule wins. */
+:where(h1, h2, h3):where(:not(:is(.meeting-practice, .live-studio) *)) {
   color: var(--text-1);
   font-weight: 600;
   letter-spacing: -0.02em;
 }
-p:not(:is(.meeting-practice, .live-studio) *) {
+:where(p):where(:not(:is(.meeting-practice, .live-studio) *)) {
   color: var(--text-2);
 }
 ::selection {
@@ -126,7 +127,7 @@ input[type='checkbox'],
 input[type='radio'] {
   accent-color: var(--brand);
 }
-label:not(:is(.meeting-practice, .live-studio) *) {
+:where(label):where(:not(:is(.meeting-practice, .live-studio) *)) {
   color: var(--text-2);
   font-weight: 500;
 }
@@ -394,9 +395,13 @@ label:not(:is(.meeting-practice, .live-studio) *) {
 .sidebar .nav-item > span {
   flex: 1;
   min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  /* Long labels wrap to two lines instead of escaping the sidebar. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .sidebar .nav-item:hover {
   background: var(--surface-2);
@@ -642,4 +647,11 @@ label:not(:is(.meeting-practice, .live-studio) *) {
 }
 .workout-info h3 {
   font-size: 17px;
+}
+
+.mobile-quick-access a span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

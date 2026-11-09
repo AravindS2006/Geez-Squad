@@ -579,6 +579,7 @@
   color: #c5c4c1;
 }
 .landing-cta h2 {
+  color: #fff;
   font-size: clamp(40px, 5vw, 66px);
   margin: 22px 0 30px;
 }

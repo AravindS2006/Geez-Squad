@@ -17,6 +17,7 @@
   margin-top: 30px;
 }
 .auth-studio .auth-story h2 {
+  color: #faf9f6;
   font-size: clamp(36px, 4.2vw, 64px);
   line-height: 1.06;
   letter-spacing: -2.4px;

@@ -1,7 +1,7 @@
 import { grantTrainee, studioAccess } from '@/lib/studio-access';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/lib/db';
+import { db, isSqliteDatabase } from '@/lib/db';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { loggedRoute } from '@/lib/request-log';
 import { writeMetrics } from '@/lib/metrics-write';
@@ -126,7 +126,7 @@ export const POST = loggedRoute('/api/studio-join-requests', async (request) => 
           },
           { isolationLevel: 'Serializable' },
         ),
-      process.env.DATABASE_PROVIDER !== 'postgresql',
+      isSqliteDatabase(),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

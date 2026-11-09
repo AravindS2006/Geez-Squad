@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { shouldReconcileSubscription } from '@/lib/billing-policy';
 import type { BillingSubscription } from '@prisma/client';
+import { logEvent } from '@/lib/logger';
 async function handlePOST(request: Request) {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
@@ -35,11 +36,17 @@ async function handlePOST(request: Request) {
       customer: string | Stripe.Customer | Stripe.DeletedCustomer | null,
     ) => {
       const customerId = typeof customer === 'string' ? customer : customer?.id;
-      if (!customerId) throw new Error('Billing customer is missing');
       // Capture the database version before the remote read. If another event
       // commits while Stripe responds, retry instead of overwriting its state.
-      observedBilling = await db.billingSubscription.findUnique({ where: { customerId } });
-      if (!observedBilling) throw new Error('Billing customer is not registered');
+      observedBilling = customerId
+        ? await db.billingSubscription.findUnique({ where: { customerId } })
+        : null;
+      if (!observedBilling) {
+        // Not ours (another product on the account, or a deleted test customer):
+        // retries can never succeed, so acknowledge and record the event.
+        logEvent('warn', 'billing_webhook_unknown_customer', { targetId: event.id });
+        return null;
+      }
       return stripe.subscriptions.retrieve(id);
     };
     if (subscriptionEvents.includes(event.type)) {

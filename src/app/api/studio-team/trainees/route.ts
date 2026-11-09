@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/lib/db';
+import { db, isSqliteDatabase } from '@/lib/db';
 import { requireStudio } from '@/lib/studio-access';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { loggedRoute } from '@/lib/request-log';
@@ -60,7 +60,7 @@ export const POST = loggedRoute('/api/studio-team/trainees', async (request) => 
           },
           { isolationLevel: 'Serializable' },
         ),
-      process.env.DATABASE_PROVIDER !== 'postgresql',
+      isSqliteDatabase(),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

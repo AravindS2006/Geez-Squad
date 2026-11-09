@@ -7,6 +7,10 @@ import {
 } from './exercise-library';
 import { measurementSchema } from './measurement-contract';
 import { MAX_CLASS_CLIENTS } from './class-policy';
+/** Fastest plausible cadence: one counted repetition per 350 ms of observed activity. */
+export function maxPlausibleReps(activeMs: number) {
+  return Math.max(1, Math.ceil(activeMs / 350));
+}
 export const exerciseSchema = z
   .union([z.enum(libraryExerciseIds), z.string().regex(/^custom:[a-zA-Z0-9-]{1,80}$/)])
   .transform((id) => id as LibraryExerciseId);
@@ -192,7 +196,7 @@ export const workoutSetSchema = z
       ((data.measurementSource ?? 'automatic') === 'automatic'
         ? data.holdMs > data.trackedMs
         : data.holdMs > data.activeMs) ||
-      data.reps > Math.max(1, Math.ceil(data.activeMs / 350))
+      data.reps > maxPlausibleReps(data.activeMs)
     )
       ctx.addIssue({ code: 'custom', message: 'Workout timing and counts are inconsistent.' });
     if (data.measurementSource === 'automatic' && !isAutomaticExercise(data.exercise))

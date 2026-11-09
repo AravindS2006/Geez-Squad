@@ -1,6 +1,6 @@
 import { classPermissions } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
-import { participation, revokeIneligibleParticipants } from '@/lib/member-access';
+import { participation, reconcileClassParticipants } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, safeError } from '@/lib/security';
@@ -54,7 +54,7 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
         ? { allowed: true, reason: '' }
         : await participation(item.studio.id, user.id);
     if (item.status === 'live')
-      await revokeIneligibleParticipants(item.studio.id, coach ? undefined : user.id);
+      await reconcileClassParticipants(id, item.studio.id, coach ? undefined : user.id);
     const messages = await db.message.findMany({
       where: {
         classId: id,

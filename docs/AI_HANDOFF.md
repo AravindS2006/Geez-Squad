@@ -169,6 +169,14 @@ controls and visible keyboard focus, and test short landscape screens.
 ## UI system
 
 The product is light-only by owner decision; do not add dark mode or theme toggles.
+The chosen direction is "Performance studio": white surfaces, ink-black primary, volt
+lime (`--accent` #bef264) used sparingly, and a dark graphite live room.
+`src/app/theme.css` loads last and owns the shared component look (shell, buttons,
+fields, cards, tables, badges, metrics); its generic rules skip `.meeting-practice` and
+`.live-studio`, whose appearance lives in `meeting-workspace.module.css` (graphite
+section at the end) without changing measured geometry. Keep tertiary text at or
+darker than `--text-3` for AA contrast. Upcoming sessions use `isUpcomingSession` in
+`coaching-insights.ts` everywhere (live, or scheduled and not yet over).
 `src/app/tokens.css` (imported first) defines the type scale (`--fs-2xs` 11px to
 `--fs-lg`), surfaces, text, brand, radius, shadow and motion tokens, plus legacy aliases
 (`--bg`, `--ink`, `--muted`, `--line`, ...). Inter and Instrument Serif load through

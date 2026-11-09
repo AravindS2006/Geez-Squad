@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { demoData } from '../src/lib/demo';
-import { coachingOverview, traineeInsight } from '../src/lib/coaching-insights';
+import { coachingOverview, isUpcomingSession, traineeInsight } from '../src/lib/coaching-insights';
 import { sessionEditVersion } from '../src/lib/session-management';
 import type { CheckInView, WorkoutSetView } from '../src/lib/types';
 
@@ -122,5 +122,36 @@ describe('session edit conflicts', () => {
     ]) {
       expect(sessionEditVersion({ ...session, ...update })).not.toBe(sessionEditVersion(session));
     }
+  });
+});
+
+describe('isUpcomingSession', () => {
+  const now = Date.parse('2026-11-09T12:00:00Z');
+  const at = (minutesFromNow: number, status = 'scheduled', duration = 45) => ({
+    status,
+    duration,
+    startsAt: new Date(now + minutesFromNow * 60000).toISOString(),
+  });
+  it('keeps live classes and scheduled classes that have not ended', () => {
+    expect(isUpcomingSession(at(-600, 'live'), now)).toBe(true);
+    expect(isUpcomingSession(at(30), now)).toBe(true);
+    expect(isUpcomingSession(at(-20), now)).toBe(true);
+  });
+  it('drops missed scheduled classes and finished ones', () => {
+    expect(isUpcomingSession(at(-60), now)).toBe(false);
+    expect(isUpcomingSession(at(30, 'completed'), now)).toBe(false);
+    expect(isUpcomingSession(at(30, 'cancelled'), now)).toBe(false);
+  });
+  it('counts the same classes in the overview card as it shows as next', () => {
+    const data = demoData();
+    const overview = coachingOverview(data, 'UTC');
+    expect(overview.upcoming.every((c) => isUpcomingSession(c))).toBe(true);
+  });
+});
+
+describe('sample studio schedule', () => {
+  it('always offers an upcoming class to open', () => {
+    const data = demoData();
+    expect(data.classes.some((c) => isUpcomingSession(c))).toBe(true);
   });
 });

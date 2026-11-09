@@ -27,7 +27,8 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
     [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<NutritionEntry | null>(null);
   const request = useRef(0),
-    demo = useRef<NutritionData>(blank()),
+    // Sample journals are kept per person so a coach never overwrites their own.
+    demo = useRef<Record<string, NutritionData>>({}),
     mutation = useRef(false);
   const own = userId === workspace.user.id;
   const url = `/api/nutrition?userId=${encodeURIComponent(userId)}&date=${date}`;
@@ -40,7 +41,7 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
     setNotice('');
     setEditing(null);
     const result = workspace.demo
-      ? Promise.resolve({ ...demo.current, canEditJournal: own })
+      ? Promise.resolve({ ...(demo.current[userId] ?? blank()), canEditJournal: own })
       : fetchJson<NutritionData>(url, { signal: controller.signal });
     result
       .then((next) => {
@@ -70,17 +71,14 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
     try {
       const c = nutritionCommandSchema.parse(command);
       if (workspace.demo) {
-        const next = {
-          ...demo.current,
-          entries: [...demo.current.entries],
-          profile: { ...demo.current.profile },
-        };
+        const base = demo.current[userId] ?? blank();
+        const next = { ...base, entries: [...base.entries], profile: { ...base.profile } };
         if (c.action === 'entry')
           next.entries = [c.entry, ...next.entries.filter((e) => e.id !== c.entry.id)];
         if (c.action === 'remove') next.entries = next.entries.filter((e) => e.id !== c.id);
         if (c.action === 'sharing') next.profile.shareWithCoach = c.shareWithCoach;
         if (c.action === 'targets') next.profile = { ...next.profile, ...c.profile };
-        demo.current = next;
+        demo.current[userId] = next;
         if (current === request.current) {
           setData(next);
           setDraft(next.profile);
@@ -144,7 +142,7 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
       <div className="section-title">
         <div>
           <span className="eyebrow">EVERYDAY NUTRITION</span>
-          <h1>Small habits. A stronger you.</h1>
+          <h1>Nutrition</h1>
           <p>Log what you eat and drink. Set your own targets or review them with your coach.</p>
         </div>
       </div>
@@ -171,7 +169,7 @@ export function NutritionManager({ workspace }: { workspace: WorkspaceData }) {
                 .filter((c) => c.id !== workspace.user.id)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} · shared journal
+                    {c.name}
                   </option>
                 ))}
             </select>

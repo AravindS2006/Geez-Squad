@@ -60,7 +60,7 @@ import { TrainingProgress, CheckInForm, ClientCoaching } from './training-progre
 import { ScheduleForm } from './session-form';
 import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
-import { coachingOverview } from '@/lib/coaching-insights';
+import { coachingOverview, isUpcomingSession } from '@/lib/coaching-insights';
 import { compareSessions } from '@/lib/session-timing';
 import { StudioOperations } from './studio-operations';
 import { StudioJoinRequests } from './studio-join-requests';
@@ -295,10 +295,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
       : coach && !admin
         ? 'coaching'
         : 'dashboard';
+  const [practiceExercise, setPracticeExercise] = useState<ClassView['exercise']>();
+  useEffect(() => {
+    if (activeView !== 'practice') setPracticeExercise(undefined);
+  }, [activeView]);
   const showQuickAccess = !['studio', 'practice'].includes(activeView);
-  const upcoming = data.classes
-    .filter((c) => c.status === 'scheduled' || c.status === 'live')
-    .sort(compareSessions);
+  const upcoming = data.classes.filter((c) => isUpcomingSession(c)).sort(compareSessions);
   const history = data.classes
     .filter((c) => c.status === 'completed' && +new Date(c.startsAt) >= Date.now() - 30 * 86400000)
     .sort(compareSessions);
@@ -547,7 +549,12 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
   }
   async function openClass(c: ClassView) {
     if (data.demo) {
-      setActiveClass({ ...c, status: 'live', startedAt: new Date().toISOString() });
+      // The sample room previews a running class; finished classes open as they are.
+      setActiveClass(
+        c.status === 'scheduled' || c.status === 'live'
+          ? { ...c, status: 'live', startedAt: c.startedAt ?? new Date().toISOString() }
+          : c,
+      );
       go('studio');
       return;
     }
@@ -740,7 +747,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             ![
               'clients',
               'plans',
-              'dashboard',
+              ...(admin ? ['dashboard'] : []),
               'members',
               'memberships',
               'attendance',
@@ -748,7 +755,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               'enquiries',
               'staff',
               'studio-details',
-              'classes',
+              ...(admin ? ['classes'] : []),
             ].includes(activeView) && (
               <div className="search-results panel">
                 <SectionTitle
@@ -814,15 +821,15 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">LET’S MAKE MOVEMENT MATTER</span>
+                  <span className="eyebrow">{coach ? 'COACHING' : 'YOUR TRAINING'}</span>
                   <h1>
-                    {coach ? 'A good day to make progress.' : 'Your next chapter starts here.'}
+                    {coach ? 'Coaching overview' : `Welcome back, ${data.user.name.split(' ')[0]}`}
                     <span className="greeting-spark">✳</span>
                   </h1>
                   <p>
                     {coach
-                      ? `Welcome back, ${data.user.name.split(' ')[0]}. A little guidance. A lot of possibility.`
-                      : `Welcome, ${data.user.name.split(' ')[0]}. Show up for yourself, one session at a time.`}
+                      ? 'Your sessions, clients who need attention, and recent check-ins.'
+                      : 'Your next session, assigned plan, and progress at a glance.'}
                   </p>
                 </div>
                 <button
@@ -902,8 +909,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                           <Avatar key={p.id} name={p.name} index={i} small />
                         ))}
                         <span>
-                          {upcoming[0].participants.length}{' '}
-                          {coach ? 'clients joining' : 'your enrollment'}
+                          {upcoming[0].participantCount ?? upcoming[0].participants.length}{' '}
+                          {coach ? 'enrolled' : 'enrolled including you'}
                         </span>
                       </div>
                     )}
@@ -1053,8 +1060,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'clients' && (
             <>
               <PageHeading
-                eyebrow="GROW TOGETHER"
-                title="People make the progress."
+                eyebrow="COACHING"
+                title="Coaching clients"
                 text="A clear view of every person you coach."
                 action={
                   admin ? (
@@ -1065,7 +1072,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 }
               />
               <div className="list-toolbar">
-                <span>{searchClients.length} clients in your studio</span>
+                <span>
+                  {searchClients.length === data.clients.length
+                    ? `${data.clients.length} ${admin ? 'clients in your studio' : 'trainees assigned to you'}`
+                    : `${searchClients.length} of ${data.clients.length} shown`}
+                </span>
                 <span className="pill">
                   <Users size={14} /> Active members
                 </span>
@@ -1136,8 +1147,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'sessions' && (
             <>
               <PageHeading
-                eyebrow="A LITTLE STRUCTURE. A LOT OF PROGRESS."
-                title="Make time for movement."
+                eyebrow="LIVE COACHING"
+                title="Live sessions"
                 text="Your coaching calendar, all in one place."
                 action={
                   coach ? (
@@ -1192,8 +1203,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'plans' && (
             <>
               <PageHeading
-                eyebrow="TRAIN WITH INTENTION"
-                title="Good plans. Better movement."
+                eyebrow="PROGRAMMING"
+                title="Workout plans"
                 text="Give every session a clear purpose."
                 action={
                   coach ? (
@@ -1275,6 +1286,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                     className="exercise-tile"
                     key={e.id}
                     onClick={() => {
+                      setPracticeExercise(e.id as ClassView['exercise']);
                       go('practice');
                     }}
                   >
@@ -1312,8 +1324,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
           {activeView === 'settings' && (
             <>
               <PageHeading
-                eyebrow="YOUR SPACE, YOUR WAY"
-                title="Make yourself at home."
+                eyebrow="ACCOUNT"
+                title="Settings"
                 text="Manage your profile, membership, and privacy."
               />
               <div className="settings-grid">
@@ -1409,7 +1421,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                       Payment services are{' '}
                       {data.services.billing
                         ? 'configured for your studio.'
-                        : 'not connected yet. Contact the studio admin for payment options.'}
+                        : 'not connected yet. Online payments will be available once a payment provider is configured for this studio. Record payments manually in Payments meanwhile.'}
                     </p>
                     <button
                       className="button outline"
@@ -1463,7 +1475,13 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               </div>
             </>
           )}
-          {activeView === 'practice' && <CameraPractice data={data} />}
+          {activeView === 'practice' && (
+            <CameraPractice
+              key={practiceExercise ?? 'default'}
+              data={data}
+              initialExercise={practiceExercise}
+            />
+          )}
           {activeView === 'nutrition' && <NutritionManager workspace={data} />}
           {activeView === 'studio' && (
             <Studio
@@ -1724,7 +1742,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               <p>
                 {data.demo
                   ? 'This sample shows the coaching experience. All people and history are illustrative. Use camera practice for actual local pose analysis.'
-                  : `You’re signed in as ${data.user.name}, with the ${data.user.role} role.`}
+                  : `You’re signed in as ${data.user.name}, with the ${admin ? 'admin' : coach ? 'coach' : 'trainee'} role.`}
               </p>
               <Link className="button lime" href={data.demo ? '/login' : '/app?view=settings'}>
                 {data.demo ? 'Create your own studio' : 'Manage your profile'}
@@ -1837,7 +1855,7 @@ function SessionRows({
   if (!classes.length)
     return (
       <EmptyState
-        title="A little space for what’s next."
+        title="No sessions here yet"
         text="Sessions will appear here when they’re scheduled or completed."
       />
     );

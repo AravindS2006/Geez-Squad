@@ -5,6 +5,7 @@ import './globals.css';
 import './operations.css';
 import './meeting.css';
 import './next-phase.css';
+import './theme.css';
 import { TimeProvider } from '@/components/time-provider';
 import { AppInstall } from '@/components/app-install';
 import { ToastProvider } from '@/components/primitives/toast';
@@ -23,7 +24,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#f7f8f4',
+  themeColor: '#f7f7f5',
 };
 
 const description =

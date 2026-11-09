@@ -65,9 +65,7 @@ test('personal email signup connects through Members and active membership contr
     await expect(page.getByRole('button', { name: /a coach/ })).toHaveCount(0);
     await page.getByRole('checkbox', { name: /I am 18/ }).check();
     await page.getByRole('button', { name: 'Create my workspace' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Your next chapter starts here.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible();
     const account = await db.user.findUniqueOrThrow({ where: { email } });
     ids.push(account.id);
     // Local fixtures prove mailbox ownership explicitly; production must use the actual verification link.

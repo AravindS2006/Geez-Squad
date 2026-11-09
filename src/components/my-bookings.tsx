@@ -84,8 +84,8 @@ export function MyBookings() {
           <div className="team-access-list">
             {data.classes.length === 0 && (
               <p>
-                No upcoming classes are available. Accept your studio connection to see classes
-                here.
+                No studio classes are open for booking right now. New classes appear here as soon as
+                your studio schedules them.
               </p>
             )}
             {data.classes.map((c) => (

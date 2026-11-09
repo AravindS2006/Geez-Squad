@@ -211,9 +211,9 @@ export default async function Home() {
               },
               {
                 n: '03',
-                title: 'Live & connected',
-                text: 'Keep your coaching close, wherever you train.',
-                label: 'TAKE YOUR SQUAD WITH YOU',
+                title: 'Live video coaching',
+                text: 'Train live with your coach. On-device camera tracking helps count reps (beta).',
+                label: 'TRAIN TOGETHER, ANYWHERE',
                 icon: Activity,
               },
             ].map((p, i) => (
@@ -273,7 +273,7 @@ export default async function Home() {
             </div>
             <div className="landing-preview-heading">
               <span>YOUR STUDIO, AT A GLANCE</span>
-              <h3>A stronger studio starts here.</h3>
+              <h3>Studio overview</h3>
               <p>One place for your people and your progress.</p>
             </div>
             <div className="landing-preview-stats">
@@ -289,7 +289,7 @@ export default async function Home() {
               </div>
             </div>
             <div className="landing-preview-agenda">
-              <span className="landing-eyebrow">A LITTLE STRUCTURE. A LOT OF POSSIBILITY.</span>
+              <span className="landing-eyebrow">TODAY AT A GLANCE</span>
               {['Memberships & renewals', 'Classes & live coaching', 'Studio attendance'].map(
                 (s) => (
                   <div key={s}>

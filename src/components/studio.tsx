@@ -18,7 +18,6 @@ import {
   X,
   MessageSquare,
   ShieldCheck,
-  LogOut,
   Volume2,
   CheckCircle2,
   Settings2,
@@ -27,6 +26,8 @@ import {
   Maximize2,
   Minimize2,
   Dumbbell,
+  PhoneOff,
+  CircleStop,
 } from 'lucide-react';
 import type { Room, Participant, Track } from 'livekit-client';
 import type { Analysis } from '@/lib/pose-engine';
@@ -1383,6 +1384,7 @@ export function Studio({
                 <button
                   className="button meeting-leave"
                   aria-label="Leave video"
+                  title="Leave the video call. The class keeps running for everyone else."
                   onClick={async () => {
                     joinGeneration.current++;
                     await room.current?.disconnect();
@@ -1390,7 +1392,7 @@ export function Studio({
                     setStream(null);
                   }}
                 >
-                  <LogOut size={17} />
+                  <PhoneOff size={17} />
                   <span className="meeting-full-label">Leave video</span>
                   <span className="meeting-mobile-label" aria-hidden="true">
                     Leave
@@ -1401,9 +1403,10 @@ export function Studio({
                 <button
                   className="button danger meeting-end"
                   aria-label="End session"
+                  title="End the class for every trainee"
                   onClick={() => setEnding(true)}
                 >
-                  <LogOut size={17} />
+                  <CircleStop size={17} />
                   <span className="meeting-full-label">End session</span>
                   <span className="meeting-mobile-label" aria-hidden="true">
                     End

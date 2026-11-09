@@ -128,3 +128,20 @@ describe('studio membership lifecycle', () => {
     ).toBe(false);
   });
 });
+
+describe('sample member access commands', () => {
+  it('maps each access operation to the status its notice describes', () => {
+    const base = demoOperations();
+    const memberId = base.members[0].id;
+    const run = (operation: 'resend' | 'sendEmail' | 'restore' | 'withdraw') =>
+      applyDemoOperation(base, { action: 'memberAccess', memberId, operation } as never, 'x')
+        .members[0].accessStatus;
+    expect(run('sendEmail')).toBe('pending');
+    expect(run('resend')).toBe('pending');
+    expect(run('restore')).toBe('pending_restore');
+    expect(run('withdraw')).toBe('withdrawn');
+  });
+  it('seeds sample coaches so the team workload is not empty', () => {
+    expect(demoOperations().coaches?.length).toBeGreaterThan(0);
+  });
+});

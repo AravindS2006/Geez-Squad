@@ -279,7 +279,15 @@ export function applyDemoOperation(
         ...data,
         members: data.members.map((m) =>
           m.id === c.memberId
-            ? { ...m, accessStatus: c.operation === 'resend' ? 'pending' : 'withdrawn' }
+            ? {
+                ...m,
+                accessStatus:
+                  c.operation === 'withdraw'
+                    ? 'withdrawn'
+                    : c.operation === 'restore'
+                      ? 'pending_restore'
+                      : 'pending',
+              }
             : m,
         ),
       };
@@ -541,11 +549,16 @@ export function demoOperations(): OperationsData {
     };
   });
   return {
+    coaches: [
+      { id: 'demo-coach', name: 'Alex Morgan' },
+      { id: 'demo-coach-2', name: 'Neha Pillai' },
+    ],
     studioClasses: [
       {
         id: 'class-strength',
         title: 'Strength foundations',
         trainer: 'Alex Morgan',
+        hostId: 'demo-coach',
         location: 'Main studio',
         startsAt: new Date(`${addDays(today, 1)}T07:00:00+05:30`).toISOString(),
         duration: 45,
@@ -560,6 +573,7 @@ export function demoOperations(): OperationsData {
         id: 'class-mobility',
         title: 'Move & reset',
         trainer: 'Neha Pillai',
+        hostId: 'demo-coach-2',
         location: 'Movement floor',
         startsAt: new Date(`${addDays(today, 1)}T18:00:00+05:30`).toISOString(),
         duration: 60,

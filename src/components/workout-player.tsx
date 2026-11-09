@@ -1,5 +1,5 @@
 'use client';
-import { useToast } from './ui/toast';
+import { useToast } from './primitives/toast';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import dynamic from 'next/dynamic';
 import type { CameraAnalyzer } from './camera-analyzer';

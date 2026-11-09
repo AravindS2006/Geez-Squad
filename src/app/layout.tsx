@@ -7,7 +7,7 @@ import './meeting.css';
 import './next-phase.css';
 import { TimeProvider } from '@/components/time-provider';
 import { AppInstall } from '@/components/app-install';
-import { ToastProvider } from '@/components/ui/toast';
+import { ToastProvider } from '@/components/primitives/toast';
 import { siteOrigin } from '@/lib/site';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });

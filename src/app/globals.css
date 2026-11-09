@@ -6746,3 +6746,17 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     margin-bottom: 2px;
   }
 }
+.progress-activity {
+  display: grid;
+  gap: 16px;
+}
+.progress-activity-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.progress-activity-head .microcopy {
+  margin: 0;
+}

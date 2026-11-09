@@ -1,5 +1,5 @@
 'use client';
-import { useToast } from './ui/toast';
+import { useToast } from './primitives/toast';
 import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';

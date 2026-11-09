@@ -1,4 +1,5 @@
 .figure {
+  overflow: hidden;
   margin: 0;
 }
 .plot {

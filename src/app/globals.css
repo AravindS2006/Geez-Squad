@@ -476,7 +476,7 @@ small {
   margin-bottom: 14px;
 }
 .workout-setup-title span {
-  font-size: var(--fs-md);
+  font-size: 12px;
   color: #4b6238;
 }
 .workout-fields {
@@ -488,7 +488,7 @@ small {
 .video-device-settings > label {
   display: grid;
   gap: 7px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   color: #354b3c;
 }
 .workout-fields input,
@@ -502,11 +502,11 @@ small {
   background: #fff;
   color: var(--ink);
   padding: 9px;
-  font-size: var(--fs-base);
+  font-size: 14px;
 }
 .tracking-settings {
   margin-top: 14px;
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .tracking-settings summary {
   cursor: pointer;
@@ -531,7 +531,7 @@ small {
   gap: 8px;
 }
 .set-progress span {
-  font-size: var(--fs-md);
+  font-size: 12px;
   color: #354b3c;
 }
 .set-progress progress {
@@ -604,7 +604,7 @@ small {
   gap: 10px;
 }
 .meeting-heading strong {
-  font-size: var(--fs-base);
+  font-size: 14px;
 }
 .coach-primary-feed {
   position: relative;
@@ -691,10 +691,10 @@ small {
 }
 .live-studio > .call-controls .button {
   min-height: 42px;
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .live-studio > .call-controls > div > span {
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .coach-stage:fullscreen,
 .participant-grid:fullscreen {
@@ -1702,19 +1702,19 @@ small {
   overflow: hidden;
 }
 .exercise-tile h3 {
-  font-size: var(--fs-md);
+  font-size: 13px;
   font-weight: 500;
   margin-bottom: 5px;
 }
 .exercise-tile p {
-  font-size: var(--fs-xs);
+  font-size: 9px;
   margin: 0 0 8px;
 }
 .exercise-tile > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: var(--fs-xs);
+  font-size: 9px;
   color: #606b58;
 }
 .analytics-chart {
@@ -1795,7 +1795,7 @@ small {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   font-weight: 400;
 }
 .plan-blocks {
@@ -1973,7 +1973,7 @@ small {
   gap: 8px;
   max-width: 350px;
   margin-bottom: 20px;
-  font-size: var(--fs-md);
+  font-size: 13px;
   font-weight: 500;
 }
 .practice-movement-selector select {
@@ -2033,13 +2033,13 @@ small {
   margin-bottom: 13px;
 }
 .camera-placeholder p {
-  font-size: var(--fs-sm);
+  font-size: 11px;
   color: #93a88b;
   line-height: 1.9;
   margin-bottom: 24px;
 }
 .camera-placeholder .button {
-  font-size: var(--fs-sm);
+  font-size: 11px;
 }
 .camera-loading {
   position: absolute;
@@ -2050,7 +2050,7 @@ small {
   justify-content: center;
   gap: 12px;
   color: #d6e6cd;
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .spinner {
   width: 18px;
@@ -2078,7 +2078,7 @@ small {
   color: #d8ecbd;
   border-radius: 6px;
   padding: 8px 10px;
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .camera-bottom {
   position: absolute;
@@ -2090,7 +2090,7 @@ small {
   padding: 22px 18px 15px;
   color: white;
   background: linear-gradient(transparent, #17211ce6);
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .camera-tools {
   display: flex;
@@ -2098,7 +2098,7 @@ small {
   justify-content: space-between;
   padding: 10px 3px;
   color: #606b58;
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .camera-tools > div {
   display: flex;
@@ -2158,12 +2158,12 @@ small {
   color: #4b6238;
 }
 .cue-card span {
-  font-size: var(--fs-2xs);
+  font-size: 7px;
   letter-spacing: 1.2px;
   font-weight: 600;
 }
 .cue-card p {
-  font-size: var(--fs-md);
+  font-size: 12px;
   line-height: 1.6;
   color: #5d7144;
   margin: 6px 0 0;
@@ -2225,13 +2225,13 @@ small {
   margin: auto;
 }
 .practice-guide h3 {
-  font-size: var(--fs-md);
+  font-size: 13px;
 }
 .practice-guide ol,
 .studio-side ol {
   padding-left: 19px;
   color: #606b58;
-  font-size: var(--fs-sm);
+  font-size: 11px;
   line-height: 1.8;
 }
 .practice-guide li,
@@ -2450,7 +2450,7 @@ small {
   padding: 16px;
 }
 .participant-stats > div > span {
-  font-size: var(--fs-2xs);
+  font-size: 6px;
   letter-spacing: 0.7px;
   color: #4b6238;
   display: block;
@@ -2462,14 +2462,14 @@ small {
   letter-spacing: -0.8px;
 }
 .participant-stats small {
-  font-size: var(--fs-xs);
+  font-size: 9px;
   color: #606b58;
   font-weight: 400;
   letter-spacing: 0;
   margin-left: 3px;
 }
 .participant-state {
-  font-size: var(--fs-2xs);
+  font-size: 8px;
   color: #4b6238;
   margin-left: auto;
   text-transform: capitalize;
@@ -2490,7 +2490,7 @@ small {
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   color: #99aa8c;
   background: #26302a;
 }
@@ -2507,12 +2507,12 @@ small {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: var(--fs-sm);
+  font-size: 11px;
   color: #4b6238;
   white-space: nowrap;
 }
 .coach-video > p {
-  font-size: var(--fs-xs);
+  font-size: 10px;
   margin: 0;
 }
 .self-video {
@@ -2681,12 +2681,12 @@ small {
   margin-top: 18px;
 }
 .human-cue span {
-  font-size: var(--fs-2xs);
+  font-size: 8px;
   letter-spacing: 1px;
   color: #655379;
 }
 .human-cue p {
-  font-size: var(--fs-md);
+  font-size: 13px;
   color: #655379;
   margin: 5px 0 0;
 }
@@ -3094,7 +3094,7 @@ small {
     padding: 13px;
   }
   .participant-state {
-    font-size: var(--fs-2xs);
+    font-size: 7px;
   }
   .studio-toolbar > .subtle {
     display: none;
@@ -3544,11 +3544,11 @@ small {
     height: 130px;
   }
   .exercise-tile h3 {
-    font-size: var(--fs-sm);
+    font-size: 11px;
   }
   .exercise-tile p,
   .exercise-tile > span {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .progress-chart.large {
     height: 190px;
@@ -3622,7 +3622,7 @@ small {
     width: 29px;
   }
   .camera-placeholder p {
-    font-size: var(--fs-xs);
+    font-size: 10px;
     margin-bottom: 18px;
   }
   .analysis-strip {
@@ -3639,10 +3639,10 @@ small {
     font-size: var(--fs-xs);
   }
   .cue-card p {
-    font-size: var(--fs-sm);
+    font-size: 11px;
   }
   .camera-bottom {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .standalone-studio {
     padding: 20px;
@@ -3722,7 +3722,7 @@ small {
     font-size: 21px;
   }
   .participant-stats > div > span {
-    font-size: var(--fs-2xs);
+    font-size: 5px;
   }
   .participant-state {
     display: none;
@@ -3746,7 +3746,7 @@ small {
     gap: 9px;
   }
   .coach-video p {
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
   .onboarding-overlay {
     padding: 18px;
@@ -3938,16 +3938,16 @@ small {
 }
 .exercise-tile p,
 .exercise-tile > span {
-  font-size: var(--fs-sm);
+  font-size: 11px;
 }
 .feed-person strong {
   font-size: var(--fs-md);
 }
 .participant-state {
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .participant-stats > div > span {
-  font-size: var(--fs-2xs);
+  font-size: 8px;
 }
 .privacy-note p {
   font-size: var(--fs-sm);
@@ -3972,7 +3972,7 @@ small {
   font-size: var(--fs-sm);
 }
 .camera-tools {
-  font-size: var(--fs-sm);
+  font-size: 11px;
 }
 .analysis-strip span {
   font-size: var(--fs-sm);
@@ -3985,7 +3985,7 @@ small {
 }
 .practice-guide ol,
 .studio-side ol {
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .workout-info footer {
   font-size: var(--fs-sm);
@@ -4053,7 +4053,7 @@ small {
   }
   .exercise-tile p,
   .exercise-tile > span {
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
   .hero-kicker {
     font-size: var(--fs-2xs);
@@ -4062,7 +4062,7 @@ small {
     font-size: var(--fs-xs);
   }
   .participant-stats > div > span {
-    font-size: var(--fs-2xs);
+    font-size: 6px;
   }
   .analysis-strip span {
     font-size: var(--fs-xs);
@@ -4139,7 +4139,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   flex: 1;
 }
 .meeting-title > span {
-  font-size: var(--fs-xs);
+  font-size: 9px;
   letter-spacing: 1.4px;
   color: #b9df81;
 }
@@ -4191,7 +4191,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .meeting-notice {
   margin: 0 16px 8px;
   padding: 8px 12px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -4451,7 +4451,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   cursor: pointer;
 }
 .meeting-control span {
-  font-size: var(--fs-xs);
+  font-size: 10px;
   white-space: nowrap;
 }
 .meeting-control.device-off {
@@ -4468,7 +4468,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-room .button {
   min-height: 44px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   padding: 10px 14px;
   border-radius: 9px;
 }
@@ -4507,7 +4507,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-room .modal input,
 .meeting-room .modal select {
-  font-size: var(--fs-base);
+  font-size: 14px;
 }
 .meeting-chat .chat-messages {
   max-height: 50dvh;
@@ -4634,7 +4634,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: none;
 }
 .trainee-video-layout.coach-video-small .meeting-tile-name {
-  font-size: var(--fs-sm);
+  font-size: 11px;
   padding: 6px 7px;
 }
 .trainee-video-layout.coach-video-small .meeting-tile-name > span {
@@ -4706,12 +4706,12 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--fs-md);
+  font-size: 12px;
   font-weight: 500;
 }
 .coach-video-toolbar small {
   color: #c0ccd5;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   margin-left: 5px;
 }
 .coach-video-toolbar > select {
@@ -4722,7 +4722,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   border-radius: 7px;
   background: #202a32;
   color: #edf4fa;
-  font-size: var(--fs-md);
+  font-size: 12px;
   padding: 4px 5px;
 }
 .coach-video-toggle {
@@ -4767,7 +4767,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
   }
   .trainee-meeting .meeting-title h1 {
-    font-size: var(--fs-base);
+    font-size: 14px;
     margin: 0;
   }
   .trainee-meeting .meeting-presence {
@@ -4775,7 +4775,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     margin-left: 0;
     order: initial;
     gap: 0;
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .trainee-meeting .meeting-header > .icon-button {
     min-width: 40px;
@@ -4817,7 +4817,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     min-height: 44px;
     min-width: 54px;
     padding: 7px 9px;
-    font-size: var(--fs-xs);
+    font-size: 10px;
     gap: 4px;
     white-space: nowrap;
   }
@@ -4905,7 +4905,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 18px;
   }
   .coach-video-toolbar small {
-    font-size: var(--fs-base);
+    font-size: 14px;
   }
   .coach-video-toolbar > select {
     width: 120px;
@@ -4992,11 +4992,11 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 2px;
 }
 .analyzer-topbar strong {
-  font-size: var(--fs-base);
+  font-size: 14px;
   color: #f1f6fa;
 }
 .analyzer-topbar span {
-  font-size: var(--fs-xs);
+  font-size: 10px;
   color: #ccd8e2;
 }
 .meeting-analyzer .icon-button {
@@ -5016,7 +5016,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .camera-placeholder p {
   max-width: 450px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   line-height: 1.6;
   margin: 0;
   color: #c4d0d9;
@@ -5027,14 +5027,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   margin: 0;
 }
 .meeting-analyzer .camera-loading {
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .meeting-analyzer .tracking-badge {
   top: 64px;
   left: 14px;
   background: #122020dd;
   color: #d0f5b4;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   padding: 7px 10px;
 }
 .meeting-analyzer .analyzer-hud {
@@ -5058,7 +5058,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .analyzer-hud span {
   color: #c4d3e1;
-  font-size: var(--fs-xs);
+  font-size: 9px;
 }
 .meeting-analyzer .analyzer-hud strong {
   color: #dbffac;
@@ -5066,17 +5066,17 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   line-height: 1.25;
 }
 .meeting-analyzer .analyzer-hud strong small {
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .meeting-analyzer .analyzer-hud .phase-text {
-  font-size: var(--fs-base);
+  font-size: 14px;
   margin-top: 6px;
 }
 .meeting-analyzer .camera-bottom {
   bottom: 12px;
   left: 14px;
   right: 14px;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   color: #d3e0ec;
   padding: 0;
   background: none;
@@ -5103,7 +5103,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 9px;
 }
 .meeting-analyzer .analyzer-cue p {
-  font-size: var(--fs-md);
+  font-size: 12px;
   line-height: 1.5;
   color: #e9f3ff;
   margin: 0;
@@ -5131,12 +5131,12 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 3px;
 }
 .meeting-analyzer .analyzer-progress strong {
-  font-size: var(--fs-md);
+  font-size: 12px;
   color: #e9f3fa;
 }
 .meeting-analyzer .analyzer-progress span {
   color: #b9cbd9;
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .meeting-analyzer .analyzer-progress progress {
   width: 100%;
@@ -5148,7 +5148,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .button {
   min-height: 40px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   padding: 9px 12px;
 }
 .meeting-analyzer .button.outline {
@@ -5163,7 +5163,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 10px;
   margin-top: 5px;
   color: #b8c6d3;
-  font-size: var(--fs-xs);
+  font-size: 9px;
 }
 .analyzer-tools > div {
   display: flex;
@@ -5190,14 +5190,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .analyzer-instructions p,
 .analyzer-instructions li {
-  font-size: var(--fs-md);
+  font-size: 13px;
   line-height: 1.6;
 }
 .analyzer-live-details {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  font-size: var(--fs-md);
+  font-size: 12px;
 }
 .meeting-analyzer .modal {
   color: #263525;
@@ -5231,14 +5231,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   margin: 5px 0;
 }
 .practice-heading p {
-  font-size: var(--fs-md);
+  font-size: 12px;
   color: #64715b;
 }
 .practice-heading label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: var(--fs-sm);
+  font-size: 11px;
   min-width: 160px;
 }
 .meeting-practice > .meeting-analyzer {
@@ -5247,7 +5247,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .practice-privacy {
   margin: 0;
   color: #64715b;
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 @media (min-width: 2000px) {
   .meeting-header {
@@ -5255,7 +5255,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 24px;
   }
   .meeting-title > span {
-    font-size: var(--fs-md);
+    font-size: 12px;
   }
   .meeting-dock {
     padding: 22px 30px;
@@ -5304,7 +5304,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 @media (max-width: 600px) {
   .meeting-room {
-    font-size: var(--fs-sm);
+    font-size: 11px;
   }
   .meeting-header {
     padding: 9px 10px;
@@ -5315,7 +5315,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
   }
   .meeting-title > span {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .meeting-title h1 {
     font-size: 15px;
@@ -5325,13 +5325,13 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
     gap: 12px;
     order: 3;
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .meeting-movement {
     order: 4;
   }
   .meeting-movement select {
-    font-size: var(--fs-sm);
+    font-size: 11px;
     padding: 6px 24px 6px 8px;
     min-width: 115px;
   }
@@ -5348,32 +5348,32 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     border-radius: 8px;
   }
   .meeting-tile-name {
-    font-size: var(--fs-xs);
+    font-size: 10px;
     padding: 6px;
   }
   .meeting-tile-name small {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .meeting-empty-video {
     gap: 5px;
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
   .meeting-empty-video .avatar {
     width: 32px;
     height: 32px;
-    font-size: var(--fs-md);
+    font-size: 12px;
   }
   .meeting-room .participant-stats {
     padding: 6px;
     gap: 5px;
-    font-size: var(--fs-xs);
+    font-size: 9px;
     flex-wrap: wrap;
   }
   .meeting-room .participant-stats > .participant-state {
     display: none;
   }
   .meeting-room .coach-tile-caption {
-    font-size: var(--fs-xs);
+    font-size: 9px;
     padding: 6px;
   }
   .meeting-tile-top {
@@ -5383,11 +5383,11 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 3px;
   }
   .meeting-tile-top > span {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
     padding: 3px 4px;
   }
   .meeting-tile-cue {
-    font-size: var(--fs-xs);
+    font-size: 9px;
     padding: 4px 6px;
   }
   .meeting-dock {
@@ -5408,7 +5408,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 4px;
   }
   .meeting-control span {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .meeting-session-buttons {
     gap: 6px;
@@ -5416,7 +5416,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   }
   .meeting-room .button {
     padding: 7px 10px;
-    font-size: var(--fs-sm);
+    font-size: 11px;
     min-height: 40px;
   }
   .trainee-video-layout {
@@ -5432,7 +5432,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   }
   .meeting-room .coach-stage .coach-tile-caption {
     width: 86px;
-    font-size: var(--fs-xs);
+    font-size: 10px;
     text-align: center;
   }
   .meeting-analyzer .camera-view {
@@ -5442,15 +5442,15 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 7px 10px;
   }
   .analyzer-topbar strong {
-    font-size: var(--fs-md);
+    font-size: 12px;
   }
   .analyzer-topbar span {
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
   .meeting-analyzer .tracking-badge {
     top: 54px;
     left: 10px;
-    font-size: var(--fs-xs);
+    font-size: 9px;
     padding: 5px 7px;
   }
   .meeting-analyzer .analyzer-hud {
@@ -5460,13 +5460,13 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 7px 9px;
   }
   .meeting-analyzer .analyzer-hud span {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
   }
   .meeting-analyzer .analyzer-hud strong {
     font-size: 21px;
   }
   .meeting-analyzer .analyzer-hud .phase-text {
-    font-size: var(--fs-sm);
+    font-size: 11px;
   }
   .meeting-analyzer .camera-placeholder {
     padding: 53px 15px 12px;
@@ -5479,7 +5479,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 15px;
   }
   .meeting-analyzer .camera-placeholder p {
-    font-size: var(--fs-xs);
+    font-size: 10px;
     line-height: 1.4;
   }
   .analyzer-footer {
@@ -5490,7 +5490,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     margin-bottom: 7px;
   }
   .meeting-analyzer .analyzer-cue p {
-    font-size: var(--fs-xs);
+    font-size: 10px;
     line-height: 1.4;
   }
   .meeting-analyzer .analyzer-progress {
@@ -5501,18 +5501,18 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     display: none;
   }
   .meeting-analyzer .analyzer-progress strong {
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .meeting-analyzer .analyzer-progress span {
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
   .meeting-analyzer .button {
-    font-size: var(--fs-xs);
+    font-size: 10px;
     min-height: 36px;
     padding: 7px 10px;
   }
   .analyzer-tools {
-    font-size: var(--fs-2xs);
+    font-size: 8px;
     margin-top: 3px;
   }
   .analyzer-tools .icon-button {
@@ -5544,14 +5544,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 20px;
   }
   .practice-heading p {
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .practice-heading label {
     min-width: 110px;
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .practice-privacy {
-    font-size: var(--fs-xs);
+    font-size: 9px;
   }
 }
 @media (max-height: 550px) and (min-width: 601px) {
@@ -5582,7 +5582,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   overflow: hidden;
 }
 .analyzer-identity {
-  font-size: var(--fs-md);
+  font-size: 12px;
   font-weight: 500;
   color: #edf4fa;
 }
@@ -5710,7 +5710,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: var(--fs-sm);
+  font-size: 11px;
   line-height: 1.35;
 }
 .meeting-analyzer .analyzer-cue.is-expanded p {
@@ -5761,7 +5761,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 5px;
   }
   .meeting-analyzer .analyzer-cue p {
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
   .meeting-analyzer .analyzer-tools .icon-button {
     min-height: 32px;
@@ -5859,7 +5859,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   min-width: 0;
 }
 .progress-filters select,
@@ -5980,7 +5980,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   padding: 12px 16px;
   border: 1px solid var(--meeting-line, #3d454d);
   border-radius: 12px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   flex-shrink: 0;
 }
 .meeting-schedule-bar > div {
@@ -6186,7 +6186,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  font-size: var(--fs-md);
+  font-size: 12px;
   max-width: 430px;
 }
 .history-consent input {
@@ -6427,7 +6427,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .coach-meeting .monitor-gallery .meeting-empty-video {
   gap: 6px;
-  font-size: var(--fs-xs);
+  font-size: 10px;
 }
 .coach-meeting .monitor-gallery .meeting-empty-video .avatar {
   width: clamp(24px, 3vw, 60px);
@@ -6606,7 +6606,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 6px 14px;
   }
   .coach-meeting .meeting-control span {
-    font-size: var(--fs-xs);
+    font-size: 10px;
   }
 }
 @media (max-width: 950px) {
@@ -6685,7 +6685,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   color: #c4ccca;
   background: #191f24;
   padding: 8px 16px;
-  font-size: var(--fs-sm);
+  font-size: 11px;
 }
 .meeting-diagnostics summary {
   cursor: pointer;
@@ -6762,7 +6762,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 
 /* ---- Layout polish (structure and alignment fixes) ---- */
-.text-link {
+.section-title > .text-link {
   white-space: nowrap;
 }
 .section-title {
@@ -6770,10 +6770,6 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .section-title > div {
   min-width: 0;
-}
-.nav-item-trailing {
-  margin-left: auto;
-  color: var(--text-3);
 }
 .sidebar .workspace-navigation {
   /* Hint that the menu scrolls instead of silently clipping the last items. */
@@ -6917,4 +6913,61 @@ label:has(> input[type='radio']) {
   .meeting-practice .icon-button {
     min-width: 44px;
   }
+}
+/* Sidebar account row: profile plus always-visible Settings and Help. */
+.sidebar .sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+.sidebar-account .profile-button {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.sidebar-account .profile-button strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-account-action {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  color: #606b58;
+}
+.sidebar-account-action:hover,
+.sidebar-account-action.active {
+  background: #eef4e3;
+  color: #26312a;
+}
+/* Top bar: the breadcrumb yields space so actions never leave the screen. */
+.breadcrumb {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.breadcrumb > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.breadcrumb > strong {
+  flex-shrink: 1;
+}
+.top-actions {
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .breadcrumb > .breadcrumb-root,
+  .breadcrumb > span:not(:last-child) {
+    display: none;
+  }
+}
+.breadcrumb > .breadcrumb-root {
+  color: #606b58;
 }

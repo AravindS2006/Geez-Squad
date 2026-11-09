@@ -78,6 +78,7 @@ import { planBlocks } from '@/lib/workout-run';
 import { MemberMembership } from './member-membership';
 import { NutritionManager } from './nutrition-manager';
 import { CameraPractice } from './camera-practice';
+import { AccountDeletion } from './account-deletion';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
@@ -1410,6 +1411,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                       Export my data
                     </a>
                   )}
+                  <AccountDeletion demo={data.demo} notify={notify} />
                 </section>
                 {admin && (
                   <section className="panel">

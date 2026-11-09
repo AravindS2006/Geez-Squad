@@ -76,11 +76,13 @@ export default function PrivacyPage() {
       <h2>Retention and your data</h2>
       <p>
         The included retention job removes latest camera summaries after 7 days and session messages
-        after 90 days. Aggregated workout history remains until the studio operator processes a
-        deletion request or sets a shorter retention policy. Saved set history, assignments, and
+        after 90 days. Aggregated workout history remains until you delete your account or the
+        studio operator sets a shorter retention policy. Saved set history, assignments, and
         check-ins follow this same policy. You can download your own profile and workout history in
-        Settings. The operator must publish a working contact and data deletion process before
-        launch.
+        Settings, and delete your account there after confirming your password. Deletion erases your
+        sign-in, workouts, check-ins, nutrition journal and class history; the studio keeps its own
+        membership, attendance and payment records, unlinked from your account. Studio owners must
+        contact the operator, because closing a studio affects its members and financial records.
       </p>
       <h2>Camera limitations and wellbeing</h2>
       <ul>

@@ -9,6 +9,7 @@ import {
   addDays,
   studioToday,
   classOverlap,
+  weeklyOccurrences,
   type OperationsCommand,
   type OperationsData,
 } from './studio-operations';
@@ -185,6 +186,7 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
         async (tx) => {
           await requireStudio(actorId, 'admin', studioId, tx);
           let targetId = 'id' in c && c.id ? c.id : studioId;
+          let seriesIds: string[] | undefined;
           const assertOwned = async (
             model:
               'studioMember' | 'membershipOffer' | 'memberTerm' | 'studioEnquiry' | 'studioStaff',
@@ -240,11 +242,15 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
               break;
             }
             case 'studioClass': {
-              const { action, id, startsAt, hostId, ...fields } = c;
+              const { action, id, startsAt, hostId, repeatWeeks, ...fields } = c;
               const owner = await tx.studio.findUniqueOrThrow({ where: { id: studioId } });
               const selectedHost = hostId ?? owner.ownerId;
               await requireStudio(selectedHost, 'coach', studioId, tx);
-              if (fields.status === 'scheduled') {
+              if ((repeatWeeks ?? 1) > 1 && (id || fields.status !== 'scheduled'))
+                throw new ApiError(400, 'Only a new scheduled class can repeat weekly.');
+              // Each occurrence is checked against classes created earlier in this
+              // transaction, so a series is saved completely or not at all.
+              const assertFree = async (startsAt: string) => {
                 const candidates = await tx.studioClass.findMany({
                   where: {
                     studioId,
@@ -281,9 +287,12 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
                 )
                   throw new ApiError(
                     409,
-                    'This trainer or studio space already has an overlapping class. Choose another time, trainer, or space.',
+                    (repeatWeeks ?? 1) > 1
+                      ? `The ${studioToday(new Date(startsAt))} class overlaps another class for this trainer or studio space. No classes in the series were saved.`
+                      : 'This trainer or studio space already has an overlapping class. Choose another time, trainer, or space.',
                   );
-              }
+              };
+              if (fields.status === 'scheduled' && id) await assertFree(startsAt);
               const existing = id
                 ? await tx.studioClass.findFirst({
                     where: { id, studioId },
@@ -323,21 +332,33 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
                     );
                 }
               }
-              targetId = (
-                id
-                  ? await tx.studioClass.update({
-                      where: { id },
-                      data: { ...fields, hostId: selectedHost, startsAt: new Date(startsAt) },
-                    })
-                  : await tx.studioClass.create({
-                      data: {
-                        ...fields,
-                        hostId: selectedHost,
-                        startsAt: new Date(startsAt),
-                        studioId,
-                      },
-                    })
-              ).id;
+              if (id) {
+                targetId = (
+                  await tx.studioClass.update({
+                    where: { id },
+                    data: { ...fields, hostId: selectedHost, startsAt: new Date(startsAt) },
+                  })
+                ).id;
+              } else {
+                const created: string[] = [];
+                for (const occurrence of weeklyOccurrences(startsAt, repeatWeeks)) {
+                  if (fields.status === 'scheduled') await assertFree(occurrence);
+                  created.push(
+                    (
+                      await tx.studioClass.create({
+                        data: {
+                          ...fields,
+                          hostId: selectedHost,
+                          startsAt: new Date(occurrence),
+                          studioId,
+                        },
+                      })
+                    ).id,
+                  );
+                }
+                targetId = created[0];
+                seriesIds = created;
+              }
               if (fields.status === 'cancelled') {
                 const bookings = await tx.studioBooking.findMany({
                   where: { classId: targetId, status: 'booked' },
@@ -580,8 +601,20 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
             c.action === 'member' || c.action === 'cancelTerm'
               ? await reconcileBookings(tx, studioId)
               : 0;
-          await tx.auditEvent.create({ data: { actorId, action: `studio.${c.action}`, targetId } });
-          return { ok: true, id: targetId, releasedBookings };
+          await tx.auditEvent.create({
+            data: {
+              actorId,
+              action: `studio.${c.action}`,
+              targetId,
+              ...(seriesIds && seriesIds.length > 1 ? { detailsJson: { seriesIds } } : {}),
+            },
+          });
+          return {
+            ok: true,
+            id: targetId,
+            releasedBookings,
+            ...(seriesIds && seriesIds.length > 1 ? { ids: seriesIds } : {}),
+          };
         },
         { isolationLevel: 'Serializable' as Prisma.TransactionIsolationLevel },
       ),

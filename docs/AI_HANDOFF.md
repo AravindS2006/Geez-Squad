@@ -47,7 +47,7 @@ the production build. Run one server at a time. On Windows stop it before produc
 builds or Prisma generation to avoid locking the query engine DLL.
 
 In a second terminal use the same runner for `unit`, `api`, `roles`, `studio`,
-`coaching`, `next`, `e2e`, and `a11y`. Using the runner for both server and tests
+`coaching`, `next`, `account`, `e2e`, and `a11y`. Using the runner for both server and tests
 keeps their database and auth configuration aligned. Tests use `example.test`
 accounts and synthetic media. Do not invoke fixture scripts against a hosted URL
 or a production database just because credentials happen to be present.
@@ -75,6 +75,7 @@ actual local camera analysis when enabled, with no saved customer history.
 | Configuration and contracts | `exercise-library.ts`, `catalog.ts`, `workout-config.ts`, `workout-run.ts`, `measurement-contract.ts`, `validation.ts`, `types.ts` |
 | History and corrections | `workout-save.ts`, history/totals/progress modules, workout-sets/history/corrections API routes and `training-progress.tsx` |
 | Nutrition | `nutrition-manager.tsx`, `nutrition.ts`, `nutrition-access.ts`, `/api/nutrition` |
+| Account lifecycle | `/api/export`, `/api/account` (self-service deletion), `account-deletion.ts`, `account-deletion-policy.ts`, `account-deletion.tsx` |
 | Persistence | `prisma/schema.prisma`, paired `prisma/migrations/` and `prisma/postgres/migrations/`, `src/lib/db.ts` |
 | PWA | `src/app/manifest.ts`, `public/sw.js`, `public/offline.html`, `app-install.tsx` |
 | Deployment | `vercel.json`, `scripts/production-check.mjs`, `production-config.mjs`, `postgres.mjs`, `.github/workflows/ci.yml` |

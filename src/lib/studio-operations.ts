@@ -5,6 +5,18 @@ const text = z.string().trim().max(160);
 const email = z.union([z.email().max(254), z.literal('')]).transform((v) => v.toLowerCase());
 const phone = z.string().trim().max(30);
 const date = z.iso.date();
+export const MAX_REPEAT_WEEKS = 12;
+const WEEK_MS = 7 * 86400000;
+/**
+ * Start instants for a weekly series. India time has no daylight-saving shift, so a
+ * fixed seven-day step keeps the same local start time.
+ */
+export function weeklyOccurrences(startsAt: string, repeatWeeks = 1) {
+  const first = Date.parse(startsAt);
+  return Array.from({ length: Math.max(1, Math.min(MAX_REPEAT_WEEKS, repeatWeeks)) }, (_, i) =>
+    new Date(first + i * WEEK_MS).toISOString(),
+  );
+}
 export const operationsSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('memberAccess'),
@@ -22,6 +34,8 @@ export const operationsSchema = z.discriminatedUnion('action', [
     duration: z.number().int().min(10).max(240),
     capacity: z.number().int().min(1).max(100),
     status: z.enum(['scheduled', 'completed', 'cancelled']),
+    /** New scheduled classes only: create this many weekly occurrences (all or none). */
+    repeatWeeks: z.number().int().min(1).max(MAX_REPEAT_WEEKS).optional(),
   }),
   z.object({
     action: z.literal('booking'),
@@ -297,13 +311,31 @@ export function applyDemoOperation(
         throw new Error('Schedule a class in the future.');
       if (existing && c.capacity < existing.bookings.filter((b) => b.status === 'booked').length)
         throw new Error('Capacity cannot be smaller than the booked roster.');
+      const { repeatWeeks, ...fields } = c;
+      if ((repeatWeeks ?? 1) > 1 && (c.id || c.status !== 'scheduled'))
+        throw new Error('Only a new scheduled class can repeat weekly.');
+      if (c.id)
+        return {
+          ...data,
+          studioClasses: replace(data.studioClasses, {
+            ...fields,
+            id: c.id,
+            bookings: existing?.bookings || [],
+          }),
+        };
       return {
         ...data,
-        studioClasses: replace(data.studioClasses, {
-          ...c,
-          id: c.id || newId,
-          bookings: existing?.bookings || [],
-        }),
+        // New rows are prepended, so add the latest first to list the series in date order.
+        studioClasses: weeklyOccurrences(c.startsAt, repeatWeeks).reduceRight(
+          (list, startsAt, i) =>
+            replace(list, {
+              ...fields,
+              startsAt,
+              id: i ? `${newId}-w${i + 1}` : newId,
+              bookings: [],
+            }),
+          data.studioClasses,
+        ),
       };
     }
     case 'booking': {

@@ -47,11 +47,12 @@ else {
     studio: 'test-studio-operations',
     coaching: 'test-coaching-phase',
     next: 'test-next-phase',
+    account: 'test-account-lifecycle',
     a11y: 'check-accessibility',
   };
   if (!scripts[action])
     throw new Error(
-      'Choose build, dev, serve, unit, api, roles, studio, coaching, next, e2e, or a11y.',
+      'Choose build, dev, serve, unit, api, roles, studio, coaching, next, account, e2e, or a11y.',
     );
   run([`scripts/${scripts[action]}.mjs`]);
 }

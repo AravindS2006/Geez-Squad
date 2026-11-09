@@ -233,7 +233,9 @@ export function StudioOperations({
           ? `Studio updated. ${releasedBookings} ineligible future booking(s) cancelled and seats released.`
           : command.action === 'memberAccess' && command.operation !== 'withdraw'
             ? 'Setup email sent. Awaiting account confirmation.'
-            : 'Studio updated successfully.',
+            : command.action === 'studioClass' && (command.repeatWeeks ?? 1) > 1
+              ? `${command.repeatWeeks} weekly classes scheduled.`
+              : 'Studio updated successfully.',
       );
       return true;
     } catch (e) {

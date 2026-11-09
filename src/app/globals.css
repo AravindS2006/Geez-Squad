@@ -6971,3 +6971,13 @@ label:has(> input[type='radio']) {
 .breadcrumb > .breadcrumb-root {
   color: #606b58;
 }
+.monitor-toolbar button {
+  white-space: nowrap;
+}
+.monitor-empty > span {
+  max-width: 320px;
+  text-align: center;
+  color: #b5c0c9;
+  font-size: 13px;
+  line-height: 1.5;
+}

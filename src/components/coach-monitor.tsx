@@ -272,7 +272,13 @@ export function CoachMonitor({
                 </button>
               );
             })}
-            {!visible.length && (
+            {!visible.length && !item.participants.length && (
+              <div className="monitor-empty">
+                <strong>Waiting for trainees</strong>
+                <span>Enrolled trainees appear here as soon as the class roster has members.</span>
+              </div>
+            )}
+            {!visible.length && !!item.participants.length && (
               <div className="monitor-empty">
                 <strong>No trainees match</strong>
                 <button

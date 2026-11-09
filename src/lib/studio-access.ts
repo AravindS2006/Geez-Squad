@@ -110,11 +110,13 @@ export async function classPermissions(
   item: { studioId: string; hostId: string | null; studio: { ownerId: string } },
   userId: string,
 ) {
-  const access = await studioAccess(userId, item.studioId);
-  const admins = await db.studioRoleGrant.findMany({
-    where: { studioId: item.studioId, role: 'admin', status: 'active' },
-    select: { userId: true },
-  });
+  const [access, admins] = await Promise.all([
+    studioAccess(userId, item.studioId),
+    db.studioRoleGrant.findMany({
+      where: { studioId: item.studioId, role: 'admin', status: 'active' },
+      select: { userId: true },
+    }),
+  ]);
   return classPermissionView(
     item,
     userId,

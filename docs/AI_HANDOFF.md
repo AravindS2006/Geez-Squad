@@ -159,7 +159,10 @@ The coach's normal gallery has 12 trainees per desktop page and four per phone p
 the explicit overview supports 36. Workout queue/search tools are collapsible so
 they do not consume the camera area. Metrics and the control dock float without
 cropping full-body video. Focused trainee details enlarge the selected feed.
-Trainee layout defaults to Balanced, with Picture in picture and Coach focus
+Trainee layout defaults to Balanced on larger screens and to Picture in picture on phones
+(`max-width: 760px` or `max-height: 550px`) so the trainee's own camera is the main view;
+the coach cue is a dismissible banner over the phone header that hides after 20 s (chat keeps
+it). `trainee-mobile-layout.spec.ts` pins the phone camera share. Picture in picture and Coach focus
 options. Saved user preferences remain respected.
 
 Layout changes must preserve the analyzer DOM node, tracks, playback and counters.

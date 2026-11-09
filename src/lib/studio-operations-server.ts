@@ -3,7 +3,7 @@ import { sendMail } from './mail';
 import { requireStudio } from './studio-access';
 import 'server-only';
 import type { Prisma } from '@prisma/client';
-import { db } from './db';
+import { db, isSqliteDatabase } from './db';
 import { ApiError } from './security';
 import {
   addDays,
@@ -21,7 +21,47 @@ import {
 import { logEvent } from './logger';
 import { requestContext } from './request-log';
 
-export async function readOperations(studioId: string): Promise<OperationsData> {
+/** Read windows keep the operations snapshot bounded as a studio accumulates history. */
+export const OPERATIONS_WINDOWS = {
+  /** Terms that ended earlier are omitted unless a balance is still outstanding. */
+  termDays: 365,
+  /** Covers the six-month revenue chart and quarter summary. */
+  revenueDays: 200,
+  attendanceDays: 90,
+  pastClassDays: 30,
+  maxClasses: 500,
+  paymentPage: 100,
+} as const;
+
+/** Older settled terms whose payments are omitted from the snapshot. */
+async function unsettledOldTermIds(studioId: string, before: string) {
+  const old = await db.memberTerm.findMany({
+    where: { studioId, endsOn: { lt: before }, status: { not: 'cancelled' } },
+    select: { id: true, feePaise: true },
+  });
+  if (!old.length) return [];
+  const paid = await db.studioPayment.groupBy({
+    by: ['termId'],
+    where: { studioId, term: { studioId, endsOn: { lt: before }, status: { not: 'cancelled' } } },
+    _sum: { amountPaise: true },
+  });
+  const sums = new Map(paid.map((p) => [p.termId, p._sum.amountPaise ?? 0]));
+  return old.filter((t) => (sums.get(t.id) ?? 0) < t.feePaise).map((t) => t.id);
+}
+
+export async function readOperations(studioId: string, now = new Date()): Promise<OperationsData> {
+  const today = studioToday(now);
+  const termSince = addDays(today, -OPERATIONS_WINDOWS.termDays);
+  const revenueSince = addDays(today, -OPERATIONS_WINDOWS.revenueDays);
+  // Every returned term carries all of its payments, so balances stay exact.
+  const termScope: Prisma.MemberTermWhereInput = {
+    studioId,
+    OR: [
+      { endsOn: { gte: termSince } },
+      { id: { in: await unsettledOldTermIds(studioId, termSince) } },
+      { payments: { some: { paidOn: { gte: revenueSince } } } },
+    ],
+  };
   const [studio, members, offers, terms, payments, attendance, enquiries, staff, studioClasses] =
     await Promise.all([
       db.studio.findUniqueOrThrow({
@@ -37,15 +77,25 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
         orderBy: { createdAt: 'desc' },
       }),
       db.membershipOffer.findMany({ where: { studioId }, orderBy: { pricePaise: 'asc' } }),
-      db.memberTerm.findMany({ where: { studioId }, orderBy: { endsOn: 'desc' } }),
-      db.studioPayment.findMany({ where: { studioId }, orderBy: { paidOn: 'desc' } }),
-      db.studioAttendance.findMany({ where: { studioId }, orderBy: { date: 'desc' } }),
+      db.memberTerm.findMany({ where: termScope, orderBy: { endsOn: 'desc' } }),
+      db.studioPayment.findMany({
+        where: { studioId, term: termScope },
+        orderBy: [{ paidOn: 'desc' }, { id: 'desc' }],
+      }),
+      db.studioAttendance.findMany({
+        where: { studioId, date: { gte: addDays(today, -OPERATIONS_WINDOWS.attendanceDays) } },
+        orderBy: { date: 'desc' },
+      }),
       db.studioEnquiry.findMany({ where: { studioId }, orderBy: { followUpOn: 'asc' } }),
       db.studioStaff.findMany({ where: { studioId }, orderBy: { name: 'asc' } }),
       db.studioClass.findMany({
-        where: { studioId },
+        where: {
+          studioId,
+          startsAt: { gte: new Date(now.getTime() - OPERATIONS_WINDOWS.pastClassDays * 86400000) },
+        },
         include: { bookings: true },
         orderBy: { startsAt: 'asc' },
+        take: OPERATIONS_WINDOWS.maxClasses,
       }),
     ]);
   const connections = await db.membership.findMany({
@@ -90,6 +140,41 @@ export async function readOperations(studioId: string): Promise<OperationsData> 
     enquiries,
     staff,
     studioClasses: studioClasses.map((s) => ({ ...s, startsAt: s.startsAt.toISOString() })),
+  };
+}
+
+/** Full payment history, newest first, for records older than the snapshot. */
+export async function readPaymentHistory(studioId: string, rawCursor: string | null) {
+  let cursor: Prisma.StudioPaymentWhereInput = {};
+  if (rawCursor) {
+    try {
+      const c = JSON.parse(Buffer.from(rawCursor, 'base64url').toString());
+      if (
+        typeof c.id !== 'string' ||
+        c.id.length > 100 ||
+        typeof c.paidOn !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(c.paidOn)
+      )
+        throw new Error();
+      cursor = { OR: [{ paidOn: { lt: c.paidOn } }, { paidOn: c.paidOn, id: { lt: c.id } }] };
+    } catch {
+      throw new ApiError(400, 'Invalid payment cursor.');
+    }
+  }
+  const take = OPERATIONS_WINDOWS.paymentPage;
+  const rows = await db.studioPayment.findMany({
+    where: { AND: [{ studioId }, cursor] },
+    orderBy: [{ paidOn: 'desc' }, { id: 'desc' }],
+    take: take + 1,
+  });
+  const page = rows.slice(0, take),
+    last = page.at(-1);
+  return {
+    payments: page,
+    nextCursor:
+      rows.length > take && last
+        ? Buffer.from(JSON.stringify({ id: last.id, paidOn: last.paidOn })).toString('base64url')
+        : null,
   };
 }
 
@@ -500,7 +585,7 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
         },
         { isolationLevel: 'Serializable' as Prisma.TransactionIsolationLevel },
       ),
-    process.env.DATABASE_PROVIDER !== 'postgresql',
+    isSqliteDatabase(),
   );
   if (c.action === 'member' || c.action === 'cancelTerm')
     await revokeIneligibleParticipants(studioId);

@@ -16,7 +16,8 @@ async function handlePOST(request: Request) {
     if (
       !process.env.STRIPE_SECRET_KEY ||
       !process.env.STRIPE_PRICE_ID ||
-      !process.env.STRIPE_WEBHOOK_SECRET
+      !process.env.STRIPE_WEBHOOK_SECRET ||
+      !process.env.BETTER_AUTH_URL
     )
       throw new ApiError(503, 'Subscriptions are not configured.');
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -32,7 +33,7 @@ async function handlePOST(request: Request) {
         update: {},
       });
     }
-    const origin = new URL(process.env.BETTER_AUTH_URL!).origin;
+    const origin = new URL(process.env.BETTER_AUTH_URL).origin;
     if (action === 'portal') {
       const session = await stripe.billingPortal.sessions.create({
         customer: billing.customerId,

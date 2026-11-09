@@ -3,12 +3,22 @@ import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { operationsSchema } from '@/lib/studio-operations';
-import { readOperations, mutateOperations } from '@/lib/studio-operations-server';
+import {
+  readOperations,
+  readPaymentHistory,
+  mutateOperations,
+} from '@/lib/studio-operations-server';
 
-async function handleGET() {
+async function handleGET(request: Request) {
   try {
     const user = await requireUser();
     const { studio } = await requireStudio(user.id, 'admin');
+    const q = new URL(request.url).searchParams;
+    // `?payments=all` (optionally with `cursor`) pages the full payment history.
+    if (q.get('payments') === 'all')
+      return NextResponse.json(await readPaymentHistory(studio.id, q.get('cursor')), {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
     return NextResponse.json(await readOperations(studio.id), {
       headers: { 'Cache-Control': 'private, no-store' },
     });

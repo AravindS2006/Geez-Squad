@@ -1,7 +1,7 @@
 import { loggedRoute } from '@/lib/request-log';
 import { requireParticipation } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, isSqliteDatabase } from '@/lib/db';
 import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
@@ -133,7 +133,7 @@ async function handlePOST(request: Request) {
           { isolationLevel: 'Serializable' },
         );
       },
-      Boolean(process.env.DATABASE_URL?.startsWith('file:')),
+      isSqliteDatabase(),
       () => rateLimit(user.id, 'metrics', 30),
     );
     return NextResponse.json({ ok: true });

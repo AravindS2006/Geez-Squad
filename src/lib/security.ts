@@ -7,6 +7,7 @@ import { db } from './db';
 import { errorContext, logEvent } from './logger';
 import { requestContext } from './request-log';
 import { classPermissions } from './studio-access';
+import { isAllowedOrigin } from './origins';
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -30,8 +31,7 @@ export async function requireUser() {
   return user;
 }
 export function checkOrigin(request: Request) {
-  const expected = new URL(process.env.BETTER_AUTH_URL || request.url).origin;
-  if (request.headers.get('origin') !== expected)
+  if (!isAllowedOrigin(request.headers.get('origin'), process.env, request.url))
     throw new ApiError(403, 'This request origin is not allowed.');
 }
 export async function readJson(request: Request) {

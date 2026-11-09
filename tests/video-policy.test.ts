@@ -22,4 +22,13 @@ describe('LiveKit connection security policy', () => {
     expect(policy).toContain('wss://video.example.test https://video.example.test');
     expect(policy).not.toContain('*.livekit.cloud');
   });
+  it('sends HSTS and blocks plugin content on every route', async () => {
+    const headers = (await config.headers!()).find((group) => group.source === '/(.*)')!.headers;
+    expect(headers.find((h) => h.key === 'Strict-Transport-Security')?.value).toBe(
+      'max-age=63072000; includeSubDomains',
+    );
+    expect(headers.find((h) => h.key === 'Content-Security-Policy')!.value).toContain(
+      "object-src 'none'",
+    );
+  });
 });

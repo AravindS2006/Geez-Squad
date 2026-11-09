@@ -1,5 +1,5 @@
 import 'server-only';
-import { db } from './db';
+import { db, isSqliteDatabase } from './db';
 import { ApiError } from './security';
 import { requireStudio, studioAccess } from './studio-access';
 import { writeMetrics } from './metrics-write';
@@ -216,7 +216,7 @@ export async function mutateTeam(actorId: string, command: z.infer<typeof teamCo
         },
         { isolationLevel: 'Serializable' },
       ),
-    process.env.DATABASE_PROVIDER !== 'postgresql',
+    isSqliteDatabase(),
   );
   if (command.action === 'status' && command.status !== 'active')
     await revokeStaffVideo(studio.id, command.userId);

@@ -6,6 +6,7 @@ import { requireUser, readJson, safeError, rateLimit, ApiError } from '@/lib/sec
 import { measurementData } from '@/lib/measurement-contract';
 import { usesHoldTime } from '@/lib/exercise-library';
 import { loggedRoute } from '@/lib/request-log';
+import { maxPlausibleReps } from '@/lib/validation';
 const schema = z
   .object({
     clientId: z.uuid(),
@@ -15,6 +16,9 @@ const schema = z
     reason: z.string().trim().min(5).max(400),
   })
   .strict();
+function isUniqueConflict(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
 async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
@@ -26,29 +30,46 @@ async function handlePOST(request: Request) {
     if (!set) throw new ApiError(404, 'This workout is not available.');
     const metadata = measurementData(set.measurement);
     const hold = metadata.targetUnit === 'seconds' || usesHoldTime(set.exercise);
-    if ((hold && data.reps !== 0) || (!hold && data.holdMs !== 0) || data.holdMs > set.activeMs)
+    if (
+      (hold && data.reps !== 0) ||
+      (!hold && data.holdMs !== 0) ||
+      data.holdMs > set.activeMs ||
+      data.reps > maxPlausibleReps(set.activeMs)
+    )
       throw new ApiError(400, 'Use the exercise target unit and observed activity duration.');
-    const existing = await db.workoutCorrection.findUnique({ where: { id: data.clientId } });
-    if (existing && (existing.setId !== set.id || existing.actorId !== user.id))
-      throw new ApiError(409, 'Correction identity already used.');
+    const replay = async () => {
+      const existing = await db.workoutCorrection.findUnique({ where: { id: data.clientId } });
+      if (existing && (existing.setId !== set.id || existing.actorId !== user.id))
+        throw new ApiError(409, 'Correction identity already used.');
+      return existing;
+    };
     const correction =
-      existing ??
-      (await db.$transaction(async (tx) => {
-        const row = await tx.workoutCorrection.create({
-          data: {
-            id: data.clientId,
-            setId: set.id,
-            actorId: user.id,
-            reps: data.reps,
-            holdMs: data.holdMs,
-            reason: data.reason,
-          },
-        });
-        await tx.auditEvent.create({
-          data: { actorId: user.id, action: 'workout.corrected', targetId: set.id },
-        });
-        return row;
-      }));
+      (await replay()) ??
+      (await db
+        .$transaction(async (tx) => {
+          const row = await tx.workoutCorrection.create({
+            data: {
+              id: data.clientId,
+              setId: set.id,
+              actorId: user.id,
+              reps: data.reps,
+              holdMs: data.holdMs,
+              reason: data.reason,
+            },
+          });
+          await tx.auditEvent.create({
+            data: { actorId: user.id, action: 'workout.corrected', targetId: set.id },
+          });
+          return row;
+        })
+        .catch(async (error: unknown) => {
+          // A concurrent retry with the same client identity won the insert.
+          if (isUniqueConflict(error)) {
+            const winner = await replay();
+            if (winner) return winner;
+          }
+          throw error;
+        }));
     return NextResponse.json({ correction });
   } catch (error) {
     return safeError(error);

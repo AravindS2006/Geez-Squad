@@ -10,6 +10,19 @@ let fallbackUsed = false;
 self.onmessage = async ({ data }) => {
   if (data.type === 'init') {
     try {
+      // The constructor alone is insufficient on Safari: some releases expose
+      // OffscreenCanvas without usable worker WebGL2, even for CPU preprocessing.
+      const probe = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1) : null;
+      const context = probe?.getContext('webgl2');
+      if (!context) {
+        self.postMessage({
+          type: 'error',
+          code: 'worker-graphics-unavailable',
+          message: 'Worker graphics are unavailable. Use browser compatibility tracking.',
+        });
+        return;
+      }
+      context.getExtension('WEBGL_lose_context')?.loseContext();
       files = await FilesetResolver.forVisionTasks('/wasm');
       variant = ['lite', 'full', 'heavy'].includes(data.variant) ? data.variant : 'full';
       const options = {

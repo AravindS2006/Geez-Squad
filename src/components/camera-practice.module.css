@@ -182,6 +182,25 @@
 .session :global(.manual-workout .set-progress) {
   color: #eef6ed;
 }
+.session :global(.manual-workout .set-progress) {
+  background: #202d32;
+}
+.session :global(.manual-camera p) {
+  color: #c4d2c9;
+}
+.session :global(.manual-workout .set-progress :is(p, label)) {
+  color: #c4d2c9;
+}
+.session :global(.manual-workout .set-progress :is(input, select)) {
+  background: #132025;
+  color: #eef6ed;
+  border-color: #63746a;
+}
+.session :global(.manual-workout .button.outline) {
+  background: #26363b;
+  color: #eef6ed;
+  border-color: #63746a;
+}
 .practice .guide {
   position: absolute;
   top: 38px;

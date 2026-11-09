@@ -185,15 +185,41 @@
 }
 .app-install summary {
   cursor: pointer;
-  padding: 12px;
+  padding: 12px 48px 12px 12px;
   min-height: 44px;
 }
 .app-install p {
   padding: 0 12px;
   line-height: 1.6;
 }
-.app-install button {
+.app-install button:not(.install-dismiss) {
   margin: 0 12px 12px;
+}
+.app-install .install-dismiss {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: #263321;
+  cursor: pointer;
+}
+body:has([aria-modal='true']) .app-install {
+  display: none;
+}
+@media (max-width: 760px) {
+  .app-install {
+    top: auto;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    right: 12px;
+    max-width: calc(100% - 24px);
+  }
 }
 .operations-insights {
   padding: 22px;

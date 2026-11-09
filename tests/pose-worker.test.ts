@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { it, expect } from 'vitest';
+class WorkerCanvas {
+  getContext() {
+    return { getExtension: () => ({ loseContext() {} }) };
+  }
+}
 it('recovers one lost GPU runtime through CPU and closes every frame bitmap', async () => {
   const messages: Record<string, unknown>[] = [];
   let created = 0,
@@ -35,7 +40,7 @@ it('recovers one lost GPU runtime through CPU and closes every frame bitmap', as
         },
       };
     },
-    OffscreenCanvas: class {},
+    OffscreenCanvas: WorkerCanvas,
     performance: { now: () => 100 },
     console: { error: () => {} },
   };
@@ -84,6 +89,7 @@ it('transfers the analyzed image back once and leaves closing it to the renderer
       };
     },
     performance: { now: () => 0 },
+    OffscreenCanvas: WorkerCanvas,
     console,
   });
   await self.onmessage({ data: { type: 'init', variant: 'heavy', cpuOnly: true } });
@@ -102,3 +108,40 @@ it('transfers the analyzed image back once and leaves closing it to the renderer
   bitmap.close();
   expect(closed).toBe(1);
 });
+for (const partial of [false, true]) {
+  it(`requests compatibility tracking when worker WebGL is unavailable (${partial ? 'partial canvas' : 'no canvas'})`, async () => {
+    const messages: Record<string, unknown>[] = [];
+    let loaded = 0;
+    const self = {
+      exports: {},
+      postMessage: (message: Record<string, unknown>) => messages.push(message),
+      onmessage: null as unknown as (event: { data: Record<string, unknown> }) => Promise<void>,
+    };
+    vm.runInNewContext(readFileSync('public/pose-worker.js', 'utf8'), {
+      self,
+      console,
+      importScripts: () => {
+        self.exports = {
+          FilesetResolver: {
+            forVisionTasks: async () => {
+              loaded++;
+              return {};
+            },
+          },
+        };
+      },
+      OffscreenCanvas: partial
+        ? class {
+            getContext() {
+              return null;
+            }
+          }
+        : undefined,
+    });
+    await self.onmessage({ data: { type: 'init', variant: 'full' } });
+    expect(messages).toEqual([
+      expect.objectContaining({ type: 'error', code: 'worker-graphics-unavailable' }),
+    ]);
+    expect(loaded).toBe(0);
+  });
+}

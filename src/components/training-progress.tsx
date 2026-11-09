@@ -11,6 +11,8 @@ import { isHoldExercise } from '@/lib/exercise-profiles';
 import { pendingWorkoutSets, retryWorkoutSets } from '@/lib/workout-save';
 import { useTimeFormat } from './time-provider';
 import { EmptyState, SectionTitle } from './ui';
+import { BarChart } from './primitives/bar-chart';
+import { activitySeries } from '@/lib/activity-series';
 
 const number = (value: number | null, suffix = '') =>
   value === null ? '—' : `${Math.round(value * 10) / 10}${suffix}`;
@@ -344,6 +346,32 @@ export function TrainingProgress({
           detail="Sets that reached their rep or hold target"
         />
       </div>
+      <section className="panel progress-activity" aria-labelledby="progress-activity-title">
+        <div className="progress-activity-head">
+          <h2 id="progress-activity-title">Active training over time</h2>
+          <span className="microcopy">{days > 60 ? 'Weekly totals' : 'Daily totals'}</span>
+        </div>
+        {sets.length ? (
+          <BarChart
+            unit="m"
+            caption={
+              history?.nextCursor
+                ? `Minutes of observed training from the ${sets.length} most recent loaded sets. Load more records below to extend the chart.`
+                : 'Minutes of observed training per period. Pauses are excluded.'
+            }
+            data={activitySeries(sets, days, timeZone).map((b) => ({
+              key: b.key,
+              label: b.label,
+              value: b.minutes,
+              detail: `${b.label}: ${b.minutes} min across ${b.sets} ${b.sets === 1 ? 'set' : 'sets'}`,
+            }))}
+          />
+        ) : (
+          <p className="microcopy">
+            Saved sets will chart here once training is recorded in this period.
+          </p>
+        )}
+      </section>
       {!cohort && (
         <details className="panel measurement-details">
           <summary>Measurement details</summary>

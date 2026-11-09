@@ -44,3 +44,7 @@ docs/accessibility-report.json
 .azure/
 cookies.json
 storageState.json
+
+# Local agent tooling
+.claude/launch.json
+.claude/worktrees/

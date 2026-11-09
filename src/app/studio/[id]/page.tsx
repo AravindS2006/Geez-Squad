@@ -1,8 +1,10 @@
+import type { Metadata } from 'next';
 import { redirect, notFound } from 'next/navigation';
 import { ApiError, requireUser } from '@/lib/security';
 import { workspaceData } from '@/lib/workspace';
 import { StudioPage } from '@/components/studio-page';
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Live session', robots: { index: false } };
 export default async function LiveStudio({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let user;

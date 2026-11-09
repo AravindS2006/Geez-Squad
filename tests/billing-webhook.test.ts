@@ -81,6 +81,23 @@ describe('billing webhook reconciliation', () => {
     expect((await POST(request())).status).toBe(200);
     expect(fixtures.retrieve).not.toHaveBeenCalled();
   });
+  it('acknowledges and records an event for a customer this app never registered', async () => {
+    fixtures.findBilling.mockResolvedValue(null);
+    expect((await POST(request())).status).toBe(200);
+    expect(fixtures.retrieve).not.toHaveBeenCalled();
+    expect(fixtures.updateBilling).not.toHaveBeenCalled();
+    expect(fixtures.createEvent).toHaveBeenCalledWith({ data: { id: 'event' } });
+  });
+  it('records a checkout event without a customer instead of retrying forever', async () => {
+    fixtures.constructEvent.mockReturnValue({
+      id: 'event',
+      type: 'checkout.session.completed',
+      data: { object: { subscription: 'sub', customer: null } },
+    });
+    expect((await POST(request())).status).toBe(200);
+    expect(fixtures.findBilling).not.toHaveBeenCalled();
+    expect(fixtures.createEvent).toHaveBeenCalledWith({ data: { id: 'event' } });
+  });
   it('rejects an invalid signature before reading billing data', async () => {
     fixtures.constructEvent.mockImplementation(() => {
       throw new Error('Invalid signature');

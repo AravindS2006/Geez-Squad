@@ -634,24 +634,30 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             </div>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <button
-            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
-            onClick={() => go('settings')}
-          >
-            <Settings2 size={18} /> Settings
-          </button>
-          <button className="nav-item" onClick={() => show('help')}>
-            <CircleHelp size={18} /> Help & resources
-            <ArrowUpRight size={14} />
-          </button>
+        <div className="sidebar-bottom sidebar-account">
           <button className="profile-button" onClick={() => go('settings')}>
             <Avatar name={data.user.name} small />
             <span>
               <strong>{data.user.name}</strong>
               <small>{admin ? 'Admin' : coach ? 'Coach' : 'Trainee'}</small>
             </span>
-            <Settings2 size={16} />
+          </button>
+          <button
+            className={`icon-button sidebar-account-action ${activeView === 'settings' ? 'active' : ''}`}
+            aria-label="Settings"
+            aria-current={activeView === 'settings' ? 'page' : undefined}
+            title="Settings"
+            onClick={() => go('settings')}
+          >
+            <Settings2 size={18} />
+          </button>
+          <button
+            className="icon-button sidebar-account-action"
+            aria-label="Help & resources"
+            title="Help & resources"
+            onClick={() => show('help')}
+          >
+            <CircleHelp size={18} />
           </button>
         </div>
       </aside>
@@ -671,8 +677,10 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             <Menu size={21} />
           </button>
           <div className="breadcrumb">
-            {coach ? 'Geez Squad studio' : 'Your workspace'}
-            <span>/</span>
+            <span className="breadcrumb-root">
+              {coach ? 'Geez Squad studio' : 'Your workspace'}
+            </span>
+            <span aria-hidden="true">/</span>
             <strong>
               {activeView === 'studio'
                 ? 'Live studio'

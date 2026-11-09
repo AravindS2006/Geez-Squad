@@ -1,8 +1,10 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ApiError, requireUser } from '@/lib/security';
 import { workspaceData } from '@/lib/workspace';
 import { Workspace } from '@/components/workspace';
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Workspace', robots: { index: false } };
 export default async function AppPage({
   searchParams,
 }: {

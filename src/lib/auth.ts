@@ -1,11 +1,12 @@
 import 'server-only';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { db } from './db';
+import { db, databaseProvider } from './db';
 import { sendMail } from './mail';
 import { getEmailPolicy } from './email-policy.mjs';
 import { logEvent } from './logger';
 import { requestContext } from './request-log';
+import { allowedOrigins } from './origins';
 export const emailPolicy = getEmailPolicy(process.env);
 export const auth = betterAuth({
   logger: {
@@ -16,9 +17,9 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(db, {
-    provider: process.env.DATABASE_PROVIDER === 'postgresql' ? 'postgresql' : 'sqlite',
+    provider: databaseProvider(),
   }),
-  trustedOrigins: [process.env.BETTER_AUTH_URL || 'http://localhost:3000'],
+  trustedOrigins: allowedOrigins(),
   emailAndPassword: {
     enabled: true,
     disableSignUp: !emailPolicy.signupEnabled,

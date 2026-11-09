@@ -43,6 +43,29 @@ export async function studioAccess(userId: string, studioId?: string, store: Acc
     role: admin ? ('admin' as const) : coach ? ('coach' as const) : ('trainee' as const),
   };
 }
+/**
+ * Batched form of `studioAccess(...).trainee` for every linked studio: a connected
+ * membership whose trainee grant, when present, is still active.
+ */
+export async function traineeStudioIds(
+  userId: string,
+  studioIds: string[],
+  store: AccessStore = db,
+) {
+  if (!studioIds.length) return new Set<string>();
+  const [memberships, grants] = await Promise.all([
+    store.membership.findMany({
+      where: { userId, studioId: { in: studioIds } },
+      select: { studioId: true },
+    }),
+    store.studioRoleGrant.findMany({
+      where: { userId, role: 'trainee', studioId: { in: studioIds } },
+      select: { studioId: true, status: true },
+    }),
+  ]);
+  const revoked = new Set(grants.filter((g) => g.status !== 'active').map((g) => g.studioId));
+  return new Set(memberships.map((m) => m.studioId).filter((id) => !revoked.has(id)));
+}
 export async function requireStudio(
   userId: string,
   permission: 'admin' | 'coach',

@@ -1,6 +1,6 @@
 # Geez Squad: project context for coding agents
 
-Last reconciled with source: 24 October 2026. Start here and in the root
+Last reconciled with source: 9 November 2026. Start here and in the root
 `AGENTS.md`; `CLAUDE.md` imports that entry point. Source and current test results
 take precedence over claims in older phase reports. Read the current user request
 and Git status before making changes, and preserve work belonging to the user.
@@ -166,6 +166,21 @@ Use `contain` for full-body camera/presentation media, keep video/canvas bounds
 aligned, avoid covering important overlays, honor safe areas, provide 44px primary
 controls and visible keyboard focus, and test short landscape screens.
 
+## UI system
+
+The product is light-only by owner decision; do not add dark mode or theme toggles.
+`src/app/tokens.css` (imported first) defines the type scale (`--fs-2xs` 11px to
+`--fs-lg`), surfaces, text, brand, radius, shadow and motion tokens, plus legacy aliases
+(`--bg`, `--ink`, `--muted`, `--line`, ...). Inter and Instrument Serif load through
+`next/font` in the root layout. Workspace text uses the token scale; camera and meeting
+rules intentionally keep their original pixel sizes because browser tests pin video
+geometry. New UI should use tokens and `src/components/primitives/` (`toast` with
+`useToast`, `bar-chart`); older shared pieces (`Avatar`, `EmptyState`, `Modal`,
+`SectionTitle`) live in `src/components/ui.tsx`. The "Layout polish" block at the end
+of `globals.css` unifies `.page-heading` with `.ops-heading`, inline checkbox labels,
+the sidebar account row and phone session cards. Do not add a route `loading.tsx` above
+pages that redirect: streaming turns the signed-out 307 into a 200.
+
 ## Verification matrix
 
 | Change | Minimum relevant evidence |
@@ -226,8 +241,8 @@ that old alert or suppress an unfamiliar new finding without investigation.
 - `COACHING_PHASE_2026-10-24.md`: measurement/data contracts, curated library,
   rollout switches, pilot targets and the initial phase's architecture acceptance map.
 - `DEPLOYMENT.md`, `OPERATIONS.md`, `SECURITY.md`: environment/recovery and secrets.
-- `BUG_AUDIT_2026-10-23.md`: account roles, assignments and feedback boundaries.
-- `pose-engine-v3.md`, `POSE_RELIABILITY_2026-10-13.md`: historical algorithm context;
+- `archive/BUG_AUDIT_2026-10-23.md`: account roles, assignments and feedback boundaries.
+- `pose-engine-v3.md`, `archive/POSE_RELIABILITY_2026-10-13.md`: historical algorithm context;
   inspect current implementation/rule versions before reusing old assumptions.
 
 Physical exercise validation, the device matrix (including iPhone Safari), and a

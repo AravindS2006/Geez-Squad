@@ -7,8 +7,8 @@ import {
   historyInclude,
   workoutView,
   decodeHistoryCursor,
+  historyTotals,
 } from '@/lib/workout-history';
-import { historyAccumulator } from '@/lib/history-totals';
 import { exerciseSchema } from '@/lib/validation';
 import { loggedRoute } from '@/lib/request-log';
 async function handleGET(request: Request) {
@@ -64,71 +64,19 @@ async function handleGET(request: Request) {
     });
     const page = rows.slice(0, limit),
       last = page.at(-1);
-    let totals;
-    let byUser, breakdown;
-    if (q.get('cursor') === null) {
-      let scanCursor: Prisma.WorkoutSetWhereInput = {};
-      const accumulator = historyAccumulator(q.get('timeZone') ?? 'UTC');
-      const users = new Map<string, ReturnType<typeof historyAccumulator>>();
-      const groups = new Map<
-        string,
-        {
-          exercise: string;
-          name: string;
-          version: string;
-          accumulator: ReturnType<typeof historyAccumulator>;
-          recentQuality: number[];
-        }
-      >();
-      for (;;) {
-        const batch = await db.workoutSet.findMany({
-          where: { AND: [where, scanCursor] },
-          include: historyInclude,
-          orderBy,
-          take: 500,
-        });
-        batch.forEach((r) => {
-          const view = workoutView(r);
-          accumulator.add(view);
-          if (!users.has(view.userId))
-            users.set(view.userId, historyAccumulator(q.get('timeZone') ?? 'UTC'));
-          users.get(view.userId)!.add(view);
-          const key = `${view.exercise}:${view.ruleVersion}`;
-          if (!groups.has(key))
-            groups.set(key, {
-              exercise: view.exercise,
-              name: view.exerciseLabel ?? view.exercise,
-              version: view.ruleVersion,
-              accumulator: historyAccumulator(q.get('timeZone') ?? 'UTC'),
-              recentQuality: [],
-            });
-          const group = groups.get(key)!;
-          group.accumulator.add(view);
-          if (group.recentQuality.length < 5 && view.qualityScore !== null)
-            group.recentQuality.push(Math.round(view.qualityScore));
-        });
-        if (batch.length < 500) break;
-        const tail = batch.at(-1)!;
-        scanCursor = {
-          OR: [{ endedAt: { lt: tail.endedAt } }, { endedAt: tail.endedAt, id: { lt: tail.id } }],
-        };
-      }
-      totals = accumulator.result();
-      byUser = Object.fromEntries(
-        [...users].map(([id, accumulator]) => [id, accumulator.result()]),
-      );
-      breakdown = [...groups.values()].map(({ accumulator, recentQuality, ...group }) => ({
-        ...group,
-        summary: accumulator.result(),
-        recentQuality: recentQuality.reverse(),
-      }));
-    }
+    // Totals are only computed for the first page and cover at most 365 days.
+    const summary =
+      q.get('cursor') === null
+        ? await historyTotals(where, q.get('timeZone') ?? 'UTC', { days })
+        : undefined;
     return NextResponse.json(
       {
         records: page.map(workoutView),
-        totals,
-        byUser,
-        breakdown,
+        totals: summary?.totals,
+        byUser: summary?.byUser,
+        breakdown: summary?.breakdown,
+        totalsWindowDays: summary?.totalsWindowDays,
+        totalsTruncated: summary?.totalsTruncated,
         nextCursor:
           rows.length > limit && last
             ? Buffer.from(JSON.stringify({ id: last.id, at: last.endedAt.toISOString() })).toString(

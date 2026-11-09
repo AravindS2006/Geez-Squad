@@ -114,6 +114,32 @@ export async function requestMemberAccess(
     update: { email: member.email, status: 'pending' },
   });
 }
+export const CLASS_REVOCATION_INTERVAL_MS = 30_000;
+const classRevocationRuns = new Map<string, number>();
+/**
+ * Class snapshots are polled every few seconds. HTTP authorization still runs on
+ * every request; only the LiveKit participant sweep is limited per class and scope
+ * (a coach's full sweep and each trainee's own check are tracked separately).
+ */
+export async function reconcileClassParticipants(
+  classId: string,
+  studioId: string,
+  onlyUserId?: string,
+  now = Date.now(),
+) {
+  const key = `${classId}:${onlyUserId ?? '*'}`;
+  const previous = classRevocationRuns.get(key);
+  if (previous !== undefined && now - previous < CLASS_REVOCATION_INTERVAL_MS) return false;
+  classRevocationRuns.set(key, now);
+  if (classRevocationRuns.size > 5000)
+    for (const [entry, at] of classRevocationRuns)
+      if (now - at >= CLASS_REVOCATION_INTERVAL_MS) classRevocationRuns.delete(entry);
+  await revokeIneligibleParticipants(studioId, onlyUserId);
+  return true;
+}
+export function resetClassRevocationThrottle() {
+  classRevocationRuns.clear();
+}
 /** Database decisions commit first; polling retries failed RTC cleanup. */
 export async function revokeIneligibleParticipants(studioId: string, onlyUserId?: string) {
   try {

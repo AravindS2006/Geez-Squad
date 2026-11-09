@@ -25,7 +25,7 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
 }
 .nutrition-workspace input:not([type='checkbox']),
@@ -52,7 +52,7 @@
   background: #edf2e6;
   border: 1px solid var(--line);
   border-radius: 12px;
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.5;
 }
 .nutrition-sharing input {
@@ -75,7 +75,7 @@
 }
 .nutrition-stats article > span {
   color: #53614c;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .nutrition-stats strong {
   font-size: clamp(22px, 3vw, 32px);
@@ -133,7 +133,7 @@
   overflow-wrap: anywhere;
 }
 .nutrition-entry-list .eyebrow {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .nutrition-week > div {
   display: grid;
@@ -150,7 +150,7 @@
   border-radius: 8px;
 }
 .nutrition-week article span {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .nutrition-week article strong {
   font-size: 24px;
@@ -167,7 +167,7 @@
   border-radius: 12px;
   background: #263321;
   color: #fff;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-shadow: 0 6px 24px #0003;
 }
 .app-install {
@@ -180,7 +180,7 @@
   color: #263321;
   border: 1px solid #b5bfac;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   box-shadow: 0 4px 18px #0001;
 }
 .app-install summary {
@@ -248,14 +248,14 @@ body:has([aria-modal='true']) .app-install {
 }
 .operations-insights-grid span,
 .operations-insights-grid small {
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: #53614c;
 }
 .coach-workload {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--fs-md);
   margin-top: 20px;
 }
 .coach-workload th,
@@ -315,7 +315,7 @@ body:has([aria-modal='true']) .app-install {
   }
   .nutrition-week article span,
   .nutrition-week article small {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .nutrition-journal,
   .nutrition-targets,

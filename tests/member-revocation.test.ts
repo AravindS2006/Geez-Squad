@@ -78,3 +78,32 @@ describe('live revocation reconciliation', () => {
     expect(fixture.remove.mock.calls.filter((c) => c[1] === 'former-host')).toHaveLength(2);
   });
 });
+describe('class poll revocation throttle', () => {
+  it('sweeps LiveKit at most once per class and scope within the interval', async () => {
+    const {
+      reconcileClassParticipants,
+      resetClassRevocationThrottle,
+      CLASS_REVOCATION_INTERVAL_MS,
+    } = await import('../src/lib/member-access');
+    resetClassRevocationThrottle();
+    fixture.list.mockResolvedValue([]);
+    const start = 1_000_000;
+    expect(await reconcileClassParticipants('class', 'studio', undefined, start)).toBe(true);
+    expect(await reconcileClassParticipants('class', 'studio', undefined, start + 3000)).toBe(
+      false,
+    );
+    // A trainee's own check and another class are tracked separately.
+    expect(await reconcileClassParticipants('class', 'studio', 'trainee', start + 3000)).toBe(true);
+    expect(await reconcileClassParticipants('other', 'studio', undefined, start + 3000)).toBe(true);
+    expect(fixture.list).toHaveBeenCalledTimes(3);
+    expect(
+      await reconcileClassParticipants(
+        'class',
+        'studio',
+        undefined,
+        start + CLASS_REVOCATION_INTERVAL_MS,
+      ),
+    ).toBe(true);
+    expect(fixture.list).toHaveBeenCalledTimes(4);
+  });
+});

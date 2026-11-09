@@ -28,9 +28,16 @@ const config: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
+          // Browsers ignore HSTS on plain-HTTP localhost, so local development is unaffected.
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
           {
+            // script-src keeps 'unsafe-inline': App Router streams its flight data as inline
+            // scripts, and most pages (landing, login, docs) are statically generated, where
+            // per-request nonces cannot be injected. Removing it requires a nonce proxy and
+            // dynamic rendering for every page; the MediaPipe worker itself only needs
+            // worker-src blob: and 'wasm-unsafe-eval'.
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${process.env.NODE_ENV === 'development' ? "'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${livekit} ${endpoint}${cloudSources}; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${process.env.NODE_ENV === 'development' ? "'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${livekit} ${endpoint}${cloudSources}; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
           },
         ],
       },

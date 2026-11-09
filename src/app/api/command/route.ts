@@ -7,12 +7,13 @@ import {
   revokeIneligibleParticipants,
   reconcileBookings,
 } from '@/lib/member-access';
-import { logEvent } from '@/lib/logger';
+import { errorContext, logEvent } from '@/lib/logger';
+import { releaseUnclaimedRoom } from '@/lib/class-room-cleanup';
 import { requestContext } from '@/lib/request-log';
 import { studioToday } from '@/lib/studio-operations';
 import { createHash, randomBytes } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
-import { db } from '@/lib/db';
+import { db, isSqliteDatabase } from '@/lib/db';
 import { commandSchema } from '@/lib/validation';
 import { MAX_CLASS_CLIENTS } from '@/lib/class-policy';
 import { sessionEditVersion } from '@/lib/session-management';
@@ -217,7 +218,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         result.id = plan.id;
         break;
@@ -252,7 +253,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         break;
       }
@@ -276,7 +277,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         break;
       }
@@ -298,7 +299,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         break;
       }
@@ -383,7 +384,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         result.id = item.id;
         break;
@@ -501,7 +502,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         result.id = data.id;
         break;
@@ -618,7 +619,7 @@ async function handlePOST(request: Request) {
               },
               { isolationLevel: 'Serializable' },
             ),
-          process.env.DATABASE_PROVIDER !== 'postgresql',
+          isSqliteDatabase(),
         );
         await revokeIneligibleParticipants(owned.id, data.userId);
         break;
@@ -680,8 +681,10 @@ async function handlePOST(request: Request) {
           where: { id: item.id, status: allowed, revision: item.revision, hostId: item.hostId },
           data: { ...change, controlSequence: { increment: 1 } },
         });
-        if (!updated.count)
+        if (!updated.count) {
+          if (data.control === 'start') await discardPreparedRoom(item.id);
           throw new ApiError(409, 'Another update was applied. Refresh and retry.');
+        }
         await db.auditEvent.create({
           data: { actorId: user.id, action: data.control, targetId: item.id },
         });
@@ -795,6 +798,27 @@ async function createRoom(id: string, maxParticipants: number) {
       502,
       'Live video could not be prepared. The class has not started; retry shortly.',
     );
+  }
+}
+/** Best effort: a leftover room has no tokens and expires on LiveKit's idle timeout. */
+async function discardPreparedRoom(classId: string) {
+  const service = videoService();
+  if (!service) return;
+  try {
+    await releaseUnclaimedRoom(classId, {
+      read: () =>
+        db.classSession.findUnique({
+          where: { id: classId },
+          select: { status: true, videoRoomName: true },
+        }),
+      remove: async (roomName) => {
+        await service.deleteRoom(roomName).catch((error: unknown) => {
+          if (!isRoomMissing(error)) throw error;
+        });
+      },
+    });
+  } catch (error) {
+    logEvent('warn', 'orphaned_room_cleanup_failed', { targetId: classId, ...errorContext(error) });
   }
 }
 async function deleteRoom(roomName: string, identities: string[]) {

@@ -633,18 +633,24 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 ))}
             </div>
           ))}
+          <div className="nav-group" role="group" aria-label="Account">
+            <span className="nav-label" aria-hidden="true">
+              Account
+            </span>
+            <button
+              className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
+              aria-current={activeView === 'settings' ? 'page' : undefined}
+              onClick={() => go('settings')}
+            >
+              <Settings2 size={19} /> <span>Settings</span>
+            </button>
+            <button className="nav-item" onClick={() => show('help')}>
+              <CircleHelp size={19} /> <span>Help & resources</span>
+              <ArrowUpRight size={14} className="nav-item-trailing" />
+            </button>
+          </div>
         </nav>
         <div className="sidebar-bottom">
-          <button
-            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
-            onClick={() => go('settings')}
-          >
-            <Settings2 size={18} /> Settings
-          </button>
-          <button className="nav-item" onClick={() => show('help')}>
-            <CircleHelp size={18} /> Help & resources
-            <ArrowUpRight size={14} />
-          </button>
           <button className="profile-button" onClick={() => go('settings')}>
             <Avatar name={data.user.name} small />
             <span>

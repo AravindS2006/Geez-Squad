@@ -1,16 +1,3 @@
-:root {
-  --bg: #f8f9f5;
-  --paper: #fff;
-  --ink: #222a24;
-  --muted: #606b58;
-  --line: #e8ebe3;
-  --lime: #d1ed9e;
-  --lavender: #e9e3fa;
-  --peach: #fbe7d9;
-  --sky: #e4eff4;
-  --radius: 18px;
-  --shadow: 0 6px 30px #23301906;
-}
 * {
   box-sizing: border-box;
 }
@@ -18,8 +5,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: Arial, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
+  font-size: var(--fs-base);
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -126,12 +114,12 @@ label {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: #596153;
 }
 small {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .sr-only {
   position: absolute;
@@ -151,7 +139,7 @@ small {
   gap: 9px;
   padding: 12px 19px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 600;
   white-space: nowrap;
   min-height: 44px;
@@ -191,13 +179,13 @@ small {
 .button.small-button {
   min-height: 38px;
   padding: 8px 13px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .text-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 600;
   min-height: 32px;
   padding: 0;
@@ -219,7 +207,7 @@ small {
   background: #f0f3eb;
 }
 .eyebrow {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   letter-spacing: 1.8px;
   line-height: 1.7;
   font-weight: 700;
@@ -241,7 +229,7 @@ small {
   background: #f4f6ef;
   border: 1px solid #eef0e8;
   padding: 6px 10px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   border-radius: 7px;
   white-space: nowrap;
@@ -260,14 +248,14 @@ small {
   background: var(--sky);
 }
 .subtle {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--muted);
   display: inline-flex;
   align-items: center;
   gap: 7px;
 }
 .microcopy {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
   color: #606b58;
   margin-top: 16px;
@@ -294,7 +282,7 @@ small {
   margin-bottom: 22px;
 }
 .section-title p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   margin: 5px 0 0;
 }
 .section-title h2 {
@@ -332,7 +320,7 @@ small {
 .inline-notice {
   padding: 13px 16px;
   border-radius: 9px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   margin: 12px 0;
 }
@@ -367,7 +355,7 @@ small {
   font-size: 17px;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   max-width: 350px;
   margin: 0;
 }
@@ -428,7 +416,7 @@ small {
 .avatar.small {
   width: 35px;
   height: 35px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .avatar-1 {
   background: #dce8db;
@@ -488,7 +476,7 @@ small {
   margin-bottom: 14px;
 }
 .workout-setup-title span {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #4b6238;
 }
 .workout-fields {
@@ -500,7 +488,7 @@ small {
 .video-device-settings > label {
   display: grid;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #354b3c;
 }
 .workout-fields input,
@@ -514,11 +502,11 @@ small {
   background: #fff;
   color: var(--ink);
   padding: 9px;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .tracking-settings {
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .tracking-settings summary {
   cursor: pointer;
@@ -543,7 +531,7 @@ small {
   gap: 8px;
 }
 .set-progress span {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #354b3c;
 }
 .set-progress progress {
@@ -563,7 +551,7 @@ small {
   flex-wrap: wrap;
   gap: 18px;
   padding: 14px 0;
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #354b3c;
 }
 .set-results {
@@ -581,7 +569,7 @@ small {
 .set-results table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .set-results th,
 .set-results td {
@@ -616,7 +604,7 @@ small {
   gap: 10px;
 }
 .meeting-heading strong {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .coach-primary-feed {
   position: relative;
@@ -642,7 +630,7 @@ small {
   left: 8px;
   background: #ffffffee;
   color: #354b3c;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   padding: 5px 8px;
   border-radius: 4px;
 }
@@ -703,10 +691,10 @@ small {
 }
 .live-studio > .call-controls .button {
   min-height: 42px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .live-studio > .call-controls > div > span {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .coach-stage:fullscreen,
 .participant-grid:fullscreen {
@@ -768,7 +756,7 @@ small {
   background: #edf2df;
   border-radius: 8px;
   color: #678747;
-  font-size: 14px;
+  font-size: var(--fs-base);
   font-weight: 700;
 }
 .studio-selector > span:nth-child(2) {
@@ -776,7 +764,7 @@ small {
   min-width: 0;
 }
 .studio-selector strong {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -784,13 +772,13 @@ small {
   letter-spacing: -0.2px;
 }
 .studio-selector small {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   display: block;
   color: var(--muted);
   margin-top: 4px;
 }
 .nav-label {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #606b58;
   letter-spacing: 1.5px;
   font-weight: 600;
@@ -826,7 +814,7 @@ small {
 .nav-group .nav-label {
   display: block;
   margin: 0 12px 8px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.8px;
 }
 .sidebar .sidebar-bottom {
@@ -875,7 +863,7 @@ small {
     gap: 5px;
     min-height: 52px;
     border-radius: 10px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: #606b58;
     text-align: center;
@@ -894,7 +882,7 @@ small {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   min-height: 44px;
   border-radius: 9px;
@@ -917,7 +905,7 @@ small {
 }
 .nav-item small {
   margin-left: auto;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   background: #d1e1bd;
   padding: 2px 6px;
   border-radius: 4px;
@@ -945,19 +933,19 @@ small {
   margin: 0 0 11px;
 }
 .coach-note strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.65;
   display: block;
   font-weight: 500;
 }
 .coach-note p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 1.6;
   margin: 8px 0 10px;
   color: #606b58;
 }
 .coach-note button {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -981,11 +969,11 @@ small {
 }
 .profile-button strong {
   display: block;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .profile-button small {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
   margin-top: 5px;
 }
@@ -1008,7 +996,7 @@ small {
   gap: 20px;
 }
 .breadcrumb {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #606b58;
   display: flex;
   align-items: center;
@@ -1039,7 +1027,7 @@ small {
   border: 0;
   min-height: 34px;
   background: transparent;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 5px 0;
 }
 .search-wrap kbd {
@@ -1049,7 +1037,7 @@ small {
   padding: 3px 5px;
   white-space: nowrap;
   color: #606b58;
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .notification-button {
   position: relative;
@@ -1073,7 +1061,7 @@ small {
   background: #f0f4e7;
   border-bottom: 1px solid #e5eadb;
   padding: 8px 40px;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
   gap: 15px;
 }
@@ -1101,7 +1089,7 @@ small {
 }
 .page-heading .eyebrow {
   margin-bottom: 11px;
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .page-heading h1 {
   font-size: 29px;
@@ -1109,18 +1097,18 @@ small {
   letter-spacing: -1.05px;
 }
 .page-heading p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   margin: 10px 0 0;
 }
 .page-heading .button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 11px 14px;
   min-height: 40px;
 }
 .page-heading select {
   width: auto;
   min-width: 140px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .greeting-spark {
   font-size: 27px;
@@ -1149,7 +1137,7 @@ small {
   margin-bottom: 13px;
 }
 .stat-card > div > span:first-child {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .stat-icon {
@@ -1177,7 +1165,7 @@ small {
   margin-bottom: 7px;
 }
 .stat-card > small {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .dashboard-middle {
@@ -1201,7 +1189,7 @@ small {
   max-width: 56%;
 }
 .hero-kicker {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1.4px;
   font-weight: 600;
   color: #4b6238;
@@ -1218,12 +1206,12 @@ small {
   color: #35472b;
 }
 .hero-copy p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #4b6238;
   margin: 14px 0 16px;
 }
 .hero-copy .button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 10px 15px;
   min-height: 39px;
 }
@@ -1238,11 +1226,11 @@ small {
   margin-right: -10px;
   width: 27px;
   height: 27px;
-  font-size: 7px;
+  font-size: var(--fs-2xs);
 }
 .avatar-stack > span:last-child:not(.avatar) {
   margin-left: 18px;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #4b6238;
 }
 .motion-art {
@@ -1256,7 +1244,7 @@ small {
   position: absolute;
   bottom: 16px;
   right: 24px;
-  font-size: 6px;
+  font-size: var(--fs-2xs);
   letter-spacing: 2px;
   color: #4b6238;
 }
@@ -1267,10 +1255,10 @@ small {
   margin-bottom: 18px;
 }
 .insight-card .section-title h2 {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .insight-card .pill {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   padding: 5px 7px;
 }
 .insight-number {
@@ -1288,7 +1276,7 @@ small {
   font-size: 23px;
 }
 .insight-number > span {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   color: #606b58;
 }
@@ -1311,7 +1299,7 @@ small {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #606b58;
 }
 .chart-dot {
@@ -1331,7 +1319,7 @@ small {
   color: #b5bda9;
 }
 .chart-empty p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   margin: 0;
   max-width: 180px;
   text-align: center;
@@ -1345,10 +1333,10 @@ small {
   padding: 22px 22px 13px;
 }
 .dashboard-bottom .section-title h2 {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .dashboard-bottom .text-link {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .table-head,
 .client-row {
@@ -1358,7 +1346,7 @@ small {
   gap: 12px;
 }
 .table-head {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1px;
   color: #606b58;
   border-bottom: 1px solid #eff1e8;
@@ -1383,12 +1371,12 @@ small {
   min-width: 0;
 }
 .person-cell strong {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   display: block;
 }
 .person-cell small {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #606b58;
   margin-top: 5px;
   display: block;
@@ -1397,7 +1385,7 @@ small {
   white-space: nowrap;
 }
 .client-row > span:nth-child(2) {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .client-row > svg {
@@ -1407,7 +1395,7 @@ small {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   background: #edf5e2;
   padding: 5px 8px;
   color: #4b6238;
@@ -1445,18 +1433,18 @@ small {
   position: absolute;
   top: 12px;
   left: 12px;
-  font-size: 6px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1px;
   background: #ffffff8c;
   border: 0;
 }
 .plan-spotlight h3 {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   margin-bottom: 6px;
 }
 .plan-spotlight p {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   line-height: 1.7;
   margin: 0 0 12px;
 }
@@ -1466,7 +1454,7 @@ small {
 .workspace-footer {
   display: flex;
   justify-content: space-between;
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #606b58;
   padding: 0 39px 24px;
   max-width: 1560px;
@@ -1493,7 +1481,7 @@ small {
   text-align: left;
   padding: 10px;
   border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .search-results > button > svg:last-child {
   margin-left: auto;
@@ -1503,7 +1491,7 @@ small {
   justify-content: space-between;
   align-items: center;
   margin: 0 0 23px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #606b58;
   gap: 15px;
 }
@@ -1530,11 +1518,11 @@ small {
   margin-bottom: 5px;
 }
 .client-card p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   margin-bottom: 20px;
 }
 .goal-pill {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   background: #f0f4e9;
   display: inline-flex;
   padding: 7px 10px;
@@ -1549,7 +1537,7 @@ small {
   gap: 6px;
   align-items: center;
   color: #606b58;
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .client-card footer > span:first-child {
   flex: 1;
@@ -1568,7 +1556,7 @@ small {
 .segmented button {
   padding: 9px 15px;
   min-height: 36px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #606b58;
   border-radius: 6px;
 }
@@ -1604,7 +1592,7 @@ small {
   font-weight: 500;
 }
 .session-date span {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -1613,17 +1601,17 @@ small {
   min-width: 0;
 }
 .session-info > strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
   display: block;
 }
 .session-info > span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   display: block;
   color: #606b58;
   margin-top: 7px;
 }
 .session-row > .pill {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .live-pill {
   background: #eaf4dd;
@@ -1658,7 +1646,7 @@ small {
   position: absolute;
   top: 15px;
   left: 15px;
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1px;
   background: #ffffff94;
   border: 0;
@@ -1679,20 +1667,20 @@ small {
   padding: 22px;
 }
 .workout-info .eyebrow {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
 }
 .workout-info h3 {
   font-size: 16px;
   margin: 8px 0;
 }
 .workout-info p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
   margin: 0 0 22px;
   min-height: 38px;
 }
 .workout-info footer {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1714,19 +1702,19 @@ small {
   overflow: hidden;
 }
 .exercise-tile h3 {
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
   margin-bottom: 5px;
 }
 .exercise-tile p {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   margin: 0 0 8px;
 }
 .exercise-tile > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .analytics-chart {
@@ -1741,7 +1729,7 @@ small {
   gap: 23px;
 }
 .settings-grid > .panel > p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .settings-feature {
   display: flex;
@@ -1754,11 +1742,11 @@ small {
   margin-top: 2px;
 }
 .settings-feature h3 {
-  font-size: 13px;
+  font-size: var(--fs-md);
   margin-bottom: 6px;
 }
 .settings-feature p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.7;
   margin: 0;
 }
@@ -1769,14 +1757,14 @@ small {
   margin-top: 28px;
 }
 .client-detail > p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .resource-list h3 {
-  font-size: 14px;
+  font-size: var(--fs-base);
   margin-bottom: 8px;
 }
 .resource-list p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .resource-list .button {
   margin-top: 20px;
@@ -1790,7 +1778,7 @@ small {
   gap: 12px;
 }
 .invite-result p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .participant-picker {
   max-height: 210px;
@@ -1807,7 +1795,7 @@ small {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 400;
 }
 .plan-blocks {
@@ -1826,16 +1814,16 @@ small {
 }
 .plan-block input,
 .plan-block select {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   padding: 8px;
   min-height: 38px;
 }
 .plan-block label {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   text-transform: capitalize;
 }
 .block-number {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #4b6238;
   align-self: center;
 }
@@ -1854,7 +1842,7 @@ small {
   padding: 15px 18px;
   box-shadow: 0 6px 25px #17211b25;
   max-width: calc(100vw - 35px);
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .toast button {
   display: flex;
@@ -1905,7 +1893,7 @@ small {
   margin-right: -9px;
 }
 .modal p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .onboarding-overlay {
   margin: 0;
@@ -1945,7 +1933,7 @@ small {
   margin: 10px 0;
 }
 .onboarding-card > p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .role-picker {
   display: grid;
@@ -1968,10 +1956,10 @@ small {
   border-color: #b2ca8f;
 }
 .role-picker strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .role-picker span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .practice-grid {
@@ -1985,7 +1973,7 @@ small {
   gap: 8px;
   max-width: 350px;
   margin-bottom: 20px;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 500;
 }
 .practice-movement-selector select {
@@ -2045,13 +2033,13 @@ small {
   margin-bottom: 13px;
 }
 .camera-placeholder p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #93a88b;
   line-height: 1.9;
   margin-bottom: 24px;
 }
 .camera-placeholder .button {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .camera-loading {
   position: absolute;
@@ -2062,7 +2050,7 @@ small {
   justify-content: center;
   gap: 12px;
   color: #d6e6cd;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .spinner {
   width: 18px;
@@ -2090,7 +2078,7 @@ small {
   color: #d8ecbd;
   border-radius: 6px;
   padding: 8px 10px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .camera-bottom {
   position: absolute;
@@ -2102,7 +2090,7 @@ small {
   padding: 22px 18px 15px;
   color: white;
   background: linear-gradient(transparent, #17211ce6);
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .camera-tools {
   display: flex;
@@ -2110,7 +2098,7 @@ small {
   justify-content: space-between;
   padding: 10px 3px;
   color: #606b58;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .camera-tools > div {
   display: flex;
@@ -2139,7 +2127,7 @@ small {
   border: 0;
 }
 .analysis-strip span {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .analysis-strip strong {
@@ -2148,12 +2136,12 @@ small {
   letter-spacing: -1px;
 }
 .analysis-strip small {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #a1ae91;
   margin-left: 4px;
 }
 .analysis-strip strong.phase-text {
-  font-size: 12px;
+  font-size: var(--fs-md);
   letter-spacing: 0;
   text-transform: capitalize;
   line-height: 2;
@@ -2170,12 +2158,12 @@ small {
   color: #4b6238;
 }
 .cue-card span {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1.2px;
   font-weight: 600;
 }
 .cue-card p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   color: #5d7144;
   margin: 6px 0 0;
@@ -2206,12 +2194,12 @@ small {
   flex: 1;
 }
 .exercise-options strong {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   display: block;
   font-weight: 500;
 }
 .exercise-options small {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   display: block;
   color: #606b58;
   margin-top: 4px;
@@ -2237,13 +2225,13 @@ small {
   margin: auto;
 }
 .practice-guide h3 {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .practice-guide ol,
 .studio-side ol {
   padding-left: 19px;
   color: #606b58;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.8;
 }
 .practice-guide li,
@@ -2265,7 +2253,7 @@ small {
   margin-top: 3px;
 }
 .privacy-note p {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
   line-height: 1.8;
   margin: 0;
@@ -2299,14 +2287,14 @@ small {
   margin: 10px 0 16px;
 }
 .studio-heading .eyebrow {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .studio-meta {
   display: flex;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #4b6238;
 }
 .studio-meta > span:not(.pill) {
@@ -2330,10 +2318,10 @@ small {
   min-width: 180px;
 }
 .studio-toolbar .eyebrow {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
 }
 .studio-toolbar select {
-  font-size: 12px;
+  font-size: var(--fs-md);
   padding: 2px 0;
   background: transparent;
   min-height: 30px;
@@ -2348,7 +2336,7 @@ small {
   gap: 10px;
 }
 .toolbar-actions .button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 9px 12px;
   min-height: 37px;
 }
@@ -2397,7 +2385,7 @@ small {
   max-width: 220px;
 }
 .feed-placeholder > span {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #85936f;
   background: #ffffff6b;
   padding: 5px 9px;
@@ -2415,7 +2403,7 @@ small {
   z-index: 2;
 }
 .feed-tags > .pill {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   background: #ffffffee;
   border: 0;
   backdrop-filter: blur(8px);
@@ -2441,7 +2429,7 @@ small {
   z-index: 2;
 }
 .feed-person strong {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: #374530;
   background: #ffffffee;
@@ -2452,7 +2440,7 @@ small {
 .feed-person > .avatar {
   width: 26px;
   height: 26px;
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   border: 2px solid #ffffffa3;
 }
 .participant-stats {
@@ -2462,7 +2450,7 @@ small {
   padding: 16px;
 }
 .participant-stats > div > span {
-  font-size: 6px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.7px;
   color: #4b6238;
   display: block;
@@ -2474,14 +2462,14 @@ small {
   letter-spacing: -0.8px;
 }
 .participant-stats small {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #606b58;
   font-weight: 400;
   letter-spacing: 0;
   margin-left: 3px;
 }
 .participant-state {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #4b6238;
   margin-left: auto;
   text-transform: capitalize;
@@ -2502,7 +2490,7 @@ small {
   justify-content: center;
   flex-direction: column;
   gap: 12px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #99aa8c;
   background: #26302a;
 }
@@ -2519,12 +2507,12 @@ small {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #4b6238;
   white-space: nowrap;
 }
 .coach-video > p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   margin: 0;
 }
 .self-video {
@@ -2546,24 +2534,24 @@ small {
   margin-bottom: 16px;
 }
 .coaching-panel .section-title h2 {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .coaching-panel .pill {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   padding: 5px 7px;
 }
 .coaching-panel > p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 1.8;
   margin-bottom: 18px;
 }
 .coaching-panel textarea {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   min-height: 105px;
   margin-bottom: 13px;
 }
 .coaching-panel .button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .coaching-panel > .button {
   margin-top: 12px;
@@ -2573,10 +2561,10 @@ small {
   margin-top: 18px;
 }
 .coaching-panel .privacy-note p {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .chat-count {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   background: #f2f5eb;
   border-radius: 5px;
   padding: 5px 8px;
@@ -2601,7 +2589,7 @@ small {
   text-align: center;
 }
 .chat-empty p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   line-height: 1.9;
   margin: 0;
 }
@@ -2616,18 +2604,18 @@ small {
   align-self: flex-end;
 }
 .message > span {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #4b6238;
 }
 .message > p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: #627251;
   line-height: 1.6;
   margin: 5px 0;
   overflow-wrap: anywhere;
 }
 .message > time {
-  font-size: 7px;
+  font-size: var(--fs-2xs);
   color: #606b58;
   display: block;
   text-align: right;
@@ -2644,7 +2632,7 @@ small {
   background: #fafbf7;
 }
 .chat-input input {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   border: 0;
   background: transparent;
   padding: 10px;
@@ -2668,12 +2656,12 @@ small {
   gap: 5px;
 }
 .call-controls > div > span {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   color: #4b6238;
   margin-left: 10px;
 }
 .call-controls .button {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   padding: 8px 10px;
   min-height: 35px;
 }
@@ -2693,12 +2681,12 @@ small {
   margin-top: 18px;
 }
 .human-cue span {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   letter-spacing: 1px;
   color: #655379;
 }
 .human-cue p {
-  font-size: 13px;
+  font-size: var(--fs-md);
   color: #655379;
   margin: 5px 0 0;
 }
@@ -2730,7 +2718,7 @@ small {
   color: var(--ink);
 }
 .session-finished p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   margin: 0;
 }
 .trainee-grid {
@@ -2762,7 +2750,7 @@ small {
   padding-bottom: 300px;
 }
 .auth-story .eyebrow {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #4b6238;
 }
 .auth-story h1 {
@@ -2774,12 +2762,12 @@ small {
   line-height: 1.17;
 }
 .auth-story em {
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 400;
   font-size: 43px;
 }
 .auth-story p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   max-width: 320px;
   color: #4b6238;
 }
@@ -2794,7 +2782,7 @@ small {
   display: flex;
   gap: 18px;
   white-space: nowrap;
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   color: #4b6238;
 }
 .auth-benefits > span {
@@ -2803,7 +2791,7 @@ small {
   gap: 5px;
 }
 .auth-foot {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
   letter-spacing: 2px;
   color: #4b6238;
 }
@@ -2818,7 +2806,7 @@ small {
   position: absolute;
   top: 42px;
   right: 40px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #606b58;
 }
 .auth-form {
@@ -2826,7 +2814,7 @@ small {
   max-width: 345px;
 }
 .auth-form > .eyebrow {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .auth-form h2 {
   font-size: 31px;
@@ -2835,7 +2823,7 @@ small {
   font-weight: 500;
 }
 .auth-form > p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   margin: 0 0 30px;
 }
 .auth-form > label {
@@ -2843,13 +2831,13 @@ small {
 }
 .auth-form > .button {
   margin-top: 23px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .auth-form .forgot {
   display: flex;
   margin: 10px 0 0 auto;
   color: #606b58;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .password-field {
   position: relative;
@@ -2865,17 +2853,17 @@ small {
 }
 .auth-form p.auth-switch {
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   margin: 22px 0;
 }
 .auth-switch button {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   text-decoration: underline;
   margin-left: 3px;
 }
 .auth-form p.microcopy {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   text-align: center;
   line-height: 1.9;
   margin: 25px 0 0;
@@ -2899,7 +2887,7 @@ small {
   gap: 16px;
 }
 .invite-page p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   margin: 0;
 }
 .privacy-page {
@@ -2920,7 +2908,7 @@ small {
 }
 .privacy-page p,
 .privacy-page li {
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.8;
   color: #606b58;
 }
@@ -2944,13 +2932,13 @@ small {
     padding: 24px;
   }
   .stat-card > div > span:first-child {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .stat-card > strong {
     font-size: 35px;
   }
   .stat-card > small {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .session-hero {
     min-height: 335px;
@@ -2960,14 +2948,14 @@ small {
     font-size: 36px;
   }
   .hero-copy p {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .motion-art {
     width: 370px;
     right: -10px;
   }
   .hero-copy .button {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .insight-card .section-title h2 {
     font-size: 15px;
@@ -2979,16 +2967,16 @@ small {
     padding: 19px 0;
   }
   .person-cell strong {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .person-cell small {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .client-row > span:nth-child(2) {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .table-head {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .dashboard-bottom .section-title h2 {
     font-size: 16px;
@@ -3000,10 +2988,10 @@ small {
     font-size: 16px;
   }
   .plan-spotlight p {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .dashboard-bottom .text-link {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
 }
 @media (max-width: 1200px) {
@@ -3036,7 +3024,7 @@ small {
     padding: 16px;
   }
   .stat-card > div > span:first-child {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .hero-copy h2 {
     font-size: 25px;
@@ -3071,19 +3059,19 @@ small {
   .person-cell .avatar {
     width: 29px;
     height: 29px;
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .client-row > span:nth-child(2) {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .client-row strong {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .client-row small {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .table-head {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
   }
   .sidebar .brand-link {
     margin-left: 25px;
@@ -3092,7 +3080,7 @@ small {
     padding: 16px 12px;
   }
   .studio-selector strong {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .studio-selector {
     gap: 7px;
@@ -3106,7 +3094,7 @@ small {
     padding: 13px;
   }
   .participant-state {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .studio-toolbar > .subtle {
     display: none;
@@ -3131,7 +3119,7 @@ small {
   }
   .auth-benefits {
     gap: 10px;
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .brand {
     font-size: 29px;
@@ -3175,7 +3163,7 @@ small {
     height: 70px;
   }
   .breadcrumb {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     gap: 10px;
   }
   .search-wrap {
@@ -3191,7 +3179,7 @@ small {
     align-items: flex-start;
   }
   .page-heading .button {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .greeting-spark {
     display: none;
@@ -3211,7 +3199,7 @@ small {
     height: 15px;
   }
   .stat-card > small {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .dashboard-middle,
   .dashboard-bottom {
@@ -3243,19 +3231,19 @@ small {
   .person-cell .avatar {
     width: 35px;
     height: 35px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .client-row strong {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .client-row small {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .client-row > span:nth-child(2) {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .table-head {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .plan-spotlight .spotlight-art {
     height: 170px;
@@ -3267,7 +3255,7 @@ small {
     font-size: 15px;
   }
   .plan-spotlight p {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .exercise-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3316,7 +3304,7 @@ small {
     gap: 10px 15px;
   }
   .session-info > strong {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
 }
 @media (max-width: 760px) {
@@ -3359,7 +3347,7 @@ small {
   }
   .demo-banner {
     padding: 10px 20px;
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     line-height: 1.5;
   }
   .demo-banner > span {
@@ -3382,15 +3370,15 @@ small {
     line-height: 1.2;
   }
   .page-heading .eyebrow {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
     margin-bottom: 10px;
   }
   .page-heading p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     max-width: 350px;
   }
   .page-heading .button {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .stats-grid {
     grid-template-columns: 1fr 1fr;
@@ -3401,13 +3389,13 @@ small {
     padding: 17px;
   }
   .stat-card > div > span:first-child {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .stat-card > strong {
     font-size: 29px;
   }
   .stat-card > small {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .stat-icon {
     width: 28px;
@@ -3424,11 +3412,11 @@ small {
     font-size: 27px;
   }
   .hero-copy p {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     line-height: 1.8;
   }
   .hero-kicker {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .motion-art {
     width: 250px;
@@ -3436,17 +3424,17 @@ small {
     bottom: 20px;
   }
   .hero-decoration {
-    font-size: 5px;
+    font-size: var(--fs-2xs);
     right: 20px;
   }
   .dashboard-bottom > .panel {
     padding: 20px 17px;
   }
   .dashboard-bottom .section-title h2 {
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .table-head {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
   }
   .table-head,
   .client-row {
@@ -3454,24 +3442,24 @@ small {
     gap: 8px;
   }
   .client-row strong {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .client-row small {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .client-row > span:nth-child(2) {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .client-row .avatar {
     width: 29px;
     height: 29px;
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .person-cell {
     gap: 7px;
   }
   .score-pill {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     gap: 4px;
     padding: 4px 6px;
   }
@@ -3492,31 +3480,31 @@ small {
     padding: 18px 15px;
   }
   .client-card h3 {
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .client-card p {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     overflow-wrap: anywhere;
   }
   .client-card .goal-pill {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     padding: 6px 8px;
   }
   .client-card footer {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
     margin-top: 18px;
   }
   .list-toolbar {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     gap: 10px;
     flex-wrap: wrap;
   }
   .segmented button {
     padding: 8px 12px;
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .list-toolbar > .subtle {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .session-row {
     gap: 12px;
@@ -3556,11 +3544,11 @@ small {
     height: 130px;
   }
   .exercise-tile h3 {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .exercise-tile p,
   .exercise-tile > span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .progress-chart.large {
     height: 190px;
@@ -3569,10 +3557,10 @@ small {
     padding: 19px;
   }
   .section-title h2 {
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
   .section-title p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .form-two {
     grid-template-columns: 1fr;
@@ -3601,7 +3589,7 @@ small {
   .plan-block input,
   .plan-block select {
     padding: 8px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .modal-content {
     padding: 23px 20px;
@@ -3634,7 +3622,7 @@ small {
     width: 29px;
   }
   .camera-placeholder p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     margin-bottom: 18px;
   }
   .analysis-strip {
@@ -3642,25 +3630,25 @@ small {
     gap: 12px;
   }
   .analysis-strip span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .analysis-strip strong {
     font-size: 27px;
   }
   .analysis-strip strong.phase-text {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .cue-card p {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .camera-bottom {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .standalone-studio {
     padding: 20px;
   }
   .standalone-studio > header > .text-link {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .standalone-studio > header {
     margin-bottom: 25px;
@@ -3675,15 +3663,15 @@ small {
   }
   .studio-heading > .button {
     min-height: 36px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 8px 12px;
   }
   .studio-meta {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     gap: 10px;
   }
   .studio-meta > .pill {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .studio-toolbar {
     flex-direction: column;
@@ -3707,7 +3695,7 @@ small {
     right: 8px;
   }
   .feed-tags .pill {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
     padding: 5px;
   }
   .feed-person {
@@ -3716,7 +3704,7 @@ small {
     gap: 5px;
   }
   .feed-person strong {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     padding: 6px 5px;
   }
   .feed-person .avatar {
@@ -3734,7 +3722,7 @@ small {
     font-size: 21px;
   }
   .participant-stats > div > span {
-    font-size: 5px;
+    font-size: var(--fs-2xs);
   }
   .participant-state {
     display: none;
@@ -3749,7 +3737,7 @@ small {
     flex-wrap: wrap;
   }
   .call-controls > div > span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     margin-left: 6px;
   }
   .coach-video {
@@ -3758,7 +3746,7 @@ small {
     gap: 9px;
   }
   .coach-video p {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .onboarding-overlay {
     padding: 18px;
@@ -3775,10 +3763,10 @@ small {
     padding: 17px 12px;
   }
   .role-picker strong {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .role-picker span {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .auth-page {
     grid-template-columns: 1fr;
@@ -3800,7 +3788,7 @@ small {
     font-size: 31px;
   }
   .auth-story p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     margin-bottom: 0;
     max-width: 70%;
   }
@@ -3815,7 +3803,7 @@ small {
     display: none;
   }
   .auth-story .eyebrow {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
   }
   .auth-content {
     padding: 65px 26px 40px;
@@ -3823,13 +3811,13 @@ small {
   .auth-demo {
     top: 20px;
     right: 26px;
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .auth-form h2 {
     font-size: 30px;
   }
   .auth-form > p {
-    font-size: 11px;
+    font-size: var(--fs-sm);
     margin-bottom: 23px;
   }
   .auth-form {
@@ -3844,243 +3832,243 @@ small {
   }
 }
 .nav-item {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .studio-selector strong {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .studio-selector small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .breadcrumb {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .search-wrap input {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .demo-banner {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .page-heading .eyebrow {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .page-heading p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .stat-card > div > span:first-child {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .stat-card > small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .hero-copy p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .hero-kicker {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .avatar-stack > span:last-child:not(.avatar) {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .hero-copy .button {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .insight-card .section-title h2 {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .insight-number > span {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .insight-foot > span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .table-head {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .person-cell strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .person-cell small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .client-row > span:nth-child(2) {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .score-pill {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .dashboard-bottom .section-title h2 {
   font-size: 16px;
 }
 .dashboard-bottom .text-link {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .plan-spotlight h3 {
   font-size: 16px;
 }
 .plan-spotlight p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .coach-note strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .coach-note p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .coach-note button {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .profile-button strong {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .profile-button small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .section-title p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .session-info > strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .session-info > span {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .session-row > .pill {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .exercise-tile p,
 .exercise-tile > span {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .feed-person strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .participant-state {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .participant-stats > div > span {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .privacy-note p {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .coaching-panel .privacy-note p {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .coaching-panel > p,
 .coaching-panel textarea {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .chat-input input {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .message > span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .message > p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .coaching-panel .button {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .camera-tools {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .analysis-strip span {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .exercise-options strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .exercise-options small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .practice-guide ol,
 .studio-side ol {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .workout-info footer {
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .workout-info p {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .workout-info .eyebrow {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .workout-cover > .pill {
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .hero-decoration {
-  font-size: 8px;
+  font-size: var(--fs-2xs);
 }
 .workspace-footer {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 @media (max-width: 760px) {
   .hero-copy p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .hero-copy .button {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .hero-decoration {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
   }
   .table-head {
-    font-size: 7px;
+    font-size: var(--fs-2xs);
   }
   .person-cell strong {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .person-cell small {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .client-row > span:nth-child(2) {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .score-pill {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .dashboard-bottom .section-title h2 {
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
   .breadcrumb {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .demo-banner {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .page-heading .eyebrow {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .page-heading p {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .stat-card > div > span:first-child {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .stat-card > small {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .exercise-tile p,
   .exercise-tile > span {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .hero-kicker {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .feed-person strong {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .participant-stats > div > span {
-    font-size: 6px;
+    font-size: var(--fs-2xs);
   }
   .analysis-strip span {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .workspace-footer {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -4151,7 +4139,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   flex: 1;
 }
 .meeting-title > span {
-  font-size: 9px;
+  font-size: var(--fs-xs);
   letter-spacing: 1.4px;
   color: #b9df81;
 }
@@ -4203,7 +4191,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .meeting-notice {
   margin: 0 16px 8px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -4463,7 +4451,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   cursor: pointer;
 }
 .meeting-control span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   white-space: nowrap;
 }
 .meeting-control.device-off {
@@ -4480,7 +4468,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-room .button {
   min-height: 44px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   padding: 10px 14px;
   border-radius: 9px;
 }
@@ -4519,7 +4507,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-room .modal input,
 .meeting-room .modal select {
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .meeting-chat .chat-messages {
   max-height: 50dvh;
@@ -4646,7 +4634,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: none;
 }
 .trainee-video-layout.coach-video-small .meeting-tile-name {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   padding: 6px 7px;
 }
 .trainee-video-layout.coach-video-small .meeting-tile-name > span {
@@ -4718,12 +4706,12 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 500;
 }
 .coach-video-toolbar small {
   color: #c0ccd5;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   margin-left: 5px;
 }
 .coach-video-toolbar > select {
@@ -4734,7 +4722,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   border-radius: 7px;
   background: #202a32;
   color: #edf4fa;
-  font-size: 12px;
+  font-size: var(--fs-md);
   padding: 4px 5px;
 }
 .coach-video-toggle {
@@ -4779,7 +4767,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
   }
   .trainee-meeting .meeting-title h1 {
-    font-size: 14px;
+    font-size: var(--fs-base);
     margin: 0;
   }
   .trainee-meeting .meeting-presence {
@@ -4787,7 +4775,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     margin-left: 0;
     order: initial;
     gap: 0;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .trainee-meeting .meeting-header > .icon-button {
     min-width: 40px;
@@ -4829,7 +4817,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     min-height: 44px;
     min-width: 54px;
     padding: 7px 9px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     gap: 4px;
     white-space: nowrap;
   }
@@ -4917,7 +4905,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 18px;
   }
   .coach-video-toolbar small {
-    font-size: 14px;
+    font-size: var(--fs-base);
   }
   .coach-video-toolbar > select {
     width: 120px;
@@ -5004,11 +4992,11 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 2px;
 }
 .analyzer-topbar strong {
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: #f1f6fa;
 }
 .analyzer-topbar span {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #ccd8e2;
 }
 .meeting-analyzer .icon-button {
@@ -5028,7 +5016,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .camera-placeholder p {
   max-width: 450px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   margin: 0;
   color: #c4d0d9;
@@ -5039,14 +5027,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   margin: 0;
 }
 .meeting-analyzer .camera-loading {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .meeting-analyzer .tracking-badge {
   top: 64px;
   left: 14px;
   background: #122020dd;
   color: #d0f5b4;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 7px 10px;
 }
 .meeting-analyzer .analyzer-hud {
@@ -5070,7 +5058,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .analyzer-hud span {
   color: #c4d3e1;
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .meeting-analyzer .analyzer-hud strong {
   color: #dbffac;
@@ -5078,17 +5066,17 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   line-height: 1.25;
 }
 .meeting-analyzer .analyzer-hud strong small {
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .meeting-analyzer .analyzer-hud .phase-text {
-  font-size: 14px;
+  font-size: var(--fs-base);
   margin-top: 6px;
 }
 .meeting-analyzer .camera-bottom {
   bottom: 12px;
   left: 14px;
   right: 14px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: #d3e0ec;
   padding: 0;
   background: none;
@@ -5115,7 +5103,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 9px;
 }
 .meeting-analyzer .analyzer-cue p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   color: #e9f3ff;
   margin: 0;
@@ -5143,12 +5131,12 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 3px;
 }
 .meeting-analyzer .analyzer-progress strong {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #e9f3fa;
 }
 .meeting-analyzer .analyzer-progress span {
   color: #b9cbd9;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .meeting-analyzer .analyzer-progress progress {
   width: 100%;
@@ -5160,7 +5148,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .meeting-analyzer .button {
   min-height: 40px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   padding: 9px 12px;
 }
 .meeting-analyzer .button.outline {
@@ -5175,7 +5163,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 10px;
   margin-top: 5px;
   color: #b8c6d3;
-  font-size: 9px;
+  font-size: var(--fs-xs);
 }
 .analyzer-tools > div {
   display: flex;
@@ -5202,14 +5190,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .analyzer-instructions p,
 .analyzer-instructions li {
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.6;
 }
 .analyzer-live-details {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .meeting-analyzer .modal {
   color: #263525;
@@ -5243,14 +5231,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   margin: 5px 0;
 }
 .practice-heading p {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #64715b;
 }
 .practice-heading label {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   min-width: 160px;
 }
 .meeting-practice > .meeting-analyzer {
@@ -5259,7 +5247,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .practice-privacy {
   margin: 0;
   color: #64715b;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 @media (min-width: 2000px) {
   .meeting-header {
@@ -5267,7 +5255,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 24px;
   }
   .meeting-title > span {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .meeting-dock {
     padding: 22px 30px;
@@ -5316,7 +5304,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 @media (max-width: 600px) {
   .meeting-room {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .meeting-header {
     padding: 9px 10px;
@@ -5327,7 +5315,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
   }
   .meeting-title > span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .meeting-title h1 {
     font-size: 15px;
@@ -5337,13 +5325,13 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex: 1;
     gap: 12px;
     order: 3;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .meeting-movement {
     order: 4;
   }
   .meeting-movement select {
-    font-size: 11px;
+    font-size: var(--fs-sm);
     padding: 6px 24px 6px 8px;
     min-width: 115px;
   }
@@ -5360,32 +5348,32 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     border-radius: 8px;
   }
   .meeting-tile-name {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     padding: 6px;
   }
   .meeting-tile-name small {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .meeting-empty-video {
     gap: 5px;
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .meeting-empty-video .avatar {
     width: 32px;
     height: 32px;
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .meeting-room .participant-stats {
     padding: 6px;
     gap: 5px;
-    font-size: 9px;
+    font-size: var(--fs-xs);
     flex-wrap: wrap;
   }
   .meeting-room .participant-stats > .participant-state {
     display: none;
   }
   .meeting-room .coach-tile-caption {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     padding: 6px;
   }
   .meeting-tile-top {
@@ -5395,11 +5383,11 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 3px;
   }
   .meeting-tile-top > span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     padding: 3px 4px;
   }
   .meeting-tile-cue {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     padding: 4px 6px;
   }
   .meeting-dock {
@@ -5420,7 +5408,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 4px;
   }
   .meeting-control span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .meeting-session-buttons {
     gap: 6px;
@@ -5428,7 +5416,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   }
   .meeting-room .button {
     padding: 7px 10px;
-    font-size: 11px;
+    font-size: var(--fs-sm);
     min-height: 40px;
   }
   .trainee-video-layout {
@@ -5444,7 +5432,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   }
   .meeting-room .coach-stage .coach-tile-caption {
     width: 86px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
     text-align: center;
   }
   .meeting-analyzer .camera-view {
@@ -5454,15 +5442,15 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 7px 10px;
   }
   .analyzer-topbar strong {
-    font-size: 12px;
+    font-size: var(--fs-md);
   }
   .analyzer-topbar span {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .meeting-analyzer .tracking-badge {
     top: 54px;
     left: 10px;
-    font-size: 9px;
+    font-size: var(--fs-xs);
     padding: 5px 7px;
   }
   .meeting-analyzer .analyzer-hud {
@@ -5472,13 +5460,13 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 7px 9px;
   }
   .meeting-analyzer .analyzer-hud span {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
   }
   .meeting-analyzer .analyzer-hud strong {
     font-size: 21px;
   }
   .meeting-analyzer .analyzer-hud .phase-text {
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .meeting-analyzer .camera-placeholder {
     padding: 53px 15px 12px;
@@ -5491,7 +5479,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 15px;
   }
   .meeting-analyzer .camera-placeholder p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     line-height: 1.4;
   }
   .analyzer-footer {
@@ -5502,7 +5490,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     margin-bottom: 7px;
   }
   .meeting-analyzer .analyzer-cue p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     line-height: 1.4;
   }
   .meeting-analyzer .analyzer-progress {
@@ -5513,18 +5501,18 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     display: none;
   }
   .meeting-analyzer .analyzer-progress strong {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .meeting-analyzer .analyzer-progress span {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
   .meeting-analyzer .button {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     min-height: 36px;
     padding: 7px 10px;
   }
   .analyzer-tools {
-    font-size: 8px;
+    font-size: var(--fs-2xs);
     margin-top: 3px;
   }
   .analyzer-tools .icon-button {
@@ -5556,14 +5544,14 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: 20px;
   }
   .practice-heading p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .practice-heading label {
     min-width: 110px;
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .practice-privacy {
-    font-size: 9px;
+    font-size: var(--fs-xs);
   }
 }
 @media (max-height: 550px) and (min-width: 601px) {
@@ -5594,7 +5582,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   overflow: hidden;
 }
 .analyzer-identity {
-  font-size: 12px;
+  font-size: var(--fs-md);
   font-weight: 500;
   color: #edf4fa;
 }
@@ -5689,7 +5677,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   font-variant-numeric: tabular-nums;
 }
 .start-countdown span {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 @media (max-width: 600px) {
   .meeting-analyzer .start-countdown {
@@ -5701,7 +5689,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     font-size: clamp(38px, 8vh, 70px);
   }
   .start-countdown span {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
 }
 
@@ -5722,7 +5710,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.35;
 }
 .meeting-analyzer .analyzer-cue.is-expanded p {
@@ -5751,7 +5739,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   flex-direction: column;
   gap: 6px;
   margin: 10px 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .model-quality-field select {
   padding: 9px;
@@ -5773,7 +5761,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     gap: 5px;
   }
   .meeting-analyzer .analyzer-cue p {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
   .meeting-analyzer .analyzer-tools .icon-button {
     min-height: 32px;
@@ -5858,7 +5846,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .trainee-coaching-overview p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
 }
 .progress-filters {
@@ -5871,7 +5859,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   min-width: 0;
 }
 .progress-filters select,
@@ -5899,7 +5887,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   min-width: 0;
 }
 .progress-metric > span {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: var(--muted);
 }
 .progress-metric > strong {
@@ -5908,7 +5896,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   letter-spacing: -0.7px;
 }
 .progress-metric > small {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--muted);
   line-height: 1.5;
 }
@@ -5931,7 +5919,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 15px;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .exercise-progress-values strong {
   font-size: 26px;
@@ -5940,7 +5928,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   margin: 20px 0;
 }
 .exercise-progress-card dt {
@@ -5953,7 +5941,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .exercise-progress-card small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .workout-record {
   display: grid;
@@ -5962,7 +5950,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   gap: 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .workout-record:last-child {
   border-bottom: 0;
@@ -5970,7 +5958,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .workout-record-details {
   grid-column: 1 / -1;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .workout-record-details summary {
   cursor: pointer;
@@ -5992,7 +5980,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   padding: 12px 16px;
   border: 1px solid var(--meeting-line, #3d454d);
   border-radius: 12px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   flex-shrink: 0;
 }
 .meeting-schedule-bar > div {
@@ -6021,7 +6009,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   min-width: 0;
 }
 .workout-record > div > span {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -6034,7 +6022,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .legacy-summary > span,
 .client-training-summary > span {
@@ -6063,7 +6051,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .membership-management > p {
   color: var(--muted);
   line-height: 1.6;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .follow-up-list {
   display: grid;
@@ -6076,7 +6064,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .client-card .client-action-summary {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-md);
   line-height: 1.6;
   white-space: normal;
 }
@@ -6099,15 +6087,15 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   min-width: 0;
 }
 .follow-up-row strong {
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .follow-up-row small {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
   color: var(--muted);
 }
 .follow-up-row .text-link {
-  font-size: 12px;
+  font-size: var(--fs-md);
   flex-shrink: 0;
 }
 .client-management {
@@ -6125,7 +6113,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .measurement-details summary {
   cursor: pointer;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .measurement-details > .progress-metrics-grid {
   margin-top: 16px;
@@ -6147,7 +6135,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   border-bottom: 1px solid var(--line);
   padding: 16px 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
 }
 .trainee-progress-row > span {
@@ -6169,7 +6157,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   padding: 12px;
   background: #f5f6f2;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .client-check-in p {
   margin: 0;
@@ -6198,7 +6186,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-md);
   max-width: 430px;
 }
 .history-consent input {
@@ -6213,10 +6201,10 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   align-items: center;
   gap: 8px;
   margin-top: 5px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .workout-save-status button {
-  font-size: 11px;
+  font-size: var(--fs-sm);
   padding: 3px 8px;
   min-height: 30px;
 }
@@ -6283,7 +6271,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   border-radius: 8px;
   background: white;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .coach-roster-row.selected {
   border-color: #557c2c;
@@ -6291,7 +6279,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .coach-roster-row > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 @media (max-width: 1000px) {
   .progress-metrics-grid {
@@ -6322,7 +6310,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     justify-self: start;
   }
   .workout-save-status {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
 }
 /* Coach monitoring keeps the class visible while inspecting one trainee. */
@@ -6346,7 +6334,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   align-items: center;
   gap: 16px;
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #b5c0c9;
 }
 .monitor-summary strong {
@@ -6394,7 +6382,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   background: transparent;
   color: #f4f7fa;
   border: 0;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .monitor-toolbar > select {
   width: auto;
@@ -6439,7 +6427,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .coach-meeting .monitor-gallery .meeting-empty-video {
   gap: 6px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .coach-meeting .monitor-gallery .meeting-empty-video .avatar {
   width: clamp(24px, 3vw, 60px);
@@ -6481,7 +6469,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   border-radius: 5px;
   padding: 4px 6px;
   color: #ffdc8d;
@@ -6493,7 +6481,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   align-items: center;
   gap: 10px;
   color: #b5c0c9;
-  font-size: 11px;
+  font-size: var(--fs-sm);
   min-height: 24px;
   flex-shrink: 0;
 }
@@ -6544,12 +6532,12 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 }
 .monitor-detail-stats > span,
 .monitor-inspector > small {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #b5c0c9;
 }
 .monitor-inspector p {
   color: #e6edf3;
-  font-size: 13px;
+  font-size: var(--fs-md);
   line-height: 1.5;
   margin: 0;
 }
@@ -6560,7 +6548,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   margin-top: 4px;
 }
 .monitor-inspector label {
-  font-size: 12px;
+  font-size: var(--fs-md);
   color: #b5c0c9;
 }
 .monitor-inspector textarea {
@@ -6596,7 +6584,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   position: absolute;
   bottom: 6px;
   left: 8px;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .monitor-empty {
   grid-column: 1/-1;
@@ -6618,7 +6606,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     padding: 6px 14px;
   }
   .coach-meeting .meeting-control span {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
 }
 @media (max-width: 950px) {
@@ -6643,7 +6631,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
     flex-basis: 250px;
   }
   .monitor-pagination > span {
-    font-size: 10px;
+    font-size: var(--fs-xs);
   }
 }
 @media (max-width: 600px) {
@@ -6654,7 +6642,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   .monitor-toolbar button,
   .monitor-toolbar select {
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: var(--fs-sm);
   }
   .monitor-hand span {
     display: none;
@@ -6697,7 +6685,7 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
   color: #c4ccca;
   background: #191f24;
   padding: 8px 16px;
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .meeting-diagnostics summary {
   cursor: pointer;
@@ -6744,4 +6732,17 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .set-completion p {
   margin: 6px 0 0;
   font-size: 0.85rem;
+}
+
+/* Sidebar density with the larger type scale: compact rows on precise pointers,
+   44px targets kept for touch. */
+.nav-item {
+  white-space: nowrap;
+}
+@media (pointer: fine) {
+  .sidebar .nav-item {
+    min-height: 38px;
+    padding-block: 8px;
+    margin-bottom: 2px;
+  }
 }

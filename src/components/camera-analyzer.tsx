@@ -1,4 +1,5 @@
 'use client';
+import { useToast } from './ui/toast';
 import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';
@@ -135,6 +136,9 @@ export function CameraAnalyzer({
   onWorkoutComplete?: () => void;
   initialArms?: Arms;
 }) {
+  const toast = useToast();
+  const offlineSaveNotice = () =>
+    toast.show('Set kept on this device. It will sync when the connection returns.', 'warning');
   const cameraView = useRef<HTMLDivElement>(null);
   const cameraRequest = useRef<AbortController | null>(null);
   const displaySize = useCameraLayout(cameraView, onCameraHeight);
@@ -626,7 +630,7 @@ export function CameraAnalyzer({
     () => () => {
       const unfinished = recordSet();
       if (unfinished?.owner && unfinished.record.activeMs > 0)
-        void saveWorkoutSet(unfinished.owner, unfinished.record).catch(() => {});
+        void saveWorkoutSet(unfinished.owner, unfinished.record).catch(offlineSaveNotice);
       stop();
       void soundContext.current?.close();
     },
@@ -705,7 +709,7 @@ export function CameraAnalyzer({
         pending.data.revision === revision
       ) {
         if (saveForUser && restored.saveConsented)
-          void saveWorkoutSet(saveForUser, pending.data).catch(() => {});
+          void saveWorkoutSet(saveForUser, pending.data).catch(offlineSaveNotice);
         previousResults.push({
           number: previousResults.length + 1,
           amount: pending.data.reps || pending.data.holdMs / 1000,
@@ -762,7 +766,7 @@ export function CameraAnalyzer({
       const unfinished = recordSet();
       checkpoint(unfinished?.record, !!unfinished?.owner);
       if (unfinished?.owner && unfinished.record.activeMs > 0)
-        void saveWorkoutSet(unfinished.owner, unfinished.record).catch(() => {});
+        void saveWorkoutSet(unfinished.owner, unfinished.record).catch(offlineSaveNotice);
       modeRef.current = 'setup';
       setMode('setup');
       stop();

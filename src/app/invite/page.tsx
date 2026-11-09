@@ -1,6 +1,8 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ApiError, requireUser } from '@/lib/security';
 import { InviteAccept } from '@/components/invite-accept';
+export const metadata: Metadata = { title: 'Studio invitation', robots: { index: false } };
 export default async function InvitePage({
   searchParams,
 }: {

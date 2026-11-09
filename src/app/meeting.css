@@ -41,7 +41,7 @@
   --meeting-accent: #d0eea1;
   color: #f3f6f8;
   font-size: 14px;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.45;
   background: radial-gradient(ellipse at top left, #202b2a 0, transparent 45%), var(--meeting-bg);
   isolation: isolate;

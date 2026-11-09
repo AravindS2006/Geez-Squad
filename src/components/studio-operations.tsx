@@ -646,7 +646,7 @@ export function StudioOperations({
           {error}
         </p>
       )}
-      {['dashboard', 'staff', 'memberships', 'attendance', 'classes'].includes(view) && (
+      {['dashboard', 'staff'].includes(view) && (
         <OperationsInsights data={data} today={today} view={view} onNavigate={onNavigate} />
       )}
       {view === 'dashboard' && (

@@ -1,6 +1,8 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Brand } from '@/components/ui';
 import { ArrowLeft } from 'lucide-react';
+export const metadata: Metadata = { title: 'Privacy' };
 export default function PrivacyPage() {
   return (
     <main className="privacy-page">

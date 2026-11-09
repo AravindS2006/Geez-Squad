@@ -1,0 +1,76 @@
+.block {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 0%,
+    var(--surface-2) 50%,
+    var(--surface-3) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.shell {
+  display: grid;
+  grid-template-columns: 228px 1fr;
+  min-height: 100dvh;
+  background: var(--surface-app);
+}
+.sidebar {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 24px 20px;
+  border-right: 1px solid var(--border-1);
+  background: var(--surface-1);
+}
+.main {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 40px clamp(16px, 3vw, 40px);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.card,
+.wide {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+}
+.wide {
+  min-height: 240px;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    display: none;
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+  }
+}

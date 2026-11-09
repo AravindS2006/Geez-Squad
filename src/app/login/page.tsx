@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { connection } from 'next/server';
 import { redirect } from 'next/navigation';
@@ -5,6 +6,7 @@ import { AuthForm } from '@/components/auth-form';
 import { emailPolicy } from '@/lib/auth';
 import { ApiError, requireUser } from '@/lib/security';
 import { accountDestination } from '@/lib/login-destination';
+export const metadata: Metadata = { title: 'Sign in' };
 export default async function LoginPage({
   searchParams,
 }: {

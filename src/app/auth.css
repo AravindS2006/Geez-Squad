@@ -34,7 +34,7 @@
 .auth-studio .auth-story .eyebrow,
 .auth-studio .auth-story .auth-foot {
   color: #d7dfd7;
-  font-size: 10px;
+  font-size: var(--fs-xs);
 }
 .auth-photo {
   position: relative;
@@ -69,14 +69,14 @@
 }
 .auth-studio .auth-form > p {
   line-height: 1.65;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .auth-studio .auth-form .microcopy {
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .auth-studio .auth-form label {
   margin-top: 22px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .auth-studio .auth-form input {
   background: #fff;
@@ -93,16 +93,16 @@
   min-height: 51px;
   border-radius: 8px;
   margin-top: 20px;
-  font-size: 14px;
+  font-size: var(--fs-base);
 }
 .auth-studio .auth-demo {
   top: 28px;
   right: 9%;
-  font-size: 12px;
+  font-size: var(--fs-md);
 }
 .auth-studio .inline-notice,
 .auth-studio .inline-error {
-  font-size: 13px;
+  font-size: var(--fs-md);
   padding: 13px;
   border-radius: 8px;
   margin-top: 18px;
@@ -110,7 +110,7 @@
 .auth-studio .auth-switch {
   text-align: center;
   margin-top: 23px;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .auth-studio .microcopy {
   margin-top: 27px;

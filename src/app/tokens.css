@@ -1,0 +1,80 @@
+/*
+ * Design tokens. Imported first by the root layout. Feature styles reference
+ * these instead of raw values. Legacy names (--bg, --ink, --muted, --line, ...)
+ * are kept as aliases so older selectors keep working.
+ */
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --font-sans: var(--font-inter), 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-serif), Georgia, serif;
+  --fs-2xs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-base: 15px;
+  --fs-lg: 17px;
+  --lh-tight: 1.25;
+  --lh-body: 1.6;
+
+  /* Surfaces and text */
+  --surface-app: #f7f8f4;
+  --surface-1: #ffffff;
+  --surface-2: #f3f5ef;
+  --surface-3: #eaeee3;
+  --surface-inverse: #1f2a22;
+  --text-1: #1d241f;
+  --text-2: #4f5a49;
+  --text-3: #6b7563;
+  --text-inverse: #f6f8f2;
+  --border-1: #e4e8de;
+  --border-2: #d3d9cb;
+
+  /* Brand and status */
+  --brand: #26392b;
+  --brand-hover: #1a281e;
+  --brand-contrast: #ffffff;
+  --accent: #c9ea8f;
+  --accent-soft: #eef7dc;
+  --info-soft: #e4eff4;
+  --violet-soft: #ece7fa;
+  --warm-soft: #fbeadf;
+  --success: #2f7a3e;
+  --warning: #9a6a00;
+  --danger: #b3261e;
+  --danger-soft: #fdecea;
+  --focus-ring: #4f7cff;
+
+  /* Shape, depth, motion */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+  --shadow-1: 0 1px 2px rgb(23 33 25 / 6%);
+  --shadow-2: 0 6px 24px rgb(23 33 25 / 7%);
+  --shadow-3: 0 18px 48px rgb(23 33 25 / 14%);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+
+  /* Legacy aliases */
+  --bg: var(--surface-app);
+  --paper: var(--surface-1);
+  --ink: var(--text-1);
+  --muted: var(--text-2);
+  --line: var(--border-1);
+  --lime: var(--accent);
+  --lavender: var(--violet-soft);
+  --peach: var(--warm-soft);
+  --sky: var(--info-soft);
+  --radius: var(--radius-lg);
+  --shadow: var(--shadow-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+  }
+}

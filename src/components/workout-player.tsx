@@ -1,4 +1,5 @@
 'use client';
+import { useToast } from './ui/toast';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import dynamic from 'next/dynamic';
 import type { CameraAnalyzer } from './camera-analyzer';
@@ -96,6 +97,9 @@ export function WorkoutPlayer(props: Props) {
 }
 
 function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
+  const toast = useToast();
+  const offlineSaveNotice = () =>
+    toast.show('Set kept on this device. It will sync when the connection returns.', 'warning');
   const previewArea = useRef<HTMLDivElement>(null);
   useCameraLayout(previewArea, props.onCameraHeight);
   const config = defaultWorkoutConfig(props.exercise, props.block);
@@ -232,7 +236,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
       if (!records.some((r) => r.clientId === unfinished.data.clientId))
         records.push(unfinished.data);
       if (props.saveForUser && restored.saveConsented)
-        void saveWorkoutSet(props.saveForUser, unfinished.data).catch(() => {});
+        void saveWorkoutSet(props.saveForUser, unfinished.data).catch(offlineSaveNotice);
     }
     completedReps.current = Math.max(props.initialReps ?? 0, restored.reps);
     completedHolds.current = Math.max((props.initialHoldSeconds ?? 0) * 1000, restored.holdMs);
@@ -256,7 +260,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
     const owner = active.current?.owner;
     active.current = null;
     if (record && record.activeMs > 0 && owner && owner === props.saveForUser)
-      void saveWorkoutSet(owner, record).catch(() => {});
+      void saveWorkoutSet(owner, record).catch(offlineSaveNotice);
   };
   useEffect(() => {
     const onHide = () => {

@@ -48,3 +48,4 @@ storageState.json
 # Local agent tooling
 .claude/launch.json
 .claude/worktrees/
+.claude/settings.local.json

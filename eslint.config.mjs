@@ -30,6 +30,9 @@ export default defineConfig([
     'next-env.d.ts',
     'node_modules/**',
     '.claude/**',
+    // Kilo Code agent worktrees: full checkouts of this repo that would be linted twice.
+    '.kilo/**',
+    '.kilocode/**',
     '.vercel/**',
     'test-results/**',
     'public/**',

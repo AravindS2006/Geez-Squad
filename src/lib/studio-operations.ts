@@ -200,6 +200,8 @@ export const money = (paise: number) =>
     minimumFractionDigits: paise % 100 ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(paise / 100);
+/** How far back the attendance register loads and accepts check-ins. */
+export const ATTENDANCE_DAYS = 90;
 export function studioToday(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata',
@@ -443,6 +445,8 @@ export function applyDemoOperation(
     }
     case 'attendance': {
       if (c.date > studioToday()) throw new Error('Attendance cannot be recorded in the future.');
+      if (c.date < addDays(studioToday(), -ATTENDANCE_DAYS))
+        throw new Error(`Attendance can only be recorded for the last ${ATTENDANCE_DAYS} days.`);
       if (
         !data.members.some((m) => m.id === c.memberId && m.status === 'active') ||
         !data.terms.some((t) => t.memberId === c.memberId && termStatus(t, c.date) === 'active')

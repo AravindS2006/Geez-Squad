@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   addDays,
+  ATTENDANCE_DAYS,
   applyDemoOperation,
   currentTerm,
   demoOperations,
@@ -110,6 +111,10 @@ describe('studio membership lifecycle', () => {
       'active membership',
     );
     expect(() => applyDemoOperation(d, { ...c, date: addDays(today, 1) }, 'bad')).toThrow('future');
+    // Visits older than the register's read window would save but never show.
+    expect(() =>
+      applyDemoOperation(d, { ...c, date: addDays(today, -ATTENDANCE_DAYS - 1) }, 'bad'),
+    ).toThrow(`last ${ATTENDANCE_DAYS} days`);
   });
   it('rejects invalid calendar dates, fractional fees, and invalid payment methods', () => {
     const c = {

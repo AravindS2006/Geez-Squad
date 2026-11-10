@@ -7,6 +7,7 @@ import { db, isSqliteDatabase } from './db';
 import { ApiError } from './security';
 import {
   addDays,
+  ATTENDANCE_DAYS,
   studioToday,
   classOverlap,
   weeklyOccurrences,
@@ -28,7 +29,7 @@ export const OPERATIONS_WINDOWS = {
   termDays: 365,
   /** Covers the six-month revenue chart and quarter summary. */
   revenueDays: 200,
-  attendanceDays: 90,
+  attendanceDays: ATTENDANCE_DAYS,
   pastClassDays: 30,
   maxClasses: 500,
   paymentPage: 100,
@@ -523,6 +524,12 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
             case 'attendance': {
               if (c.date > studioToday())
                 throw new ApiError(400, 'Attendance cannot be recorded in the future.');
+              // Older visits fall outside the register's read window and would vanish on reload.
+              if (c.date < addDays(studioToday(), -ATTENDANCE_DAYS))
+                throw new ApiError(
+                  400,
+                  `Attendance can only be recorded for the last ${ATTENDANCE_DAYS} days.`,
+                );
               const member = await tx.studioMember.findFirst({
                 where: { id: c.memberId, studioId, status: 'active' },
               });

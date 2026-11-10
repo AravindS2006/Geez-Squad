@@ -213,7 +213,7 @@ physical device accuracy or a 60-minute distributed LiveKit class.
 Run `npx playwright install webkit`, then the isolated runner's
 `e2e --config playwright.webkit.config.ts` for WebKit mobile coverage. Its Windows
 engine lacks WebRTC camera devices; source pixels are substituted while WebGL,
-WASM, MediaPipe and rendering remain real. See `IPHONE_COMPATIBILITY_2026-10-24.md`
+WASM, MediaPipe and rendering remain real. See `archive/IPHONE_COMPATIBILITY_2026-10-24.md`
 for reproduction details and the physical-device checks still required.
 
 Playwright may clean `test-results/browser-runs`. Keep database/runtime helpers
@@ -245,7 +245,7 @@ run `npm run security:install-hooks` in a new checkout. Never commit `.env`, key
 cookies, databases, `.vercel/`, local reports or camera recordings. Environment
 templates contain only blanks/placeholders. The historical GitGuardian alert in
 PR #1 was a disposable test credential, not a production password; see
-`SECURITY_AUDIT_2026-10-24.md`. Do not rotate production credentials based only on
+`archive/SECURITY_AUDIT_2026-10-24.md`. Do not rotate production credentials based only on
 that old alert or suppress an unfamiliar new finding without investigation.
 
 ## Deeper references and known open gates

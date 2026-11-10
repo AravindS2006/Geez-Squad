@@ -155,7 +155,7 @@ try {
     ),
   };
   await writeFile(
-    `docs/class-capacity-${count}-results.json`,
+    `docs/results/class-capacity-${count}-results.json`,
     JSON.stringify(report, null, 2) + '\n',
   );
   console.log(JSON.stringify(report, null, 2));

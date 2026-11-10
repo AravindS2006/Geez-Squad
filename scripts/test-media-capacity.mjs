@@ -501,7 +501,7 @@ try {
       'All publishers, the coach browser and SFU share one computer. No physical pose inference or WAN impairment. Windows SFU capacity management is unavailable.',
   };
   await writeFile(
-    `docs/media-capacity-${count}${native ? '-native' : ''}-results.json`,
+    `docs/results/media-capacity-${count}${native ? '-native' : ''}-results.json`,
     JSON.stringify(report, null, 2) + '\n',
   );
   console.log(

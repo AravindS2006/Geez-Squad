@@ -97,9 +97,17 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     await analyzer.evaluate((node, id) => node.setAttribute('data-layout-fixture', id), fixtureId);
     await feed.evaluate((node, id) => node.setAttribute('data-layout-fixture', id), fixtureId);
 
+    // On phones the floating tile hides its controls until it is tapped.
+    async function showCoachControls() {
+      const hidden = await page
+        .locator('.coach-video-toolbar')
+        .evaluate((node) => getComputedStyle(node).pointerEvents === 'none');
+      if (hidden) await feed.click();
+    }
     async function changeSize(value: string) {
       if ((await size.inputValue()) === value) return;
       if ((await size.inputValue()) === 'small') {
+        await showCoachControls();
         await page.getByRole('button', { name: 'Enlarge coach video' }).click();
         await expect(size).toBeFocused();
       }
@@ -215,7 +223,11 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
         );
         previousSize = dimension;
         if (value === 'small') {
-          expect(Math.abs(box!.width - box!.height)).toBeLessThanOrEqual(1);
+          // Phones use a wider-than-tall tile so less of the trainee's camera is covered.
+          if (viewport.width <= 760) {
+            expect(box!.height / box!.width).toBeGreaterThan(0.7);
+            expect(box!.height / box!.width).toBeLessThan(0.8);
+          } else expect(Math.abs(box!.width - box!.height)).toBeLessThanOrEqual(1);
           expect(box!.width).toBeGreaterThanOrEqual(104);
           expect(box!.width).toBeLessThanOrEqual(
             viewport.width <= 600 ? 144 : viewport.width <= 950 ? 128 : 184,
@@ -286,6 +298,7 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
       ).toBe('none');
     }
     const cameraBeforeSmallMinimize = await page.locator('.camera-view').boundingBox();
+    await showCoachControls();
     await page.getByRole('button', { name: 'Minimize coach video' }).click();
     await page.reload();
     await expect(page.getByRole('button', { name: 'Restore coach video' })).toBeVisible();

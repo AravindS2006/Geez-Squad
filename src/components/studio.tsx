@@ -43,6 +43,7 @@ import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
 import { CoachMonitor } from './coach-monitor';
+import { useScreenAwake } from './use-screen-awake';
 import roomStyles from './meeting-workspace.module.css';
 import { sessionElapsedSeconds } from '@/lib/session-timing';
 import { useTimeFormat } from './time-provider';
@@ -91,6 +92,7 @@ const coachVideoPreferenceKey = 'geez-squad:coach-video-layout:v1';
 const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
 /** A coach cue stays readable for this long, then gives the screen back (chat keeps it). */
 const CUE_VISIBLE_MS = 20000;
+const COACH_CONTROLS_MS = 4000;
 /** Polling interval while the tab is hidden (analysis is already stopped there). */
 const HIDDEN_POLL_MS = 15000;
 /** Unchanged live summaries are re-sent this often; coach freshness is 12 s. */
@@ -134,6 +136,8 @@ export function Studio({
     [now, setNow] = useState(() => Date.now()),
     [connectionState, setConnectionState] = useState('Not connected'),
     [analysisWarning, setAnalysisWarning] = useState('');
+  // Coach or trainee: a sleeping screen drops the class even with the camera off.
+  useScreenAwake(connected);
   const [syncWarning, setSyncWarning] = useState('');
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [roomFeatures] = useState(() => features ?? coachingFeatures());
@@ -830,6 +834,13 @@ export function Studio({
     const timer = window.setTimeout(() => setDismissedCueId(latestCueId), CUE_VISIBLE_MS);
     return () => window.clearTimeout(timer);
   }, [latestCueId]);
+  // On a phone the floating coach tile hides its controls until it is tapped.
+  const [coachControls, setCoachControls] = useState(false);
+  useEffect(() => {
+    if (!coachControls) return;
+    const timer = window.setTimeout(() => setCoachControls(false), COACH_CONTROLS_MS);
+    return () => window.clearTimeout(timer);
+  }, [coachControls]);
   if (!item)
     return (
       <EmptyState
@@ -950,8 +961,9 @@ export function Studio({
             {String(seconds % 60).padStart(2, '0')}
           </time>
         </div>
-        <div className="meeting-movement">
-          {coach ? (
+        {/* The coach picks the movement in one place: the Workout panel. */}
+        <div className="meeting-movement" hidden={coach && roomFeatures.meeting}>
+          {coach && roomFeatures.meeting ? null : coach ? (
             <select
               aria-label="Current exercise"
               value={item.exercise}
@@ -980,7 +992,9 @@ export function Studio({
             onClick={() => setWorkoutOpen(!workoutOpen)}
           >
             <Dumbbell size={20} />
-            <span>Workout</span>
+            <span>
+              {coach ? exerciseDefinition(item.exercise, customExercises).name : 'Workout'}
+            </span>
           </button>
         )}
       </header>
@@ -1214,7 +1228,11 @@ export function Studio({
                     }
                   />
                 </div>
-                <div className="coach-stage meeting-tile" role="group" aria-label="Coach video">
+                <div
+                  className={`coach-stage meeting-tile${coachControls ? ' coach-controls-open' : ''}`}
+                  role="group"
+                  aria-label="Coach video"
+                >
                   <div className="coach-video-toolbar">
                     <strong title={item.coachName}>
                       {item.coachName} <small>Coach</small>
@@ -1279,6 +1297,9 @@ export function Studio({
                     id="coach-video-feed"
                     className="coach-primary-feed"
                     hidden={coachVideoLayout.minimized}
+                    // Pointer shortcut only: the buttons stay keyboard reachable and
+                    // show themselves on focus.
+                    onClick={() => setCoachControls((open) => !open)}
                   >
                     {coachParticipant ? (
                       <ParticipantVideo participant={coachParticipant} />

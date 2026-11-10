@@ -26,11 +26,6 @@
   font-size: 23px;
   letter-spacing: -1px;
 }
-.landing .brand-icon {
-  background: var(--forest);
-  color: var(--acid);
-  border-radius: 50%;
-}
 .landing-header nav,
 .landing-header > div {
   display: flex;
@@ -484,9 +479,6 @@
 .landing-preview-top .brand-icon {
   width: 28px;
   height: 28px;
-}
-.landing-preview-top .brand-icon svg {
-  width: 18px;
 }
 .landing-preview-pill {
   font-size: var(--fs-2xs);

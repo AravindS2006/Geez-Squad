@@ -5,7 +5,19 @@ export function Brand() {
   return (
     <span className="brand">
       <span className="brand-icon">
-        <Dumbbell size={26} strokeWidth={2.5} aria-hidden="true" />
+        {/* Same geometry as public/icon.svg and marketing/brand/geez-squad-mark.svg. */}
+        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <rect width="64" height="64" rx="14" style={{ fill: 'var(--brand)' }} />
+          <path
+            d="M37.47 16.96A16 16 0 1 0 48 32H33"
+            fill="none"
+            strokeWidth="7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ stroke: 'var(--brand-contrast)' }}
+          />
+          <circle cx="45.11" cy="22.82" r="4" style={{ fill: 'var(--accent)' }} />
+        </svg>
       </span>
       Geez Squad
     </span>

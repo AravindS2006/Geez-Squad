@@ -8,7 +8,7 @@ Committed, project-scoped configuration. Personal overrides go in
 | Memory | `CLAUDE.md` → `@AGENTS.md` | Shared agent entry point plus the Claude-specific index |
 | Output style | `output-styles/geez-engineer.md` | Literal-minded engineer persona (set in `settings.json`, with coding instructions kept) |
 | Path rules | `rules/*.md` | Contracts loaded only when matching files are touched: `camera-pose`, `api-authorization`, `prisma-schema`, `ui-layout`, `tests-fixtures` |
-| Skills | `skills/<name>/SKILL.md` | `/spec`, `/verify`, `/domain-review`, `/deliver` (manual only), `/api-route`, `/schema-change`, `/next-docs`, `/ui-change` |
+| Skills | `skills/<name>/SKILL.md` | `/prompt-architect` (plain request → XML prompt with positive constraints, then executes), `/spec`, `/verify`, `/domain-review`, `/deliver` (manual only), `/api-route`, `/schema-change`, `/next-docs`, `/ui-change` |
 | Subagents | `agents/*.md` | `system-architect` (design), `authz-auditor`, `camera-contract-reviewer`, `ui-layout-reviewer` (reviews, read-only), `verifier` (runs checks) |
 | Hooks | `hooks/*.mjs` via `settings.json` | See below |
 | Permissions | `settings.json` | Allow read-only git and project checks, ask before push or deploy, deny reading secret env files |

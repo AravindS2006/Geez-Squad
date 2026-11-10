@@ -31,7 +31,7 @@ Purpose: $ARGUMENTS
    - `test-results/runtime22/node.exe scripts/local-coaching-check.mjs build` applies the
      SQLite migrations from scratch. Stop any dev server first on Windows.
    - Unit tests touching the model.
-   - PostgreSQL: `node scripts/ci-postgres.mjs` if a local Docker or PostgreSQL is available,
-     otherwise report "PostgreSQL: CI job postgres-coaching (not run locally)".
+   - PostgreSQL: `scripts/ci-postgres.mjs` runs only in GitHub Actions, so report
+     "PostgreSQL: CI job postgres-coaching (runs on the PR when prisma/** changes)".
 8. Never apply anything to a hosted database. Production migration is a separate,
    user-authorized release step (`docs/DEPLOYMENT.md`).

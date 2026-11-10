@@ -22,5 +22,5 @@ paths:
 - Never run `prisma migrate reset` or `db push`, and never regenerate the initial migration.
 - Production migrations run only in an authorized release step (`docs/DEPLOYMENT.md`).
 - Evidence: the isolated runner `build` (applies the SQLite migrations), relevant unit
-  tests, and `node scripts/ci-postgres.mjs` or the CI `postgres-coaching` job for
-  PostgreSQL. A passing SQLite check alone is insufficient. Use the `schema-change` skill.
+  tests, and the CI `postgres-coaching` job for PostgreSQL (`scripts/ci-postgres.mjs` runs
+  only in GitHub Actions). A passing SQLite check alone is insufficient. Use the `schema-change` skill.

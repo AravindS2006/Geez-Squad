@@ -8,6 +8,7 @@ it with checks you ran, and list anything you noticed but left alone as out of s
 
 | When | Use |
 | --- | --- |
+| Turn a plain request into a structured XML task prompt, then do it | `/prompt-architect <request>` (`--only` to just print it) |
 | Request is vague or has no "done means" | `/spec` |
 | Change spans layers, schema, live rooms or auth | `system-architect` subagent first |
 | Next.js API in doubt | `/next-docs` (installed docs beat memory) |

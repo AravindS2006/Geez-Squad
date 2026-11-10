@@ -29,7 +29,7 @@ Runner: `<node> scripts/local-coaching-check.mjs <check>`.
    - meeting or practice UI or CSS: e2e `coach-layout meeting-gallery trainee-mobile-layout
      workspace next-phase`, plus `a11y`.
    - `prisma/**`: runner `build` (applies SQLite migrations). Report PostgreSQL as "CI job
-     postgres-coaching" unless `scripts/ci-postgres.mjs` can run locally.
+     postgres-coaching". `scripts/ci-postgres.mjs` runs only in GitHub Actions.
 4. Server-backed checks (api/roles/studio/coaching/next/account/e2e/a11y) need the isolated
    server. If `curl -s http://localhost:3000/api/health` fails, start it in the background
    with `<node> scripts/local-coaching-check.mjs dev`, wait for health, run the checks, then

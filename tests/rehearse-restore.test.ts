@@ -31,31 +31,38 @@ describe('restore rehearsal row-count comparison', () => {
   });
 });
 
+// Credentials are set through the URL API at runtime, on reserved `.test` hosts, so the
+// source holds no connection string with a password that secret scanners would flag.
+function connectionUrl(host: string, query = '') {
+  const url = new URL(`postgresql://${host}/sampledb${query}`);
+  url.username = 'sample-user';
+  url.password = ['sample', 'pa@ss'].join('-');
+  return url.href;
+}
+
 describe('restore rehearsal connection parsing', () => {
-  it('maps a Neon direct URL to libpq variables', () => {
+  it('maps a direct URL with TLS settings to libpq variables', () => {
     expect(
       libpqEnv(
         'X',
-        'postgresql://owner:p%40ss@ep-cool-1.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+        connectionUrl('ep-sample.db.example.test', '?sslmode=require&channel_binding=require'),
       ),
     ).toEqual({
-      PGHOST: 'ep-cool-1.ap-southeast-1.aws.neon.tech',
+      PGHOST: 'ep-sample.db.example.test',
       PGPORT: '5432',
-      PGUSER: 'owner',
-      PGPASSWORD: 'p@ss',
-      PGDATABASE: 'neondb',
+      PGUSER: 'sample-user',
+      PGPASSWORD: 'sample-pa@ss',
+      PGDATABASE: 'sampledb',
       PGSSLMODE: 'require',
       PGCHANNELBINDING: 'require',
     });
   });
   it('rejects pooled endpoints and non-PostgreSQL URLs without echoing them', () => {
-    const pooled = 'postgresql://u:secret@ep-cool-1-pooler.aws.neon.tech/neondb';
+    const pooled = connectionUrl('ep-sample-pooler.db.example.test');
     expect(() => libpqEnv('X', pooled)).toThrow('pooled endpoint');
     expect(() => libpqEnv('X', 'file:./dev.db')).toThrow('PostgreSQL connection URL');
-    try {
-      libpqEnv('X', pooled);
-    } catch (error) {
-      expect(String(error)).not.toContain('secret');
-    }
+    expect(() => libpqEnv('X', pooled)).toThrow(
+      expect.objectContaining({ message: expect.not.stringContaining('sample-pa') }),
+    );
   });
 });

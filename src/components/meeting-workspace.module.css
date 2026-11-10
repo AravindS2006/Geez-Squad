@@ -45,6 +45,13 @@
 }
 .room:global(.meeting-room.meeting-v2) :global(.meeting-workout-toggle > span) {
   font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.room:global(.meeting-room.meeting-v2) :global(.meeting-movement[hidden]) {
+  display: none;
 }
 .room:global(.meeting-room.meeting-v2) :global(.meeting-workout-queue) {
   position: absolute;
@@ -79,7 +86,9 @@
   padding: 10px;
 }
 .room:global(.meeting-room.meeting-v2) :global(.meeting-workout-picker) {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: #d2d2cf;
   font-size: 12px;
 }

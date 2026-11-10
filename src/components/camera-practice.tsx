@@ -32,6 +32,13 @@ export function CameraPractice({
   const [readyNext, setReadyNext] = useState(false);
   const [runId] = useState(() => crypto.randomUUID());
   const definition = exerciseDefinition(exercise, data.customExercises);
+  const movementOptions = [...exercises, ...(data.customExercises ?? [])]
+    .filter((x) => data.features?.library !== false || x.profileId)
+    .map((x) => (
+      <option key={x.id} value={x.id}>
+        {x.name}
+      </option>
+    ));
   return (
     <section
       className={`meeting-practice ${styles.practice}`}
@@ -53,20 +60,33 @@ export function CameraPractice({
           Movement
           <select
             aria-label="Exercise to practice"
-            value={exercise}
+            value={assignedBlock >= 0 ? `plan:${assignedBlock}` : exercise}
             onChange={(event) => {
-              setAssignedBlock(-1);
+              // One picker: a step of the assigned plan (which carries its sets and
+              // targets) or any movement from the library.
+              const value = event.target.value;
+              const step = plan && value.startsWith('plan:') ? Number(value.slice(5)) : -1;
+              setAssignedBlock(step);
               setReadyNext(false);
-              setExercise(event.target.value as ClassView['exercise']);
+              setExercise(
+                step >= 0 ? plan!.blocks[step].exercise : (value as ClassView['exercise']),
+              );
             }}
           >
-            {[...exercises, ...(data.customExercises ?? [])]
-              .filter((x) => data.features?.library !== false || x.profileId)
-              .map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name}
-                </option>
-              ))}
+            {plan ? (
+              <>
+                <optgroup label={`Assigned plan: ${plan.name}`}>
+                  {plan.blocks.map((block, index) => (
+                    <option key={index} value={`plan:${index}`}>
+                      {index + 1}. {exerciseName(block.exercise)} · {block.sets} sets
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="All movements">{movementOptions}</optgroup>
+              </>
+            ) : (
+              movementOptions
+            )}
           </select>
         </label>
         <button
@@ -80,40 +100,16 @@ export function CameraPractice({
           <span>Movement guide</span>
         </button>
       </header>
-      {(plan || !data.demo) && (
+      {!data.demo && (
         <div className={`practice-options ${styles.options}`}>
-          {plan && (
-            <label>
-              Assigned plan: {plan.name}
-              <select
-                aria-label="Assigned plan exercise"
-                value={assignedBlock}
-                onChange={(event) => {
-                  const index = Number(event.target.value);
-                  setAssignedBlock(index);
-                  setReadyNext(false);
-                  if (index >= 0) setExercise(plan.blocks[index].exercise);
-                }}
-              >
-                <option value={-1}>Choose an exercise</option>
-                {plan.blocks.map((block, index) => (
-                  <option key={index} value={index}>
-                    {index + 1}. {exerciseName(block.exercise)} · {block.sets} sets
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {!data.demo && (
-            <label className="history-consent">
-              <input
-                type="checkbox"
-                checked={saveHistory}
-                onChange={(event) => setSaveHistory(event.target.checked)}
-              />
-              <span>Save workout history to my profile and share with my coach</span>
-            </label>
-          )}
+          <label className="history-consent">
+            <input
+              type="checkbox"
+              checked={saveHistory}
+              onChange={(event) => setSaveHistory(event.target.checked)}
+            />
+            <span>Save workout history to my profile and share with my coach</span>
+          </label>
         </div>
       )}
       <div className={`practice-studio-grid ${styles.studio}`}>

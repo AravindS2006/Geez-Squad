@@ -390,12 +390,18 @@ small {
   color: #87a65d;
 }
 .brand-icon {
-  width: 29px;
-  height: 33px;
+  width: 30px;
+  height: 30px;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 1px;
+}
+.brand-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .brand-link {
   display: block;

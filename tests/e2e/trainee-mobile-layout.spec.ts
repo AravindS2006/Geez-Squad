@@ -119,9 +119,28 @@ test('a trainee on a phone sees their own camera as the main view during a live 
       const camera = (await page.locator('.camera-view').boundingBox())!;
       const share = camera.height / viewport.height;
       expect(share, `camera share at ${viewport.width}x${viewport.height}`).toBeGreaterThan(
-        viewport.height < 600 ? 0.45 : 0.6,
+        viewport.height < 600 ? 0.52 : viewport.height < 800 ? 0.7 : 0.75,
       );
       expect(camera.width).toBeGreaterThanOrEqual(viewport.width - 24);
+      // The mode links share the camera's top bar instead of taking a row above it.
+      const links = (await page.locator('.workout-capability').boundingBox())!;
+      expect(links.y).toBeGreaterThanOrEqual(camera.y);
+      expect(links.y + links.height).toBeLessThanOrEqual(camera.y + 64);
+      // The coach tile stays inside the camera and clear of the trainee's own readouts.
+      const tile = (await page.locator('.coach-stage').boundingBox())!;
+      expect(tile.x).toBeGreaterThanOrEqual(camera.x);
+      expect(tile.y).toBeGreaterThanOrEqual(camera.y);
+      expect(tile.x + tile.width).toBeLessThanOrEqual(camera.x + camera.width);
+      expect(tile.y + tile.height).toBeLessThanOrEqual(camera.y + camera.height);
+      for (const readout of ['.analyzer-settings-button', '.tracking-badge', '.analyzer-hud']) {
+        const r = (await page.locator(readout).boundingBox())!;
+        const apart =
+          r.x + r.width <= tile.x ||
+          tile.x + tile.width <= r.x ||
+          r.y + r.height <= tile.y ||
+          tile.y + tile.height <= r.y;
+        expect(apart, `coach tile clear of ${readout}`).toBe(true);
+      }
       // The coach cue is a banner over the header instead of a row taken from the camera.
       const cueBox = (await cue.boundingBox())!;
       const header = (await page.locator('.meeting-header').boundingBox())!;
@@ -156,13 +175,28 @@ test('a trainee on a phone sees their own camera as the main view during a live 
       await page.screenshot({
         path: `docs/screenshots/trainee-live-${viewport.width}x${viewport.height}.png`,
       });
-      console.log(`camera ${viewport.width}x${viewport.height}: ${Math.round(share * 100)}%`);
+      console.log(`camera ${viewport.width}x${viewport.height}: ${(share * 100).toFixed(1)}%`);
     }
     // Dismissing the cue returns the whole camera; a new cue would show again.
     await page.getByRole('button', { name: 'Dismiss coach message' }).click();
     await expect(cue).toBeHidden();
+    // At rest the coach tile is video and name only. A tap shows its two controls at
+    // full size, and they hide again on their own.
+    const coachControls = page.locator('.coach-video-toolbar');
+    const enlarge = page.getByRole('button', { name: 'Enlarge coach video' });
+    await expect(coachControls).toHaveCSS('opacity', '0');
+    await page.locator('#coach-video-feed').click();
+    await expect(coachControls).toHaveCSS('opacity', '1');
+    for (const control of [enlarge, page.getByRole('button', { name: 'Minimize coach video' })]) {
+      const b = (await control.boundingBox())!;
+      expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(44);
+    }
+    await expect(coachControls).toHaveCSS('opacity', '0', { timeout: 8000 });
+    // Keyboard focus shows them without a tap.
+    await enlarge.focus();
+    await expect(coachControls).toHaveCSS('opacity', '1');
     // A saved larger coach layout is still respected on a phone.
-    await page.getByRole('button', { name: 'Enlarge coach video' }).click();
+    await page.keyboard.press('Enter');
     await expect(page.locator('.trainee-video-layout')).toHaveClass(/coach-video-medium/);
     const a11y = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])

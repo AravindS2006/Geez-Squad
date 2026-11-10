@@ -28,6 +28,7 @@ import { Avatar, EmptyState, Modal } from './ui';
 import { fetchJson } from '@/lib/client';
 import {
   addDays,
+  ATTENDANCE_DAYS,
   applyDemoOperation,
   currentTerm,
   demoOperations,
@@ -162,8 +163,18 @@ export function StudioOperations({
     memberId: string;
     date: string;
   } | null>(null);
+  const todayRef = useRef(today);
   useEffect(() => {
-    const timer = setInterval(() => setToday(studioToday()), 60000);
+    // When the studio day rolls over, a register still on "today" follows it, so a tab
+    // left open overnight does not file the next morning's check-ins under yesterday.
+    const timer = setInterval(() => {
+      const next = studioToday();
+      const previous = todayRef.current;
+      if (next === previous) return;
+      todayRef.current = next;
+      setToday(next);
+      setAttendanceDate((date) => (date === previous ? next : date));
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
@@ -1089,6 +1100,7 @@ export function StudioOperations({
                 type="date"
                 aria-label="Attendance date"
                 value={attendanceDate}
+                min={addDays(today, -ATTENDANCE_DAYS)}
                 max={today}
                 onChange={(e) => setAttendanceDate(e.target.value || today)}
               />
@@ -1189,7 +1201,13 @@ export function StudioOperations({
                         <td>
                           <button
                             className="button outline small-button"
-                            disabled={checked || !eligible || busy || attendanceDate > today}
+                            disabled={
+                              checked ||
+                              !eligible ||
+                              busy ||
+                              attendanceDate > today ||
+                              attendanceDate < addDays(today, -ATTENDANCE_DAYS)
+                            }
                             onClick={() =>
                               save({ action: 'attendance', memberId: m.id, date: attendanceDate })
                             }

@@ -803,6 +803,7 @@ export function CheckInForm({
   busy: boolean;
 }) {
   const [saved, setSaved] = useState(false);
+  const [attendance, setAttendance] = useState(0);
   return (
     <form
       className="form-stack"
@@ -811,7 +812,7 @@ export function CheckInForm({
         const form = new FormData(event.currentTarget);
         const optional = (name: string) => (form.get(name) === '' ? null : Number(form.get(name)));
         try {
-          await onSave({
+          const result = await onSave({
             action: 'checkIn',
             energy: Number(form.get('energy')),
             soreness: Number(form.get('soreness')),
@@ -820,6 +821,8 @@ export function CheckInForm({
             bodyweightKg: optional('bodyweightKg'),
             note: form.get('note'),
           });
+          const recorded = (result as { attendanceRecorded?: unknown } | null)?.attendanceRecorded;
+          setAttendance(typeof recorded === 'number' ? recorded : 0);
           setSaved(true);
         } catch {
           /* The workspace displays the server error beside this form. */
@@ -866,7 +869,13 @@ export function CheckInForm({
       <button className="button dark" disabled={busy || saved}>
         {saved ? 'Check-in saved' : 'Share check-in with my coach'}
       </button>
-      {saved && <p role="status">Your check-in is saved.</p>}
+      {saved && (
+        <p role="status">
+          {attendance
+            ? "Your check-in is saved and today's studio visit is recorded."
+            : 'Your check-in is saved. Studio attendance needs an active membership.'}
+        </p>
+      )}
     </form>
   );
 }

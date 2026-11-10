@@ -15,6 +15,11 @@ const today = new Intl.DateTimeFormat('en-CA', {
 const next = new Date(`${today}T12:00:00Z`);
 next.setUTCDate(next.getUTCDate() + 1);
 const tomorrow = next.toISOString().slice(0, 10);
+const addDays = (date, days) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 const ids = [],
   agents = [];
 let checks = 0;
@@ -311,6 +316,22 @@ try {
   check(self.status, 200, 'member self view');
   check(self.data.memberships.length, 1, 'self view only own membership');
   check(self.data.memberships[0].id, first, 'self membership identity');
+  const memberCheckIn = await member.call('/api/command', {
+    action: 'checkIn',
+    energy: 4,
+    soreness: 1,
+    effort: null,
+    sleepHours: null,
+    bodyweightKg: null,
+    note: '',
+  });
+  check(memberCheckIn.status, 200, 'member check-in saved');
+  check(memberCheckIn.data.attendanceRecorded, 1, 'member check-in records studio attendance');
+  check(
+    (await post({ action: 'attendance', memberId: first, date: addDays(today, -91) })).status,
+    400,
+    'attendance outside the register window rejected',
+  );
   const snapshot = await a.call('/api/studio-operations');
   check(snapshot.status, 200, 'persisted studio data');
   check(snapshot.data.members.length, 2, 'member register persisted');

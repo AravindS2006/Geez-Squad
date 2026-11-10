@@ -38,6 +38,7 @@ import {
   classPermissions,
   grantTrainee,
   requireStudio,
+  traineeStudioIds,
 } from '@/lib/studio-access';
 async function handlePOST(request: Request) {
   try {
@@ -285,7 +286,46 @@ async function handlePOST(request: Request) {
         if (user.role === 'unset') throw new ApiError(403, 'Complete your personal profile first.');
         await rateLimit(user.id, 'check-in', 5);
         const { action: _action, ...values } = data;
-        await db.checkIn.create({ data: { ...values, userId: user.id } });
+        const date = studioToday();
+        // A member's own check-in also marks today's in-studio visit, using the same
+        // rule as the staff register: an accepted, active member with a term covering today.
+        const recorded = await writeTransaction(
+          () =>
+            db.$transaction(
+              async (tx) => {
+                await tx.checkIn.create({ data: { ...values, userId: user.id } });
+                const members = await tx.studioMember.findMany({
+                  where: {
+                    userId: user.id,
+                    status: 'active',
+                    terms: {
+                      some: { status: 'active', startsOn: { lte: date }, endsOn: { gte: date } },
+                    },
+                  },
+                  select: { id: true, studioId: true },
+                });
+                const allowed = await traineeStudioIds(
+                  user.id,
+                  members.map((m) => m.studioId),
+                  tx,
+                );
+                let count = 0;
+                for (const member of members) {
+                  if (!allowed.has(member.studioId)) continue;
+                  await tx.studioAttendance.upsert({
+                    where: { memberId_date: { memberId: member.id, date } },
+                    create: { memberId: member.id, studioId: member.studioId, date },
+                    update: {},
+                  });
+                  count++;
+                }
+                return count;
+              },
+              { isolationLevel: 'Serializable' },
+            ),
+          isSqliteDatabase(),
+        );
+        result = { ok: true, attendanceRecorded: recorded };
         break;
       }
       case 'deletePlan': {

@@ -54,15 +54,18 @@ describe('production deployment guard', () => {
       }),
     ).toEqual([]);
   });
-  it('allows explicitly selected testing signup without mail credentials', () => {
-    expect(
-      validateProductionConfig({
-        ...valid,
-        EMAIL_DELIVERY: 'test',
-        EMAIL_FROM: undefined,
-        RESEND_API_KEY: undefined,
-      }),
-    ).toEqual([]);
+  it('rejects testing mode, which skips email verification and password reset', () => {
+    for (const mail of [
+      { EMAIL_FROM: undefined, RESEND_API_KEY: undefined },
+      {
+        SMTP_HOST: 'smtp.gmail.com',
+        SMTP_USER: 'studio@gmail.com',
+        SMTP_PASSWORD: 'test-app-password',
+      },
+    ])
+      expect(
+        validateProductionConfig({ ...valid, ...mail, EMAIL_DELIVERY: 'test' }).join(' '),
+      ).toContain('EMAIL_DELIVERY=test');
   });
   it('ignores dormant mail credentials when delivery is explicitly disabled', () => {
     expect(

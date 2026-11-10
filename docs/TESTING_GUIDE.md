@@ -4,11 +4,11 @@ The hosted testing app is at [geez-squad.vercel.app](https://geez-squad.vercel.a
 
 ## Create both accounts
 
-1. In your normal browser window, open [Create account](https://geez-squad.vercel.app/login?mode=signup). Enter your name, an email address you control, and a password of at least 12 characters. Save the password: email recovery is unavailable until the sending domain is configured.
+1. In your normal browser window, open [Create account](https://geez-squad.vercel.app/login?mode=signup). Enter your name, an email address you control, and a password of at least 12 characters. Open the verification email and follow its link before signing in.
 2. On the setup screen, choose **I'm a coach**, enter a studio name, confirm you are 18+, and select **Create my workspace**. Trainer and coach refer to the same role in this app.
 3. Open a private/incognito window, another browser profile, or a second device. Create another account with a different email address you control. Choose **I'm a trainee** and complete setup. Ordinary tabs in the same browser profile share a login, so they cannot represent two independent accounts.
 
-Role selection is one-time. Use two separate accounts rather than switching a single account between roles. Testing mode allows signup and password sign-in without mail delivery; it does not prove ownership of a typed email address. Use this deployment for operator testing until verified email and the remaining launch checks are complete.
+Role selection is one-time. Use two separate accounts rather than switching a single account between roles. Production requires a verified email address; forgotten passwords are reset by email.
 
 ## Connect the two accounts
 
@@ -24,4 +24,4 @@ For an actual video workout, use a computer for the coach and a phone or another
 
 When you control a sending domain, verify it in Resend using the provided DNS records. In Vercel Production, add the domain's `EMAIL_FROM` and its `RESEND_API_KEY`, change `EMAIL_DELIVERY` to `resend`, and redeploy. The UI then offers email recovery and requires verification for signup/sign-in. Existing unverified testing accounts receive a verification link when they attempt to sign in with their password. Existing unverified sessions cannot access protected app APIs after the switch. Users keep their studio and workout records; their addresses are never silently marked verified.
 
-Test actual verification and reset-link delivery before inviting clients. Notification delivery remains deferred while `EMAIL_DELIVERY=test` is configured.
+Test actual verification and reset-link delivery before inviting clients. `EMAIL_DELIVERY=test` is limited to local and isolated test runs.

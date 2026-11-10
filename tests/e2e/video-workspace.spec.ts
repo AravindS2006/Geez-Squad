@@ -177,6 +177,9 @@ test('coach gallery enlarges feeds and keeps floating controls in view', async (
     expect(workout.x).toBeGreaterThan(back.x + back.width);
     await page.getByRole('button', { name: 'Workout queue', exact: true }).click();
     await expect(page.getByRole('navigation', { name: 'Class workout sequence' })).toBeVisible();
+    // The coach has one movement picker at every width: the one in this panel.
+    await expect(page.getByLabel('Workout exercise')).toBeVisible();
+    await expect(page.getByLabel('Current exercise')).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('navigation', { name: 'Class workout sequence' })).toBeHidden();
     const a11y = await new AxeBuilder({ page })

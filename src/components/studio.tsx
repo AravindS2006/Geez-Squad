@@ -950,8 +950,9 @@ export function Studio({
             {String(seconds % 60).padStart(2, '0')}
           </time>
         </div>
-        <div className="meeting-movement">
-          {coach ? (
+        {/* The coach picks the movement in one place: the Workout panel. */}
+        <div className="meeting-movement" hidden={coach && roomFeatures.meeting}>
+          {coach && roomFeatures.meeting ? null : coach ? (
             <select
               aria-label="Current exercise"
               value={item.exercise}
@@ -980,7 +981,9 @@ export function Studio({
             onClick={() => setWorkoutOpen(!workoutOpen)}
           >
             <Dumbbell size={20} />
-            <span>Workout</span>
+            <span>
+              {coach ? exerciseDefinition(item.exercise, customExercises).name : 'Workout'}
+            </span>
           </button>
         )}
       </header>

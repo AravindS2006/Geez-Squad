@@ -25,7 +25,14 @@ export function validateProductionConfig(env) {
   const errors = [];
   let deliveryEnabled = true;
   try {
-    deliveryEnabled = getEmailPolicy({ ...env, VERCEL: '1' }).deliveryEnabled;
+    const policy = getEmailPolicy({ ...env, VERCEL: '1' });
+    deliveryEnabled = policy.deliveryEnabled;
+    // Testing mode skips email verification and has no password reset, so anyone could
+    // register another person's address and a forgotten password could not be recovered.
+    if (policy.testingMode)
+      errors.push(
+        'EMAIL_DELIVERY=test is for local and isolated testing only; use smtp or resend in production.',
+      );
   } catch {
     errors.push('EMAIL_DELIVERY must be resend, smtp, disabled, or test.');
   }

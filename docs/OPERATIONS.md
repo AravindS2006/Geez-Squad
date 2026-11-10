@@ -2,7 +2,7 @@
 
 Authentication uses Better Auth and Prisma-backed sessions. Password management is delegated to that library. Role setup is server-side and one-time. Every domain API binds the authenticated user to studio ownership or session enrollment. Public sample data is entirely separate from protected records. Mutation endpoints check Origin, JSON format, input size, schema validity, and database-backed request limits. LiveKit JWTs have no room administration or arbitrary data-publish grants.
 
-`EMAIL_DELIVERY=test` is an explicit operator testing mode before a sending domain is available. Signup/sign-in work without verification, the login page labels the limitation, and account emails remain unverified. Mail delivery and recovery requests are disabled even if dormant credentials are present. Keep invitation links private; typed emails do not establish identity in this mode. For closed signup instead, use `EMAIL_DELIVERY=disabled`, which retains verified-account sign-in only. Switch to `EMAIL_DELIVERY=resend` after configuring the sending domain/key, then redeploy and test delivered verification and reset links. Existing testing accounts receive verification links on password sign-in; protected APIs reject their existing sessions until verification. See [TESTING_GUIDE.md](TESTING_GUIDE.md).
+`EMAIL_DELIVERY=test` is for local and isolated test runs only; the production build guard rejects it, and production uses `smtp`. Signup/sign-in work without verification, the login page labels the limitation, and account emails remain unverified. Mail delivery and recovery requests are disabled even if dormant credentials are present. Keep invitation links private; typed emails do not establish identity in this mode. For closed signup instead, use `EMAIL_DELIVERY=disabled`, which retains verified-account sign-in only. After switching to `smtp` or `resend`, redeploy and test delivered verification and reset links. Existing testing accounts receive verification links on password sign-in; protected APIs reject their existing sessions until verification. See [TESTING_GUIDE.md](TESTING_GUIDE.md).
 
 Use the trusted Vercel proxy for authentication's forwarded-IP rate limiting; self-hosted operators must configure trusted proxy headers correctly. Disable LiveKit Cloud automatic room creation. The application prepares rooms explicitly and revokes identities with a current cutoff before room deletion, including on cleanup retries. Cached-token reconnection is part of the required Cloud service tests, since JWT expiration alone does not close an active/refreshed session. [LiveKit participant revocation](https://docs.livekit.io/intro/basics/rooms-participants-tracks/participants/).
 
@@ -35,4 +35,24 @@ Data export returns only the requesting user's own records. Settings → Delete 
 
 See the [12 October codebase audit](archive/CODEBASE_AUDIT_2026-10-12.md) for the latest fixes, evidence, and unresolved acceptance work.
 
-Before production, assess dependency licensing, conduct threat modeling/pentesting, test all service failure states, choose monitoring/alert recipients, and rehearse restores. The included checks are development verification, not an independent security certification.
+Before production, assess dependency licensing, conduct threat modeling/pentesting, test all service failure states, choose monitoring/alert recipients, and rehearse restores (see below). The included checks are development verification, not an independent security certification.
+
+## Backup and restore
+
+There are two recovery paths. Rehearse both before launch and after any change of database plan.
+
+1. **Neon point-in-time restore** (first choice after a bad migration or accidental delete). In the Neon console, create a branch from the production branch at a time before the incident. Run `node scripts/postgres.mjs check` and `scripts/verify-postgres.mjs` against the branch's direct URL, then inspect the affected records. Only then restore the production branch from it, or repoint Vercel to it. The window you can go back depends on the Neon plan's history retention. Confirm it in the Neon console and record it below. The Free plan carries no SLA.
+2. **Logical backup** (an independent copy kept outside Neon). `npm run db:restore:rehearse -- --dump <path outside the repo>.dump` reads `RESTORE_SOURCE_URL` and `RESTORE_TARGET_URL`. It takes a `pg_dump` custom-format backup of the source, restores it into the target and compares exact row counts for every public table, including `_prisma_migrations`. It refuses a pooled (`-pooler`) endpoint, a target that is the source or the app's `DATABASE_URL`/`DIRECT_URL`, a target that already has tables, and a dump path inside the repository that git does not ignore. It never writes to the source and never prints connection strings. It uses `pg_dump`/`pg_restore`/`psql` from PATH, or else Docker (`RESTORE_PG_IMAGE`, default `postgres:17-alpine`). The client major version must be at least the server's.
+
+Production rehearsal steps:
+
+1. Create an empty database on a non-production Neon branch, or in a separate project, and copy its direct URL.
+2. Set `RESTORE_SOURCE_URL` to the production direct URL (`DIRECT_URL`) and `RESTORE_TARGET_URL` to the empty database, in the shell only. Run the command above. A table written during the backup is reported as changed, and it passes when its restored count lies between the before and after counts.
+3. Point `scripts/postgres.mjs check` and `scripts/verify-postgres.mjs` (with `DATABASE_PROVIDER=postgresql`) at the restored database.
+4. Record the date, operator, backup and restore times, table and row totals, and the Neon history window in the log below. Then delete the dump file and the rehearsal database. The dump holds personal data.
+
+`npm run test:restore` proves the script on two disposable Docker databases. It migrates the source with the committed migrations, seeds member, workout and audit rows, restores, and checks each refusal.
+
+| Date | Operator | Path | Backup / restore time | Tables / rows | Neon history window | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-11-10 | local proof (`npm run test:restore`) | logical, Docker `postgres:17-alpine` | 1.5 s / 2.0 s | 39 / 16 | n/a | pass |

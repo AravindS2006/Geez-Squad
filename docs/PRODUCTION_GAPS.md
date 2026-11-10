@@ -18,6 +18,14 @@ Limits of this audit:
 Ordered by severity, then effort (S under a day, M a few days, L a week or more or needs
 people and devices).
 
+## Status since the audit
+
+| # | Status | Evidence |
+| --- | --- | --- |
+| 1 | Fixed in code, 10 November 2026. The production build guard rejects `EMAIL_DELIVERY=test`, and the docs now say production uses `smtp`. **Open until the owner** sets `EMAIL_DELIVERY=smtp` and `EMAIL_FROM` in Vercel, redeploys, and confirms that verification and reset emails arrive. | `scripts/production-config.mjs`; `tests/production-config.test.ts`; `docs/DEPLOYMENT.md` section 3 |
+| 2 | Partly fixed, 10 November 2026. A backup and restore rehearsal script, runbook and rehearsal log now exist, and the script was proven on disposable local PostgreSQL. **Open until** the rehearsal has run on Neon, the result is logged, and the Neon plan decision is recorded. | `scripts/rehearse-restore.mjs`; `scripts/test-restore-rehearsal.mjs`; `docs/OPERATIONS.md` "Backup and restore" |
+| 3 | Fixed after the audit commit by `22c5207` (#11). Camera analysis and the connected live room hold a shared screen wake lock, which is reacquired when the tab is shown again. Not yet measured on physical phones. | `src/lib/screen-wake-lock.ts`; `src/components/camera-analyzer.tsx:270`; `src/components/studio.tsx:140`; `tests/screen-wake-lock.test.ts`; `tests/e2e/wake-lock.spec.ts` |
+
 | # | Area | Gap | User impact | Severity | Effort | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Deploy/env | Production is documented as running `EMAIL_DELIVERY=test`, and the production guard accepts that mode. It turns off email verification and password reset. | Anyone can register with another person's email address. A forgotten password locks the account for good, because there is no recovery path. | blocker | S | `docs/DEPLOYMENT.md:52` (per docs); `src/lib/email-policy.mjs:9-17`; `scripts/production-config.mjs:26-40` |

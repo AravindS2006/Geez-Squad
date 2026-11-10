@@ -48,7 +48,9 @@
     "test:roles": "node scripts/test-studio-roles.mjs",
     "db:roles:check": "node scripts/backfill-studio-roles.mjs",
     "db:roles:backfill": "node scripts/backfill-studio-roles.mjs --apply",
-    "db:roles:rehearse": "node scripts/rehearse-role-migration.mjs"
+    "db:roles:rehearse": "node scripts/rehearse-role-migration.mjs",
+    "db:restore:rehearse": "node scripts/rehearse-restore.mjs",
+    "test:restore": "node scripts/test-restore-rehearsal.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.32",

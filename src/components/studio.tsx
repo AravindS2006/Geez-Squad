@@ -91,6 +91,7 @@ const coachVideoPreferenceKey = 'geez-squad:coach-video-layout:v1';
 const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
 /** A coach cue stays readable for this long, then gives the screen back (chat keeps it). */
 const CUE_VISIBLE_MS = 20000;
+const COACH_CONTROLS_MS = 4000;
 /** Polling interval while the tab is hidden (analysis is already stopped there). */
 const HIDDEN_POLL_MS = 15000;
 /** Unchanged live summaries are re-sent this often; coach freshness is 12 s. */
@@ -830,6 +831,13 @@ export function Studio({
     const timer = window.setTimeout(() => setDismissedCueId(latestCueId), CUE_VISIBLE_MS);
     return () => window.clearTimeout(timer);
   }, [latestCueId]);
+  // On a phone the floating coach tile hides its controls until it is tapped.
+  const [coachControls, setCoachControls] = useState(false);
+  useEffect(() => {
+    if (!coachControls) return;
+    const timer = window.setTimeout(() => setCoachControls(false), COACH_CONTROLS_MS);
+    return () => window.clearTimeout(timer);
+  }, [coachControls]);
   if (!item)
     return (
       <EmptyState
@@ -1214,7 +1222,11 @@ export function Studio({
                     }
                   />
                 </div>
-                <div className="coach-stage meeting-tile" role="group" aria-label="Coach video">
+                <div
+                  className={`coach-stage meeting-tile${coachControls ? ' coach-controls-open' : ''}`}
+                  role="group"
+                  aria-label="Coach video"
+                >
                   <div className="coach-video-toolbar">
                     <strong title={item.coachName}>
                       {item.coachName} <small>Coach</small>
@@ -1279,6 +1291,9 @@ export function Studio({
                     id="coach-video-feed"
                     className="coach-primary-feed"
                     hidden={coachVideoLayout.minimized}
+                    // Pointer shortcut only: the buttons stay keyboard reachable and
+                    // show themselves on focus.
+                    onClick={() => setCoachControls((open) => !open)}
                   >
                     {coachParticipant ? (
                       <ParticipantVideo participant={coachParticipant} />

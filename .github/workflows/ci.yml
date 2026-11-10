@@ -1,8 +1,56 @@
 name: Validate Geez Squad
-on: [push, pull_request]
+# PR branches are validated once, by the pull_request event. master is validated on
+# every push. Run manually from the Actions tab for any other branch.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+# A new push to a PR cancels that PR's superseded run. master runs always complete.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # Decide which heavy jobs a PR needs. master pushes and manual runs need all of them.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.classify.outputs.app }}
+      schema: ${{ steps.classify.outputs.schema }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: classify
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            echo "schema=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          app=false
+          schema=false
+          while IFS= read -r file; do
+            case "$file" in
+              ''|docs/*|*.md|.claude/*|.agents/*|.gitignore|.github/pull_request_template.md) ;;
+              *) app=true ;;
+            esac
+            case "$file" in
+              prisma/*|scripts/*postgres*|src/lib/db.ts|src/lib/db-provider.ts|package.json|package-lock.json|.github/workflows/*) schema=true ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "schema=$schema" >> "$GITHUB_OUTPUT"
+          echo "Build/browser checks: $app; PostgreSQL rehearsal: $schema" >> "$GITHUB_STEP_SUMMARY"
   secrets:
     runs-on: ubuntu-latest
     steps:
@@ -28,6 +76,8 @@ jobs:
           tar -xzf "$scanner_dir/gitleaks.tar.gz" -C "$scanner_dir" gitleaks
           GITLEAKS_BIN="$scanner_dir/gitleaks" node scripts/scan-secrets.mjs
   checks:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +132,8 @@ jobs:
       # Browser traces can contain session cookies and request bodies. Keep them
       # on the disposable runner; do not publish test-results as an artifact.
   postgres-coaching:
+    needs: changes
+    if: needs.changes.outputs.schema == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

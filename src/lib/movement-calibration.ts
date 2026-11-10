@@ -44,7 +44,7 @@ export function advanceMovementCalibration(
       cue: 'Calibration did not finish. Check camera position and try again with your coach.',
     };
   if (now - current.startedAt < 3000) return current;
-  let next = {
+  const next = {
     ...current,
     phase: current.phase === 'step-back' ? ('start' as const) : current.phase,
   };

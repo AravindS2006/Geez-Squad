@@ -4,7 +4,7 @@ Coding agents: start with [AGENTS.md](AGENTS.md) and the current
 [project handoff](docs/AI_HANDOFF.md) for architecture, safe local setup, feature
 contracts, UI ownership and verification. Older dated audits are historical context.
 
-The [camera workspace and meeting repair](docs/UI_CAMERA_REPAIR_2026-10-24.md)
+The [camera workspace and meeting repair](docs/archive/UI_CAMERA_REPAIR_2026-10-24.md)
 documents the current responsive layout and camera lifecycle changes.
 
 A fitness studio management and coaching product built with Next.js, Better Auth, Prisma, LiveKit, and MediaPipe. Includes a public landing page, operations dashboard, member register, membership plans and renewals, payment ledger and receipts, physical attendance, in-studio class booking rosters, enquiry follow-ups, staff directory, and studio details, alongside the existing coach and trainee workspaces, video sessions, workout plans and progress tools. See the [studio product guide](docs/STUDIO_PRODUCT.md) for workflows, database migrations, verification and release boundaries.

@@ -31,5 +31,5 @@ The PostgreSQL migration job uses a random password for each disposable CI
 container, binds its port only to loopback, and removes the container after the
 job. Production database credentials are never provided to this job.
 
-See the [2026-10-24 audit](docs/SECURITY_AUDIT_2026-10-24.md) for the reviewed
+See the [2026-10-24 audit](docs/archive/SECURITY_AUDIT_2026-10-24.md) for the reviewed
 GitGuardian finding and the scope and limits of the verification.

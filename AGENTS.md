@@ -19,6 +19,7 @@ session. Open deeper docs only for the area you touch.
 | Touching | Open first |
 | --- | --- |
 | Anything unfamiliar | `docs/AI_HANDOFF.md` (architecture map, contracts, verification matrix) |
+| New feature or vague request | `docs/FEATURE_SPEC_TEMPLATE.md` (ask for a spec before coding) |
 | UI, tokens, primitives, views | `docs/AI_HANDOFF.md` → "UI system" |
 | Camera, pose, counting | `docs/AI_HANDOFF.md` → "Camera and counting contracts", `docs/COACHING_PHASE_2026-10-24.md` |
 | Deploy, env, email, LiveKit | `docs/DEPLOYMENT.md`, `docs/OPERATIONS.md` |
@@ -29,7 +30,10 @@ session. Open deeper docs only for the area you touch.
 
 - Keep the stack and Node ^22.22 from `package.json`. Read source and the installed
   Next.js guide before editing; keep the generated block above.
-- Verify with the isolated runner `node scripts/local-coaching-check.mjs` (own DB/auth).
+- One spec, one PR. If a request has no "done means", draft one from the template and
+  confirm it before editing. Stay inside the spec; list out-of-scope finds instead.
+- Verify with `npm run typecheck`, `npm run lint` (warning count may only go down) and
+  the isolated runner `node scripts/local-coaching-check.mjs` (own DB/auth).
   Never run fixtures against production or print environment values.
 - Camera: keep ownership, worker/bitmap cleanup and stable video DOM nodes. Count only
   observed frames. Automatic exercises stay beta; synthetic tests are not accuracy proof.

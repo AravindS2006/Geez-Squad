@@ -4,6 +4,7 @@ import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
 import { useEffect, useRef, useState } from 'react';
 import { useCameraLayout } from './use-camera-layout';
+import { useScreenAwake } from './use-screen-awake';
 import { requestCamera } from '@/lib/camera-access';
 import {
   appleTouchBrowser,
@@ -265,6 +266,8 @@ export function CameraAnalyzer({
     [status, setStatus] = useState('off'),
     [error, setError] = useState(''),
     [voice, setVoice] = useState(false);
+  // A phone propped up for a set must not dim and lock while the camera is analysing.
+  useScreenAwake(status !== 'off');
   const [waitingForCamera, setWaitingForCamera] = useState(false);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
   exerciseRef.current = exercise;

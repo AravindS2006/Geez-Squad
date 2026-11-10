@@ -112,7 +112,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await expect(
       trainee.getByLabel('Save workout history to my profile and share with my coach'),
     ).not.toBeChecked();
-    await trainee.getByLabel('Assigned plan exercise').selectOption('0');
+    await trainee.getByLabel('Exercise to practice').selectOption('plan:0');
     await trainee.getByLabel('Save workout history to my profile and share with my coach').check();
     let requests = 0;
     await trainee.route('**/api/workout-sets', async (route) => {
@@ -189,7 +189,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     ).toBe(0);
     // Leaving an unfinished, consented set must retain its measured work once.
     await trainee.goto('/app?view=practice');
-    await trainee.getByLabel('Assigned plan exercise').selectOption('0');
+    await trainee.getByLabel('Exercise to practice').selectOption('plan:0');
     await trainee.getByRole('button', { name: 'New workout', exact: true }).click();
     await trainee.getByLabel('Save workout history to my profile and share with my coach').check();
     await trainee.getByRole('button', { name: 'Workout settings', exact: true }).click();

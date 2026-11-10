@@ -162,7 +162,10 @@ cropping full-body video. Focused trainee details enlarge the selected feed.
 Trainee layout defaults to Balanced on larger screens and to Picture in picture on phones
 (`max-width: 760px` or `max-height: 550px`) so the trainee's own camera is the main view;
 the coach cue is a dismissible banner over the phone header that hides after 20 s (chat keeps
-it). `trainee-mobile-layout.spec.ts` pins the phone camera share. Picture in picture and Coach focus
+it). On phones (`max-width: 760px`) the floating coach tile is video and name only: its
+Enlarge/Minimize controls cover the tile after a tap or on focus and hide after 4 s; the
+mode links and capability badge share the camera's top bar instead of a row above it.
+`trainee-mobile-layout.spec.ts` pins the phone camera share (75% at 390x844). Picture in picture and Coach focus
 options. Saved user preferences remain respected.
 
 Layout changes must preserve the analyzer DOM node, tracks, playback and counters.

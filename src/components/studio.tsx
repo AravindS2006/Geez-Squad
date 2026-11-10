@@ -43,6 +43,7 @@ import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
 import { CoachMonitor } from './coach-monitor';
+import { useScreenAwake } from './use-screen-awake';
 import roomStyles from './meeting-workspace.module.css';
 import { sessionElapsedSeconds } from '@/lib/session-timing';
 import { useTimeFormat } from './time-provider';
@@ -134,6 +135,8 @@ export function Studio({
     [now, setNow] = useState(() => Date.now()),
     [connectionState, setConnectionState] = useState('Not connected'),
     [analysisWarning, setAnalysisWarning] = useState('');
+  // Coach or trainee: a sleeping screen drops the class even with the camera off.
+  useScreenAwake(connected);
   const [syncWarning, setSyncWarning] = useState('');
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [roomFeatures] = useState(() => features ?? coachingFeatures());

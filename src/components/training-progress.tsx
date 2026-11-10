@@ -872,7 +872,7 @@ export function CheckInForm({
       {saved && (
         <p role="status">
           {attendance
-            ? "Your check-in is saved and today's studio visit is recorded."
+            ? "Your check-in is saved. Today's studio visit is recorded."
             : 'Your check-in is saved. Studio attendance needs an active membership.'}
         </p>
       )}

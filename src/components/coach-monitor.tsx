@@ -5,7 +5,7 @@ import type { Participant } from 'livekit-client';
 import type { ClassView } from '@/lib/types';
 import { COACH_PAGE_SIZE } from '@/lib/meeting-policy';
 import { isHoldExercise } from '@/lib/exercise-profiles';
-import { armModeLabels } from '@/lib/exercise-library';
+import { limbModeLabel } from '@/lib/exercise-library';
 import { Avatar } from './ui';
 
 export function freshMetric(person: ClassView['participants'][number], item: ClassView) {
@@ -358,7 +358,7 @@ export function CoachMonitor({
               <p>{selectedMetric?.cue || 'Use the live video to observe this trainee.'}</p>
               {selectedMetric?.armMode && (
                 <div className="inspector-arm-summary">
-                  <strong>{armModeLabels[selectedMetric.armMode]}</strong>
+                  <strong>{limbModeLabel(item.exercise, selectedMetric.armMode)}</strong>
                   <span>
                     Left {selectedMetric.arms?.left.reps ?? '—'} · Right{' '}
                     {selectedMetric.arms?.right.reps ?? '—'}

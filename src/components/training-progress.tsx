@@ -5,7 +5,7 @@ import type { WorkspaceData, WorkoutSetView, ClientView } from '@/lib/types';
 import { exercises, exerciseName } from '@/lib/catalog';
 import { summarizeWorkouts, workoutCsv, effectiveWorkoutSet } from '@/lib/progress-metrics';
 import { fetchJson } from '@/lib/client';
-import { armModeLabels } from '@/lib/exercise-library';
+import { limbModeLabel } from '@/lib/exercise-library';
 import { traineeInsight } from '@/lib/coaching-insights';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { pendingWorkoutSets, retryWorkoutSets } from '@/lib/workout-save';
@@ -729,7 +729,7 @@ function WorkoutRecord({
         <p>{set.ruleVersion} · Missing measurements remain unavailable.</p>
         {set.armMode && (
           <p>
-            {armModeLabels[set.armMode]} · Left {set.arms?.left.reps ?? '—'} · Right{' '}
+            {limbModeLabel(set.exercise, set.armMode)} · Left {set.arms?.left.reps ?? '—'} · Right{' '}
             {set.arms?.right.reps ?? '—'}
           </p>
         )}

@@ -70,7 +70,7 @@ import { MyBookings } from './my-bookings';
 import { ExerciseLibraryManager } from './exercise-library-manager';
 import {
   exerciseDefinition,
-  armModeLabels,
+  limbModeLabel,
   usesHoldTime,
   type ExerciseDefinition,
 } from '@/lib/exercise-library';
@@ -2053,7 +2053,7 @@ function PlanForm({
                 }
               />
             </label>
-            {b.exercise === 'curl' && (
+            {exerciseDefinition(b.exercise, customExercises).modes.length > 1 && (
               <label>
                 Curl mode
                 <select
@@ -2069,9 +2069,9 @@ function PlanForm({
                   }
                 >
                   <option value="">Trainee chooses before starting</option>
-                  {Object.entries(armModeLabels).map(([id, label]) => (
+                  {exerciseDefinition(b.exercise, customExercises).modes.map((id) => (
                     <option key={id} value={id}>
-                      {label}
+                      {limbModeLabel(b.exercise, id)}
                     </option>
                   ))}
                 </select>

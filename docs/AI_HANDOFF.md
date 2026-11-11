@@ -122,11 +122,14 @@ Clients older than coaching client v2 can render only `LEGACY_AUTOMATIC_IDS`. Cu
 and cannot acquire automatic support by copying thresholds. Never claim clinical
 angle accuracy, safety, calories or physical pilot precision from unit tests.
 
-Geometry source (rules `profile-v9`): side and front profiles, plus shoulder press, measure
+Geometry source (rules `profile-v9` and later): side and front profiles, plus shoulder press, measure
 with on-screen angles (`usesImageGeometry` in `exercise-profiles.ts`) because monocular
 depth landmarks read full extension 15-30 degrees short on real footage. Depth stays for
 movement toward the camera (curls, overhead triceps, high knees), the side plank and for a trainee's saved
-3D calibration.
+3D calibration. `profile-v10` changed only two defaults: lateral raise start 20 to 28 degrees
+and shoulder press top 155 to 140 degrees (press minimum range 39 degrees). Saved configs that
+still hold the old values are moved to the new defaults silently (`SUPERSEDED_DEFAULTS` in
+`workout-config.ts`, stamped by `DEFAULTS_GENERATION`).
 
 Use `pose-diagnostics.ts` and `pose-replay.ts` for opt-in local evidence. No camera
 frames, landmark traces or research recordings are automatically uploaded.

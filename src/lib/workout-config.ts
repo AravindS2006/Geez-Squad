@@ -108,30 +108,76 @@ export function normalizeWorkoutConfig(
  * extension 15-30 degrees short. Bump it whenever that meaning changes again.
  */
 export const THRESHOLD_GENERATION = 9;
-export type SavedWorkoutConfig = Partial<WorkoutConfig> & { thresholdGeneration?: number };
+/**
+ * Generation of the profile defaults a saved config was written against. Every settings
+ * change saves the angles too, so a config can hold a default that has since changed.
+ * Bump it whenever an entry is added to SUPERSEDED_DEFAULTS.
+ */
+export const DEFAULTS_GENERATION = 10;
+/** Former profile defaults (profile-v9). A saved value equal to one of these was never tuned. */
+const SUPERSEDED_DEFAULTS: Partial<
+  Record<ExerciseId, Partial<Pick<WorkoutConfig, 'topAngle' | 'bottomAngle'>>>
+> = {
+  shoulderpress: { topAngle: 155 },
+  lateralraise: { bottomAngle: 20 },
+};
+export type SavedWorkoutConfig = Partial<WorkoutConfig> & {
+  thresholdGeneration?: number;
+  defaultsGeneration?: number;
+};
 /** Stamp a config for storage so a later load knows which angles its thresholds mean. */
 export function stampWorkoutConfig(
   config: WorkoutConfig,
-): WorkoutConfig & { thresholdGeneration: number } {
-  return { ...config, thresholdGeneration: THRESHOLD_GENERATION };
+): WorkoutConfig & { thresholdGeneration: number; defaultsGeneration: number } {
+  return {
+    ...config,
+    thresholdGeneration: THRESHOLD_GENERATION,
+    defaultsGeneration: DEFAULTS_GENERATION,
+  };
+}
+function isCalibrated(config: Partial<WorkoutConfig>) {
+  return (
+    (config.side === 'left' || config.side === 'right') &&
+    (config.calibrationSource === '2d' || config.calibrationSource === '3d')
+  );
+}
+/**
+ * Drop saved angles that still equal a former default, so the current default applies.
+ * Calibrated ranges are measured, not defaults, and are kept.
+ */
+function dropSupersededDefaults(
+  exercise: ExerciseId,
+  config: Partial<WorkoutConfig>,
+): Partial<WorkoutConfig> {
+  const former = SUPERSEDED_DEFAULTS[exercise];
+  if (!former || isCalibrated(config)) return config;
+  const kept = { ...config };
+  if (former.topAngle !== undefined && kept.topAngle === former.topAngle) delete kept.topAngle;
+  if (former.bottomAngle !== undefined && kept.bottomAngle === former.bottomAngle)
+    delete kept.bottomAngle;
+  return kept;
 }
 /**
  * Thresholds a trainee tuned by hand against depth angles would now be compared with
  * larger on-screen angles and count partial reps. Drop them back to the profile defaults.
  * Calibrated ranges carry their own measurement space and are kept, as are profiles that
- * still measure with depth.
+ * still measure with depth. Angles equal to a superseded default are first dropped
+ * silently (no reset notice), because the trainee never tuned them.
  */
 export function migrateSavedThresholds(
   exercise: ExerciseId,
   saved: SavedWorkoutConfig | null | undefined,
 ): { config: Partial<WorkoutConfig>; reset: boolean } {
-  const { thresholdGeneration, ...config } = saved && typeof saved === 'object' ? saved : {};
+  const { thresholdGeneration, defaultsGeneration, ...stored } =
+    saved && typeof saved === 'object' ? saved : {};
+  const config =
+    (defaultsGeneration ?? 0) < DEFAULTS_GENERATION
+      ? dropSupersededDefaults(exercise, stored)
+      : stored;
   if (thresholdGeneration === THRESHOLD_GENERATION || !isAutomaticExercise(exercise))
     return { config, reset: false };
   const profile = getExerciseProfile(exercise);
-  const calibrated =
-    (config.side === 'left' || config.side === 'right') &&
-    (config.calibrationSource === '2d' || config.calibrationSource === '3d');
+  const calibrated = isCalibrated(config);
   const tuned =
     (config.topAngle !== undefined && config.topAngle !== profile.topAngle) ||
     (config.bottomAngle !== undefined && config.bottomAngle !== profile.bottomAngle);

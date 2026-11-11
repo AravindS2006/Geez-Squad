@@ -1660,7 +1660,7 @@ export function CameraAnalyzer({
                 <label>
                   Workout mode
                   <select
-                    aria-label="Curl workout mode"
+                    aria-label="Automatic workout mode"
                     value={config.armMode ?? ''}
                     disabled={mode !== 'setup' || armed || !!block?.armMode}
                     onChange={(e) =>
@@ -1673,7 +1673,7 @@ export function CameraAnalyzer({
                       })
                     }
                   >
-                    <option value="">Choose how you will curl</option>
+                    <option value="">Choose a workout mode</option>
                     {limbModes.map((id) => (
                       <option key={id} value={id}>
                         {limbModeLabel(exercise, id)}

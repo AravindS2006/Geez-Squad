@@ -96,10 +96,11 @@ const arm =
       27: step(knee, 100, 180),
     });
   };
-/** Side view hinge; `hip` is the shoulder-hip-knee angle, `knee` the knee angle. */
+/** Side view hinge; `hip` is the shoulder-hip-knee angle, `knee` the knee angle (fixed or per hip angle). */
 const hinge =
-  (knee = 165): Builder =>
+  (kneeAt: number | ((hipAngle: number) => number) = 165): Builder =>
   (hipAngle) => {
+    const knee = typeof kneeAt === 'number' ? kneeAt : kneeAt(hipAngle);
     const hip = { x: 320, y: 230 };
     const thigh = 180 - (180 - knee) / 2;
     const kneePoint = step(hip, 100, thigh);
@@ -219,8 +220,12 @@ describe('extended automatic profiles (synthetic pipeline evidence)', () => {
     expect(result.reps).toBe(2);
   });
 
-  it('rejects a squat-depth knee bend as a Romanian deadlift', () => {
-    expect(run('romaniandeadlift', hinge(100), 172, 95, 3).reps).toBe(0);
+  it('rejects squats as Romanian deadlifts even though the knee straightens at the top', () => {
+    // A real squat: the knee bends with the hip (172° → 90°) and is straight again when standing.
+    const squat = hinge((hipAngle) => 172 - ((172 - hipAngle) * 82) / 77);
+    const result = run('romaniandeadlift', squat, 172, 95, 3);
+    expect(result.reps).toBe(0);
+    expect(result.rejectionReason).toBe('form');
   });
 
   it('counts step jacks only when the feet open and close with the arms', () => {

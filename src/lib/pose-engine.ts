@@ -962,6 +962,15 @@ function analyzeSinglePose(
             'Rep not counted. Ask your coach to correct your alignment before continuing.',
           timestamp,
         );
+      // A hinge is invalid at the bottom of a squat but valid again when standing,
+      // so its form must hold across the whole cycle, not just the final frame.
+      else if (profile.strictCycleForm && state.cycleInvalidMs > 0)
+        reject(
+          state,
+          'form',
+          'Rep not counted. Keep your knees softly bent and push your hips back, not down.',
+          timestamp,
+        );
       else if (timestamp - state.lastRepAt < profile.cooldownMs)
         reject(state, 'cooldown', 'Finish one controlled movement at a time.', timestamp);
       else {

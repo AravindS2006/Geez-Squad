@@ -53,6 +53,8 @@ export type ExerciseProfile = {
   holdBand?: boolean;
   /** Suspend instead of using projected 2D angles, which cannot see this movement. */
   require3d?: boolean;
+  /** Reject a rep when form was invalid on two adjacent frames anywhere in the cycle, not only at its end. */
+  strictCycleForm?: boolean;
 };
 
 const profile = (
@@ -471,6 +473,7 @@ export const exerciseProfiles = {
     direction: 'decrease',
     view: 'side',
     form: 'hinge',
+    strictCycleForm: true,
     bilateral: false,
     isHold: false,
     topAngle: 160,

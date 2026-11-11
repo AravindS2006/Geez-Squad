@@ -1,5 +1,5 @@
 import type { Block, ExerciseId } from './types';
-import { getExerciseProfile } from './exercise-profiles';
+import { getExerciseProfile, usesImageGeometry } from './exercise-profiles';
 import { exerciseDefinition, isAutomaticExercise, type ArmMode } from './exercise-library';
 
 export type WorkoutConfig = {
@@ -97,4 +97,42 @@ export function normalizeWorkoutConfig(
         ? Math.max(0, Math.min(500, input.loadKg))
         : defaults.loadKg,
   };
+}
+
+/**
+ * Generation of the angles that saved top/bottom thresholds are compared with. From 9,
+ * planar profiles measure on screen instead of with depth landmarks, which read full
+ * extension 15-30 degrees short. Bump it whenever that meaning changes again.
+ */
+export const THRESHOLD_GENERATION = 9;
+export type SavedWorkoutConfig = Partial<WorkoutConfig> & { thresholdGeneration?: number };
+/** Stamp a config for storage so a later load knows which angles its thresholds mean. */
+export function stampWorkoutConfig(
+  config: WorkoutConfig,
+): WorkoutConfig & { thresholdGeneration: number } {
+  return { ...config, thresholdGeneration: THRESHOLD_GENERATION };
+}
+/**
+ * Thresholds a trainee tuned by hand against depth angles would now be compared with
+ * larger on-screen angles and count partial reps. Drop them back to the profile defaults.
+ * Calibrated ranges carry their own measurement space and are kept, as are profiles that
+ * still measure with depth.
+ */
+export function migrateSavedThresholds(
+  exercise: ExerciseId,
+  saved: SavedWorkoutConfig | null | undefined,
+): { config: Partial<WorkoutConfig>; reset: boolean } {
+  const { thresholdGeneration, ...config } = saved && typeof saved === 'object' ? saved : {};
+  if (thresholdGeneration === THRESHOLD_GENERATION || !isAutomaticExercise(exercise))
+    return { config, reset: false };
+  const profile = getExerciseProfile(exercise);
+  const calibrated =
+    (config.side === 'left' || config.side === 'right') &&
+    (config.calibrationSource === '2d' || config.calibrationSource === '3d');
+  const tuned =
+    (config.topAngle !== undefined && config.topAngle !== profile.topAngle) ||
+    (config.bottomAngle !== undefined && config.bottomAngle !== profile.bottomAngle);
+  if (!usesImageGeometry(profile) || calibrated || !tuned) return { config, reset: false };
+  const { topAngle: _top, bottomAngle: _bottom, ...kept } = config;
+  return { config: kept, reset: true };
 }

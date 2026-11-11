@@ -53,6 +53,12 @@ export type ExerciseProfile = {
   holdBand?: boolean;
   /** Suspend instead of using projected 2D angles, which cannot see this movement. */
   require3d?: boolean;
+  /**
+   * Measure with on-screen angles even when depth landmarks exist. Defaults to true for
+   * side and front profiles without `require3d`, whose movement lies in the image plane; set it
+   * for an `either` profile. Monocular depth reads full extension 15-30 degrees short.
+   */
+  imagePlane?: boolean;
   /** Reject a rep when form was invalid on two adjacent frames anywhere in the cycle, not only at its end. */
   strictCycleForm?: boolean;
 };
@@ -174,6 +180,7 @@ export const exerciseProfiles = {
     direction: 'increase',
     view: 'either',
     form: 'press',
+    imagePlane: true,
     bilateral: false,
     isHold: false,
     topAngle: 155,
@@ -591,6 +598,10 @@ export const exerciseIds = Object.keys(exerciseProfiles) as [
   ProfileExerciseId,
   ...ProfileExerciseId[],
 ];
+/** Whether the profile measures in the image plane rather than with depth landmarks. */
+export function usesImageGeometry(profile: ExerciseProfile): boolean {
+  return profile.imagePlane ?? (profile.view !== 'either' && !profile.require3d);
+}
 export function getExerciseProfile(exercise: string): ExerciseProfile {
   const result = (exerciseProfiles as Record<string, ExerciseProfile>)[exercise];
   if (!result) throw new Error('This exercise has no automatic measurement profile.');

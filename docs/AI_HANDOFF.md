@@ -122,8 +122,19 @@ Clients older than coaching client v2 can render only `LEGACY_AUTOMATIC_IDS`. Cu
 and cannot acquire automatic support by copying thresholds. Never claim clinical
 angle accuracy, safety, calories or physical pilot precision from unit tests.
 
+Geometry source (rules `profile-v9`): side and front profiles, plus shoulder press, measure
+with on-screen angles (`usesImageGeometry` in `exercise-profiles.ts`) because monocular
+depth landmarks read full extension 15-30 degrees short on real footage. Depth stays for
+movement toward the camera (curls, overhead triceps, high knees), the side plank and for a trainee's saved
+3D calibration.
+
 Use `pose-diagnostics.ts` and `pose-replay.ts` for opt-in local evidence. No camera
 frames, landmark traces or research recordings are automatically uploaded.
+`npm run pose:clips -- <manifest.json>` (`scripts/pose-clip-check.mjs`) decodes local video
+clips in Edge, runs the real model on every frame and replays the landmarks through the
+engine; `--no-depth` recounts with image-plane geometry only. It is a smoke check of the
+model-to-count path. Internet clips are not consented, annotated or physical-device
+evidence and never feed the release gates.
 
 ## Plans, records and privacy
 

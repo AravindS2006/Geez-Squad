@@ -26,6 +26,7 @@
     "test:coaching": "node scripts/test-coaching-phase.mjs",
     "test:next-phase": "node scripts/test-next-phase.mjs",
     "pose:evaluate": "node scripts/evaluate-pose.mjs",
+    "pose:clips": "node scripts/pose-clip-check.mjs",
     "db:coaching:postgres": "node scripts/rehearse-coaching-postgres.mjs",
     "test:e2e": "playwright test",
     "test:email-disabled": "node scripts/test-email-modes.mjs disabled",

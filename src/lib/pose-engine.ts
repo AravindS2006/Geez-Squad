@@ -2,7 +2,12 @@ import { jointAngle, type Point } from './pose-geometry';
 import { analyzePoseForm } from './pose-form';
 export { jointAngle } from './pose-geometry';
 import type { ExerciseId } from './types';
-import { getExerciseProfile, isHoldAngle, type ExerciseProfile } from './exercise-profiles';
+import {
+  getExerciseProfile,
+  isHoldAngle,
+  usesImageGeometry,
+  type ExerciseProfile,
+} from './exercise-profiles';
 import { defaultWorkoutConfig, normalizeWorkoutConfig, type WorkoutConfig } from './workout-config';
 import { isAutomaticExercise, type ArmMode } from './exercise-library';
 import {
@@ -14,7 +19,7 @@ import {
   type RepCoordinator,
 } from './rep-events';
 
-export const RULE_VERSION = 'profile-v8';
+export const RULE_VERSION = 'profile-v9';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
   measurementSource?: 'automatic' | 'manual' | 'timer';
@@ -457,8 +462,13 @@ function analyzeSinglePose(
   let side = selectedSide ?? state.side ?? (left >= right ? 0 : 1);
   const startEndpoint = profile.direction === 'decrease' ? config.topAngle : config.bottomAngle;
   const inputWorld = worldLandmarks?.length === 1 ? worldLandmarks[0] : undefined;
+  // Planar profiles measure on screen unless the trainee calibrated in depth space:
+  // their saved endpoints belong to that space and must keep meaning the same angles.
+  const imageOnly =
+    config.calibrationSource === '2d' ||
+    (usesImageGeometry(profile) && config.calibrationSource !== '3d');
   const sideWorld = [0, 1].map((limb) =>
-    config.calibrationSource === '2d'
+    imageOnly
       ? null
       : worldGeometry(
           pose,

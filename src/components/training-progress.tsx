@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Activity, Download, CheckCircle2, Timer, CalendarDays } from 'lucide-react';
 import type { WorkspaceData, WorkoutSetView, ClientView } from '@/lib/types';
 import { exercises, exerciseName } from '@/lib/catalog';
-import { summarizeWorkouts, workoutCsv, effectiveWorkoutSet } from '@/lib/progress-metrics';
+import {
+  summarizeWorkouts,
+  workoutCsv,
+  effectiveWorkoutSet,
+  groupExerciseBreakdown,
+  showsRepTempo,
+} from '@/lib/progress-metrics';
 import { fetchJson } from '@/lib/client';
 import { armModeLabels } from '@/lib/exercise-library';
 import { traineeInsight } from '@/lib/coaching-insights';
@@ -49,6 +55,7 @@ export function TrainingProgress({
     [exercise, setExercise] = useState('all'),
     [source, setSource] = useState('all');
   const [visibleRecords, setVisibleRecords] = useState(50);
+  const [tab, setTab] = useState<'overview' | 'detail' | 'records'>('overview');
   const [pending, setPending] = useState(0);
   const [retrying, setRetrying] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -68,6 +75,7 @@ export function TrainingProgress({
     records: WorkoutSetView[];
     totals?: ReturnType<typeof summarizeWorkouts>;
     nextCursor: string | null;
+    totalsTruncated?: boolean;
     byUser?: Record<string, ReturnType<typeof summarizeWorkouts>>;
     breakdown?: {
       exercise: string;
@@ -146,6 +154,31 @@ export function TrainingProgress({
       )
       .map((b) => ({ id: b.exercise, name: b.name })),
   ];
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'detail', label: cohort ? 'Trainees' : 'Exercises' },
+    { id: 'records', label: 'Records' },
+  ] as const;
+  const exerciseGroups = groupExerciseBreakdown(
+    history?.breakdown ??
+      [...new Set(sets.map((set) => `${set.exercise}\n${set.ruleVersion}`))].map((key) => {
+        const [exercise, version] = key.split('\n');
+        const records = sets.filter(
+          (set) => set.exercise === exercise && set.ruleVersion === version,
+        );
+        return {
+          exercise,
+          name: records[0].exerciseLabel ?? exerciseName(records[0].exercise),
+          version,
+          summary: summarizeWorkouts(records, timeZone),
+          recentQuality: records
+            .filter((set) => set.qualityScore !== null)
+            .slice(0, 5)
+            .reverse()
+            .map((set) => Math.round(set.qualityScore!)),
+        };
+      }),
+  );
   const checkIns = data.checkIns
     .filter(
       (entry) =>
@@ -318,192 +351,225 @@ export function TrainingProgress({
           </select>
         </label>
       </div>
-      <div className="progress-metrics-grid">
-        <Metric
-          label={cohort ? 'Trainees with saved activity' : 'Training days'}
-          value={
-            cohort
-              ? history?.byUser
-                ? Object.values(history.byUser).filter((s) => s.reps > 0 || s.holdMs > 0).length
-                : new Set(
-                    sets.filter((set) => set.reps > 0 || set.holdMs > 0).map((set) => set.userId),
-                  ).size
-              : totals.trainingDays
-          }
-          detail={`Within the selected ${days} days`}
-        />
-        <Metric
-          label="Completed sets"
-          value={totals.completedSets}
-          detail={`${totals.sets} saved workout sets`}
-        />
-        <Metric
-          label="Active training"
-          value={`${number(totals.activeMs / 60000)} min`}
-          detail="Observed intervals; pauses excluded"
-        />
-        <Metric
-          label="Targets reached"
-          value={totals.sets ? `${Math.round((totals.completedSets / totals.sets) * 100)}%` : '—'}
-          detail="Sets that reached their rep or hold target"
-        />
+      {history?.totalsTruncated && (
+        <p className="inline-notice" role="status">
+          Totals cover the most recent 20,000 saved sets in this view. Narrow the filters for exact
+          totals.
+        </p>
+      )}
+      <div className="insight-tabs" role="tablist" aria-label="Insights sections">
+        {tabs.map((item, index) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            id={`insights-tab-${item.id}`}
+            aria-selected={tab === item.id}
+            aria-controls="insights-panel"
+            tabIndex={tab === item.id ? 0 : -1}
+            onClick={() => setTab(item.id)}
+            onKeyDown={(event) => {
+              const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+              if (!step) return;
+              event.preventDefault();
+              const next = tabs[(index + step + tabs.length) % tabs.length].id;
+              setTab(next);
+              document.getElementById(`insights-tab-${next}`)?.focus();
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
-      <section className="panel progress-activity" aria-labelledby="progress-activity-title">
-        <div className="progress-activity-head">
-          <h2 id="progress-activity-title">Active training over time</h2>
-          <span className="microcopy">{days > 60 ? 'Weekly totals' : 'Daily totals'}</span>
-        </div>
-        {sets.length ? (
-          <BarChart
-            unit="m"
-            caption={
-              history?.nextCursor
-                ? `Minutes of observed training from the ${sets.length} most recent loaded sets. Load more records below to extend the chart.`
-                : 'Minutes of observed training per period. Pauses are excluded.'
-            }
-            data={activitySeries(sets, days, timeZone).map((b) => ({
-              key: b.key,
-              label: b.label,
-              value: b.minutes,
-              detail: `${b.label}: ${b.minutes} min across ${b.sets} ${b.sets === 1 ? 'set' : 'sets'}`,
-            }))}
-          />
-        ) : (
-          <p className="microcopy">
-            Saved sets will chart here once training is recorded in this period.
-          </p>
-        )}
-      </section>
-      {!cohort && (
-        <details className="panel measurement-details">
-          <summary>Measurement details</summary>
-          <p className="microcopy">
-            Compare movement quality within the same exercise and rule version below.
-          </p>
-          <div className="progress-metrics-grid">
-            <Metric label="Tracked reps" value={totals.reps} detail="Completed movement cycles" />
-            <Metric
-              label="Aligned holds"
-              value={`${Math.round(totals.holdMs / 1000)}s`}
-              detail="Observed plank / side-plank time"
-            />
-            <Metric
-              label="Tracking coverage"
-              value={number(totals.coverage, '%')}
-              detail="Reliable tracked / observed active time"
-            />
-            <Metric
-              label="Reported load volume"
-              value={totals.loadedSets ? `${number(totals.loadVolume)} kg·reps` : '—'}
-              detail="Entered external load × counted reps"
-            />
-          </div>
-        </details>
-      )}
-      {cohort && (
-        <section className="panel">
-          <SectionTitle
-            title="Trainee training progress"
-            detail="Select a trainee to review their exercises and saved sets"
-          />
-          <div className="trainee-progress-list">
-            {data.clients.map((person) => {
-              const summary =
-                history?.byUser?.[person.id] ??
-                summarizeWorkouts(
-                  sets.filter((set) => set.userId === person.id),
-                  timeZone,
-                );
-              return (
-                <button
-                  className="trainee-progress-row"
-                  key={person.id}
-                  onClick={() => setClient(person.id)}
-                >
-                  <strong>{person.name}</strong>
-                  <span>{summary.completedSets} completed sets</span>
-                  <span>{summary.trainingDays} training days</span>
-                  <span className="text-link">View progress</span>
-                </button>
-              );
-            })}
-            {!data.clients.length && <p>Invite trainees to begin tracking their progress.</p>}
-          </div>
-        </section>
-      )}
-      {!sets.length ? (
-        <EmptyState
-          title={cohort ? 'No trainee sets in this period.' : 'Your next set starts your progress.'}
-          text={
-            cohort
-              ? 'Saved trainee workouts appear here after training. Select another period or review an individual trainee.'
-              : 'Saved workout details appear here after training. Enable saved history in practice, or join a live class with consent.'
-          }
-          action={
-            !cohort ? (
-              <button className="button lime" onClick={onPractice}>
-                Open camera practice
-              </button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <>
-          {!cohort && (
-            <section className="panel">
-              <SectionTitle
-                title="Exercise breakdown"
-                detail="Compare the same movement and rule version with your coach"
+      <div
+        className="insight-panel"
+        role="tabpanel"
+        id="insights-panel"
+        aria-labelledby={`insights-tab-${tab}`}
+      >
+        {tab === 'overview' && (
+          <>
+            <div className="progress-metrics-grid">
+              <Metric
+                label={cohort ? 'Trainees with saved activity' : 'Training days'}
+                value={
+                  cohort
+                    ? history?.byUser
+                      ? Object.values(history.byUser).filter((s) => s.reps > 0 || s.holdMs > 0)
+                          .length
+                      : new Set(
+                          sets
+                            .filter((set) => set.reps > 0 || set.holdMs > 0)
+                            .map((set) => set.userId),
+                        ).size
+                    : totals.trainingDays
+                }
+                detail={`Within the selected ${days} days`}
               />
-              <div className="exercise-progress-grid">
-                {displayExercises
-                  .filter(
-                    (item) =>
-                      history?.breakdown?.some((g) => g.exercise === item.id) ??
-                      sets.some((set) => set.exercise === item.id),
-                  )
-                  .flatMap((item) =>
-                    [
-                      ...new Set(
-                        [
-                          ...(history?.breakdown
-                            ?.filter((g) => g.exercise === item.id)
-                            .map((g) => ({ exercise: g.exercise, ruleVersion: g.version })) ??
-                            sets),
-                        ]
-                          .filter((set) => set.exercise === item.id)
-                          .map((set) => set.ruleVersion),
-                      ),
-                    ].map((version) => {
-                      const records = sets.filter(
-                          (set) => set.exercise === item.id && set.ruleVersion === version,
-                        ),
-                        summary =
-                          history?.breakdown?.find(
-                            (g) => g.exercise === item.id && g.version === version,
-                          )?.summary ?? summarizeWorkouts(records, timeZone);
-                      const recentQuality =
-                        history?.breakdown?.find(
-                          (g) => g.exercise === item.id && g.version === version,
-                        )?.recentQuality ??
-                        records
-                          .filter((set) => set.qualityScore !== null)
-                          .slice(0, 5)
-                          .reverse()
-                          .map((set) => Math.round(set.qualityScore!));
+              <Metric
+                label="Completed sets"
+                value={totals.completedSets}
+                detail={`${totals.sets} saved workout sets`}
+              />
+              <Metric
+                label="Active training"
+                value={`${number(totals.activeMs / 60000)} min`}
+                detail="Observed intervals; pauses excluded"
+              />
+              <Metric
+                label="Targets reached"
+                value={
+                  totals.sets ? `${Math.round((totals.completedSets / totals.sets) * 100)}%` : '—'
+                }
+                detail="Sets that reached their rep or hold target"
+              />
+            </div>
+            <section className="panel progress-activity" aria-labelledby="progress-activity-title">
+              <div className="progress-activity-head">
+                <h2 id="progress-activity-title">Active training over time</h2>
+                <span className="microcopy">{days > 60 ? 'Weekly totals' : 'Daily totals'}</span>
+              </div>
+              {sets.length ? (
+                <BarChart
+                  unit="m"
+                  caption={
+                    history?.nextCursor
+                      ? `Minutes of observed training from the ${sets.length} most recent loaded sets. Load more records below to extend the chart.`
+                      : 'Minutes of observed training per period. Pauses are excluded.'
+                  }
+                  data={activitySeries(sets, days, timeZone).map((b) => ({
+                    key: b.key,
+                    label: b.label,
+                    value: b.minutes,
+                    detail: `${b.label}: ${b.minutes} min across ${b.sets} ${b.sets === 1 ? 'set' : 'sets'}`,
+                  }))}
+                />
+              ) : (
+                <p className="microcopy">
+                  Saved sets will chart here once training is recorded in this period.
+                </p>
+              )}
+            </section>
+            {!cohort && (
+              <details className="panel measurement-details">
+                <summary>Measurement details</summary>
+                <p className="microcopy">
+                  Compare movement quality within the same exercise and rule version below.
+                </p>
+                <div className="progress-metrics-grid">
+                  <Metric
+                    label="Tracked reps"
+                    value={totals.reps}
+                    detail="Completed movement cycles"
+                  />
+                  <Metric
+                    label="Aligned holds"
+                    value={`${Math.round(totals.holdMs / 1000)}s`}
+                    detail="Observed plank / side-plank time"
+                  />
+                  <Metric
+                    label="Tracking coverage"
+                    value={number(totals.coverage, '%')}
+                    detail="Reliable tracked / observed active time"
+                  />
+                  <Metric
+                    label="Reported load volume"
+                    value={totals.loadedSets ? `${number(totals.loadVolume)} kg·reps` : '—'}
+                    detail="Entered external load × counted reps"
+                  />
+                </div>
+              </details>
+            )}
+            {!!checkIns.length && (
+              <section className="panel">
+                <SectionTitle
+                  title="Check-in history"
+                  detail="Latest 10 reports in the selected period"
+                />
+                {checkIns.map((entry) => (
+                  <article className="client-check-in" key={entry.id}>
+                    <strong>
+                      {coach ? `${entry.userName} · ` : ''}
+                      {dateLabel(entry.createdAt)}
+                    </strong>
+                    <span>
+                      Energy {entry.energy}/5 · Soreness {entry.soreness}/5
+                      {entry.effort === null ? '' : ` · Effort ${entry.effort}/10`}
+                    </span>
+                    <span>
+                      {entry.sleepHours === null ? '' : `Sleep ${entry.sleepHours}h`}
+                      {entry.bodyweightKg === null ? '' : ` · Bodyweight ${entry.bodyweightKg}kg`}
+                    </span>
+                    {entry.note && <p>{entry.note}</p>}
+                  </article>
+                ))}
+              </section>
+            )}
+          </>
+        )}
+        {tab === 'detail' && (
+          <>
+            {cohort && (
+              <section className="panel">
+                <SectionTitle
+                  title="Trainee training progress"
+                  detail="Select a trainee to review their exercises and saved sets"
+                />
+                <div className="trainee-progress-list">
+                  {data.clients.map((person) => {
+                    const summary =
+                      history?.byUser?.[person.id] ??
+                      summarizeWorkouts(
+                        sets.filter((set) => set.userId === person.id),
+                        timeZone,
+                      );
+                    return (
+                      <button
+                        className="trainee-progress-row"
+                        key={person.id}
+                        onClick={() => setClient(person.id)}
+                      >
+                        <strong>{person.name}</strong>
+                        <span>{summary.completedSets} completed sets</span>
+                        <span>{summary.trainingDays} training days</span>
+                        <span className="text-link">View progress</span>
+                      </button>
+                    );
+                  })}
+                  {!data.clients.length && <p>Invite trainees to begin tracking their progress.</p>}
+                </div>
+              </section>
+            )}
+            {!cohort &&
+              (sets.length ? (
+                <section className="panel">
+                  <SectionTitle
+                    title="Exercise breakdown"
+                    detail="Totals include every saved set. Measurements come from the newest rule version."
+                  />
+                  <div className="exercise-progress-grid">
+                    {exerciseGroups.map((group) => {
+                      const summary = group.current.summary;
                       return (
-                        <article key={`${item.id}-${version}`} className="exercise-progress-card">
-                          <h3>{item.name}</h3>
+                        <article key={group.exercise} className="exercise-progress-card">
+                          <h3>
+                            {displayExercises.find((item) => item.id === group.exercise)?.name ??
+                              group.current.name}
+                          </h3>
                           <div className="exercise-progress-values">
                             <span>
-                              <strong>
-                                {summary.reps || `${Math.round(summary.holdMs / 1000)}s`}
-                              </strong>
-                              {summary.reps ? ' reps' : ' held'}
+                              <strong>{group.reps || `${Math.round(group.holdMs / 1000)}s`}</strong>
+                              {group.reps ? ' reps' : ' held'}
                             </span>
-                            <span>{number(summary.quality, ' /100')} quality</span>
+                            <span>
+                              {group.completedSets}/{group.sets} targets reached
+                            </span>
                           </div>
                           <dl>
+                            <div>
+                              <dt>Quality</dt>
+                              <dd>{number(summary.quality, ' /100')}</dd>
+                            </div>
                             <div>
                               <dt>Range</dt>
                               <dd>{number(summary.range, '°')}</dd>
@@ -516,146 +582,177 @@ export function TrainingProgress({
                               <dt>Form</dt>
                               <dd>{number(summary.form, ' /100')}</dd>
                             </div>
-                            <div>
-                              <dt>Rejected cycles</dt>
-                              <dd>{summary.rejectedReps}</dd>
-                            </div>
                           </dl>
                           <small>
-                            {summary.completedSets}/{summary.sets} targets reached · {version}
+                            Measured with {group.current.version} · {summary.rejectedReps} rejected
+                            cycles
                           </small>
-                          {!!recentQuality.length && (
+                          {!!group.current.recentQuality.length && (
                             <p className="microcopy">
-                              Recent set quality: {recentQuality.join(' → ')}
+                              Recent set quality: {group.current.recentQuality.join(' → ')}
                             </p>
+                          )}
+                          {!!group.earlier.length && (
+                            <details className="exercise-progress-earlier">
+                              <summary>Earlier rule versions</summary>
+                              {group.earlier.map((entry) => (
+                                <p key={entry.version}>
+                                  {entry.version}: {entry.summary.reps} reps ·{' '}
+                                  {number(entry.summary.quality, ' /100')} quality ·{' '}
+                                  {number(entry.summary.range, '°')} range
+                                </p>
+                              ))}
+                            </details>
                           )}
                         </article>
                       );
-                    }),
-                  )}
-              </div>
-            </section>
-          )}
-          <section className="panel">
-            <SectionTitle
-              title="Recent workout sets"
-              detail={`Showing ${Math.min(visibleRecords, sets.length)} of ${totals.sets} records in this view · ${timeZone}`}
-            />
-            <div className="workout-record-list">
-              {sets.slice(0, visibleRecords).map((set) => (
-                <WorkoutRecord
-                  key={set.id}
-                  set={set}
-                  date={`${dateLabel(set.endedAt)} · ${timeLabel(set.endedAt)}`}
-                  coach={coach}
-                  onCorrected={() => setHistoryRevision((n) => n + 1)}
+                    })}
+                  </div>
+                </section>
+              ) : (
+                <EmptyState
+                  title={
+                    cohort
+                      ? 'No trainee sets in this period.'
+                      : 'Your next set starts your progress.'
+                  }
+                  text={
+                    cohort
+                      ? 'Saved trainee workouts appear here after training. Select another period or review an individual trainee.'
+                      : 'Saved workout details appear here after training. Enable saved history in practice, or join a live class with consent.'
+                  }
+                  action={
+                    !cohort ? (
+                      <button className="button lime" onClick={onPractice}>
+                        Open camera practice
+                      </button>
+                    ) : undefined
+                  }
                 />
               ))}
-            </div>
-            {sets.length > visibleRecords && (
-              <button
-                className="button outline"
-                onClick={() => setVisibleRecords((count) => count + 50)}
-              >
-                Show more exercise records
-              </button>
+          </>
+        )}
+        {tab === 'records' && (
+          <>
+            {sets.length ? (
+              <section className="panel">
+                <SectionTitle
+                  title="Recent workout sets"
+                  detail={`Showing ${Math.min(visibleRecords, sets.length)} of ${totals.sets} records in this view · ${timeZone}`}
+                />
+                <div className="workout-record-list">
+                  {sets.slice(0, visibleRecords).map((set) => (
+                    <WorkoutRecord
+                      key={set.id}
+                      set={set}
+                      date={`${dateLabel(set.endedAt)} · ${timeLabel(set.endedAt)}`}
+                      coach={coach}
+                      onCorrected={() => setHistoryRevision((n) => n + 1)}
+                    />
+                  ))}
+                </div>
+                {sets.length > visibleRecords && (
+                  <button
+                    className="button outline"
+                    onClick={() => setVisibleRecords((count) => count + 50)}
+                  >
+                    Show more exercise records
+                  </button>
+                )}
+                {history?.nextCursor && (
+                  <button
+                    className="button outline"
+                    disabled={historyBusy}
+                    onClick={async () => {
+                      setHistoryBusy(true);
+                      try {
+                        const page = await fetchJson<HistoryPage>(
+                          `/api/workout-history?${historyQuery}&cursor=${encodeURIComponent(history.nextCursor!)}`,
+                        );
+                        if (latestHistoryKey.current !== historyKey) return;
+                        setHistory((current) =>
+                          current
+                            ? {
+                                ...current,
+                                records: [...current.records, ...page.records],
+                                nextCursor: page.nextCursor,
+                              }
+                            : current,
+                        );
+                        setVisibleRecords((n) => n + 50);
+                      } catch {
+                        if (latestHistoryKey.current === historyKey)
+                          setHistoryError('More records could not load. Please retry.');
+                      } finally {
+                        if (latestHistoryKey.current === historyKey) setHistoryBusy(false);
+                      }
+                    }}
+                  >
+                    Load older exercise records
+                  </button>
+                )}
+              </section>
+            ) : (
+              <EmptyState
+                title={
+                  cohort ? 'No trainee sets in this period.' : 'Your next set starts your progress.'
+                }
+                text={
+                  cohort
+                    ? 'Saved trainee workouts appear here after training. Select another period or review an individual trainee.'
+                    : 'Saved workout details appear here after training. Enable saved history in practice, or join a live class with consent.'
+                }
+                action={
+                  !cohort ? (
+                    <button className="button lime" onClick={onPractice}>
+                      Open camera practice
+                    </button>
+                  ) : undefined
+                }
+              />
             )}
-            {history?.nextCursor && (
-              <button
-                className="button outline"
-                disabled={historyBusy}
-                onClick={async () => {
-                  setHistoryBusy(true);
-                  try {
-                    const page = await fetchJson<HistoryPage>(
-                      `/api/workout-history?${historyQuery}&cursor=${encodeURIComponent(history.nextCursor!)}`,
-                    );
-                    if (latestHistoryKey.current !== historyKey) return;
-                    setHistory((current) =>
-                      current
-                        ? {
-                            ...current,
-                            records: [...current.records, ...page.records],
-                            nextCursor: page.nextCursor,
-                          }
-                        : current,
-                    );
-                    setVisibleRecords((n) => n + 50);
-                  } catch {
-                    if (latestHistoryKey.current === historyKey)
-                      setHistoryError('More records could not load. Please retry.');
-                  } finally {
-                    if (latestHistoryKey.current === historyKey) setHistoryBusy(false);
-                  }
-                }}
-              >
-                Load older exercise records
-              </button>
+            {!!legacy.length && (
+              <section className="panel">
+                <SectionTitle
+                  title="Earlier session summaries"
+                  detail="Legacy totals are kept separately from detailed sets"
+                />
+                <div className="legacy-summary">
+                  <span>
+                    <CalendarDays size={16} />
+                    {legacy.length} completed sessions
+                  </span>
+                  <span>
+                    {legacy.reduce(
+                      (total, item) =>
+                        total +
+                        item.participants
+                          .filter((person) => client === 'all' || person.id === client)
+                          .reduce((sum, person) => sum + (person.summary?.totalReps ?? 0), 0),
+                      0,
+                    )}{' '}
+                    reported reps
+                  </span>
+                  <span>
+                    {legacy.reduce(
+                      (total, item) =>
+                        total +
+                        item.participants
+                          .filter((person) => client === 'all' || person.id === client)
+                          .reduce(
+                            (sum, person) => sum + (person.summary?.totalHoldSeconds ?? 0),
+                            0,
+                          ),
+                      0,
+                    )}{' '}
+                    seconds held
+                  </span>
+                </div>
+              </section>
             )}
-          </section>
-        </>
-      )}
-      {!!legacy.length && (
-        <section className="panel">
-          <SectionTitle
-            title="Earlier session summaries"
-            detail="Legacy totals are kept separately from detailed sets"
-          />
-          <div className="legacy-summary">
-            <span>
-              <CalendarDays size={16} />
-              {legacy.length} completed sessions
-            </span>
-            <span>
-              {legacy.reduce(
-                (total, item) =>
-                  total +
-                  item.participants
-                    .filter((person) => client === 'all' || person.id === client)
-                    .reduce((sum, person) => sum + (person.summary?.totalReps ?? 0), 0),
-                0,
-              )}{' '}
-              reported reps
-            </span>
-            <span>
-              {legacy.reduce(
-                (total, item) =>
-                  total +
-                  item.participants
-                    .filter((person) => client === 'all' || person.id === client)
-                    .reduce((sum, person) => sum + (person.summary?.totalHoldSeconds ?? 0), 0),
-                0,
-              )}{' '}
-              seconds held
-            </span>
-          </div>
-        </section>
-      )}
-      {!!checkIns.length && (
-        <section className="panel">
-          <SectionTitle
-            title="Check-in history"
-            detail="Latest 10 reports in the selected period"
-          />
-          {checkIns.map((entry) => (
-            <article className="client-check-in" key={entry.id}>
-              <strong>
-                {coach ? `${entry.userName} · ` : ''}
-                {dateLabel(entry.createdAt)}
-              </strong>
-              <span>
-                Energy {entry.energy}/5 · Soreness {entry.soreness}/5
-                {entry.effort === null ? '' : ` · Effort ${entry.effort}/10`}
-              </span>
-              <span>
-                {entry.sleepHours === null ? '' : `Sleep ${entry.sleepHours}h`}
-                {entry.bodyweightKg === null ? '' : ` · Bodyweight ${entry.bodyweightKg}kg`}
-              </span>
-              {entry.note && <p>{entry.note}</p>}
-            </article>
-          ))}
-        </section>
-      )}
+          </>
+        )}
+      </div>
       <p className="microcopy">
         Camera scores estimate visible movement. Load and check-ins are self-reported. Missing
         measurements stay unavailable. History totals include every matching saved set. Load more to
@@ -699,14 +796,14 @@ function WorkoutRecord({
         <strong>
           {set.measurementSource === 'manual' || set.measurementSource === 'timer'
             ? 'Reported'
-            : set.ruleVersion === 'profile-v8'
+            : showsRepTempo(set.ruleVersion)
               ? `${number(set.repSeconds, 's')}`
               : number(hold ? set.formScore : set.qualityScore, ' /100')}
         </strong>
         <span>
           {set.measurementSource === 'manual' || set.measurementSource === 'timer'
             ? 'Manual tracking'
-            : set.ruleVersion === 'profile-v8'
+            : showsRepTempo(set.ruleVersion)
               ? 'Rep tempo'
               : hold
                 ? 'Form estimate'

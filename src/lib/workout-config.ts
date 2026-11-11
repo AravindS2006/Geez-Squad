@@ -16,8 +16,15 @@ export type WorkoutConfig = {
   armMode?: ArmMode;
 };
 
+// An exercise with exactly one limb mode (alternating legs) always runs in that mode.
+function onlyMode(exercise: ExerciseId): ArmMode | undefined {
+  const modes = exerciseDefinition(exercise).modes;
+  return modes.length === 1 ? modes[0] : undefined;
+}
+
 export function defaultWorkoutConfig(exercise: ExerciseId, block?: Block): WorkoutConfig {
   const profile = isAutomaticExercise(exercise) ? getExerciseProfile(exercise) : null;
+  const armMode = block?.armMode ?? onlyMode(exercise);
   return {
     sets: block?.sets ?? 3,
     target:
@@ -33,7 +40,7 @@ export function defaultWorkoutConfig(exercise: ExerciseId, block?: Block): Worko
     bottomAngle: profile?.bottomAngle ?? 90,
     minRepMs: profile?.minRepMs ?? 500,
     loadKg: block?.loadKg ?? null,
-    ...(block?.armMode ? { armMode: block.armMode } : {}),
+    ...(armMode ? { armMode } : {}),
     ...(block?.loadBasis ? { loadBasis: block.loadBasis } : {}),
   };
 }
@@ -67,7 +74,9 @@ export function normalizeWorkoutConfig(
     side: input.side === 'left' || input.side === 'right' ? input.side : 'auto',
     ...(exerciseDefinition(exercise).modes.includes(input.armMode as ArmMode)
       ? { armMode: input.armMode }
-      : {}),
+      : onlyMode(exercise)
+        ? { armMode: onlyMode(exercise) }
+        : {}),
     ...(input.loadBasis === 'per-hand' || input.loadBasis === 'total'
       ? { loadBasis: input.loadBasis }
       : {}),

@@ -17,7 +17,14 @@ export type ExerciseProfile = {
     | 'bridge'
     | 'crunch'
     | 'row'
-    | 'sideplank';
+    | 'sideplank'
+    | 'frontraise'
+    | 'stepjack'
+    | 'hinge'
+    | 'overhead'
+    | 'bandrow'
+    | 'wallsit'
+    | 'highknees';
   bilateral: boolean;
   isHold: boolean;
   topAngle: number;
@@ -32,6 +39,20 @@ export type ExerciseProfile = {
   moveCue: string;
   returnCue: string;
   cameraCue: string;
+  /** Library equipment text. */
+  equipment?: string;
+  /** Left/right limb modes run each limb as its own cycle (curl modes, alternating legs). */
+  limbModes?: 'arm' | 'leg';
+  /** Landmark that ends the straight body line for push-up forms (27 ankle, 25 knee). */
+  bodyLineJoint?: 25 | 27;
+  /** Steepest shoulder-to-line slope, in degrees from horizontal, for push-up forms. */
+  maxBodySlopeDeg?: number;
+  /** Ankle width as a multiple of shoulder span at the closed and open endpoints. */
+  feet?: { closed: number; open: number };
+  /** Holds count while the angle stays between the configured bottom and top angles. */
+  holdBand?: boolean;
+  /** Suspend instead of using projected 2D angles, which cannot see this movement. */
+  require3d?: boolean;
 };
 
 const profile = (
@@ -93,6 +114,7 @@ export const exerciseProfiles = {
     direction: 'decrease',
     view: 'either',
     form: 'curl',
+    limbModes: 'arm',
     bilateral: false,
     isHold: false,
     topAngle: 145,
@@ -194,6 +216,7 @@ export const exerciseProfiles = {
     bottomAngle: 25,
     minimumRom: 80,
     minRepMs: 400,
+    feet: { closed: 1.1, open: 1.25 },
     startCue: 'Stand with feet together and arms by your sides.',
     moveCue: 'Open your feet while raising both arms overhead.',
     returnCue: 'Bring feet together and lower both arms to complete the rep.',
@@ -275,7 +298,290 @@ export const exerciseProfiles = {
     returnCue: 'Rest, then repeat on the other side.',
     cameraCue: 'Front view of your body · select the supporting side',
   }),
+  hammercurl: profile({
+    name: 'Hammer curl',
+    category: 'Upper body',
+    equipment: 'Dumbbells',
+    joints: [11, 13, 15, 23],
+    signal: 'elbow',
+    direction: 'decrease',
+    view: 'either',
+    form: 'curl',
+    limbModes: 'arm',
+    bilateral: false,
+    isHold: false,
+    topAngle: 145,
+    bottomAngle: 85,
+    minimumRom: 45,
+    minRepMs: 450,
+    startCue: 'Stand tall with palms facing your body and the working arm extended.',
+    moveCue: 'Curl toward your shoulder with palms facing in and your upper arm steady.',
+    returnCue: 'Lower under control to your starting position.',
+    cameraCue: 'Front or slight side view · shoulder, elbow, wrist, and hip visible',
+  }),
+  gobletsquat: profile({
+    name: 'Goblet squat',
+    category: 'Lower body',
+    equipment: 'Dumbbell',
+    joints: [11, 23, 25, 27],
+    signal: 'knee',
+    direction: 'decrease',
+    view: 'side',
+    form: 'squat',
+    bilateral: false,
+    isHold: false,
+    topAngle: 155,
+    bottomAngle: 112,
+    minimumRom: 35,
+    minRepMs: 600,
+    startCue: 'Stand tall holding the weight at your chest, feet about shoulder-width apart.',
+    moveCue: 'Bend hips and knees with your chest up, within your comfortable range.',
+    returnCue: 'Press through your feet and return to standing.',
+    cameraCue: 'Side view · shoulder, hip, knee, and ankle visible',
+  }),
+  sumosquat: profile({
+    name: 'Sumo squat',
+    category: 'Lower body',
+    equipment: 'Bodyweight or dumbbell',
+    joints: [11, 23, 25, 27],
+    signal: 'knee',
+    direction: 'decrease',
+    view: 'side',
+    form: 'squat',
+    bilateral: false,
+    isHold: false,
+    topAngle: 155,
+    bottomAngle: 115,
+    minimumRom: 30,
+    minRepMs: 600,
+    startCue: 'Stand with a wide stance and toes turned slightly out.',
+    moveCue: 'Bend your knees in line with your toes, keeping your trunk tall.',
+    returnCue: 'Press through your feet and return to standing.',
+    cameraCue: 'Side view · shoulder, hip, knee, and ankle visible on the tracked leg',
+  }),
+  reverselunge: profile({
+    name: 'Reverse lunge',
+    category: 'Lower body',
+    equipment: 'Bodyweight',
+    joints: [11, 23, 25, 27],
+    signal: 'knee',
+    direction: 'decrease',
+    view: 'side',
+    form: 'lunge',
+    bilateral: false,
+    isHold: false,
+    topAngle: 155,
+    bottomAngle: 110,
+    minimumRom: 35,
+    minRepMs: 700,
+    startCue: 'Stand tall with the tracked leg nearest the camera.',
+    moveCue: 'Step the other leg back and bend both knees within your comfortable range.',
+    returnCue: 'Press through the front foot and step back to standing.',
+    cameraCue: 'Side view · select the front leg; repeat the set for the other side',
+  }),
+  inclinepushup: profile({
+    name: 'Incline push-up',
+    category: 'Upper body',
+    equipment: 'Stable bench',
+    joints: [11, 13, 15, 23, 27],
+    signal: 'elbow',
+    direction: 'decrease',
+    view: 'side',
+    form: 'pushup',
+    maxBodySlopeDeg: 70,
+    bilateral: false,
+    isHold: false,
+    topAngle: 150,
+    bottomAngle: 105,
+    minimumRom: 35,
+    minRepMs: 550,
+    startCue: 'Place your hands on a stable bench with arms extended and body in a straight line.',
+    moveCue: 'Bend your elbows to lower your chest toward the bench.',
+    returnCue: 'Press back to your extended starting position.',
+    cameraCue: 'Side view · shoulder, elbow, wrist, hip, and ankle visible',
+  }),
+  kneepushup: profile({
+    name: 'Knee push-up',
+    category: 'Upper body',
+    equipment: 'Exercise mat',
+    joints: [11, 13, 15, 23, 25],
+    signal: 'elbow',
+    direction: 'decrease',
+    view: 'side',
+    form: 'pushup',
+    bodyLineJoint: 25,
+    bilateral: false,
+    isHold: false,
+    topAngle: 150,
+    bottomAngle: 105,
+    minimumRom: 35,
+    minRepMs: 550,
+    startCue: 'Start on your knees with arms extended and shoulders, hips, and knees in line.',
+    moveCue: 'Bend your elbows to lower your chest under control.',
+    returnCue: 'Press back to your extended starting position.',
+    cameraCue: 'Side view · shoulder, elbow, wrist, hip, and knee visible',
+  }),
+  frontraise: profile({
+    name: 'Front raise',
+    category: 'Upper body',
+    equipment: 'Light dumbbells',
+    joints: [11, 13, 15, 23],
+    signal: 'shoulder',
+    direction: 'increase',
+    view: 'side',
+    form: 'frontraise',
+    bilateral: false,
+    isHold: false,
+    topAngle: 80,
+    bottomAngle: 20,
+    minimumRom: 45,
+    minRepMs: 500,
+    startCue: 'Stand tall with your arms in front of your thighs.',
+    moveCue: 'Raise your arms forward to about shoulder height.',
+    returnCue: 'Lower your arms slowly to your thighs.',
+    cameraCue: 'Side view · shoulder, elbow, wrist, and hip visible',
+  }),
+  wallsit: profile({
+    name: 'Wall sit',
+    category: 'Lower body',
+    equipment: 'Wall',
+    joints: [11, 23, 25, 27],
+    signal: 'knee',
+    direction: 'decrease',
+    view: 'side',
+    form: 'wallsit',
+    holdBand: true,
+    bilateral: false,
+    isHold: true,
+    topAngle: 115,
+    bottomAngle: 70,
+    minimumRom: 0,
+    minRepMs: 600,
+    startCue: 'Slide down the wall until your knees are bent near a right angle.',
+    moveCue: 'Keep your back against the wall and hold steady.',
+    returnCue: 'Stand up slowly when the set is complete.',
+    cameraCue: 'Side view · shoulder, hip, knee, and ankle visible',
+  }),
+  romaniandeadlift: profile({
+    name: 'Romanian deadlift',
+    category: 'Lower body',
+    equipment: 'Dumbbells',
+    joints: [11, 23, 25, 27],
+    signal: 'hip',
+    direction: 'decrease',
+    view: 'side',
+    form: 'hinge',
+    bilateral: false,
+    isHold: false,
+    topAngle: 160,
+    bottomAngle: 110,
+    minimumRom: 40,
+    minRepMs: 700,
+    startCue: 'Stand tall with soft knees and the weights in front of your thighs.',
+    moveCue: 'Push your hips back and lower the weights, keeping your back long.',
+    returnCue: 'Drive your hips forward to return to standing.',
+    cameraCue: 'Side view · shoulder, hip, knee, and ankle visible',
+  }),
+  tricepsextension: profile({
+    name: 'Overhead triceps extension',
+    category: 'Upper body',
+    equipment: 'Dumbbell',
+    joints: [11, 13, 15, 23],
+    signal: 'elbow',
+    direction: 'increase',
+    view: 'either',
+    form: 'overhead',
+    bilateral: false,
+    isHold: false,
+    topAngle: 150,
+    bottomAngle: 75,
+    minimumRom: 50,
+    minRepMs: 500,
+    startCue: 'Hold the weight overhead, then bend your elbows to lower it behind your head.',
+    moveCue: 'Straighten your elbows to press the weight overhead.',
+    returnCue: 'Bend your elbows to lower the weight behind your head.',
+    cameraCue: 'Front or slight side view · shoulder, elbow, wrist, and hip visible',
+  }),
+  bandrow: profile({
+    name: 'Resistance-band row',
+    category: 'Upper body',
+    equipment: 'Resistance band',
+    joints: [11, 13, 15, 23],
+    signal: 'elbow',
+    direction: 'decrease',
+    view: 'side',
+    form: 'bandrow',
+    bilateral: false,
+    isHold: false,
+    topAngle: 145,
+    bottomAngle: 90,
+    minimumRom: 40,
+    minRepMs: 500,
+    startCue: 'Hold the band with arms extended in front and your trunk tall.',
+    moveCue: 'Pull your elbows back while keeping your trunk upright.',
+    returnCue: 'Return the band under control until your arms are extended.',
+    cameraCue: 'Side view · shoulder, elbow, wrist, and hip visible',
+  }),
+  highknees: profile({
+    name: 'High knees',
+    category: 'Conditioning',
+    equipment: 'Bodyweight',
+    joints: [11, 23, 25],
+    signal: 'hip',
+    direction: 'decrease',
+    view: 'front',
+    form: 'highknees',
+    limbModes: 'leg',
+    require3d: true,
+    bilateral: false,
+    isHold: false,
+    topAngle: 160,
+    bottomAngle: 115,
+    minimumRom: 35,
+    minRepMs: 350,
+    startCue: 'Stand tall facing the camera with feet hip-width apart.',
+    moveCue: 'Lift one knee toward hip height, then the other.',
+    returnCue: 'Lower the foot and lift the other knee.',
+    cameraCue: 'Front view · whole body visible; one rep = one lift on each leg',
+  }),
+  stepjack: profile({
+    name: 'Step jack',
+    category: 'Conditioning',
+    equipment: 'Bodyweight',
+    joints: [11, 13, 15, 23, 25, 27],
+    signal: 'shoulder',
+    direction: 'increase',
+    view: 'front',
+    form: 'stepjack',
+    feet: { closed: 0.7, open: 0.9 },
+    bilateral: true,
+    isHold: false,
+    topAngle: 130,
+    bottomAngle: 25,
+    minimumRom: 75,
+    minRepMs: 500,
+    startCue: 'Stand with feet together and arms by your sides.',
+    moveCue: 'Step one foot out while raising both arms overhead.',
+    returnCue: 'Step back in and lower both arms to complete the rep.',
+    cameraCue: 'Front view · both hands and feet fully visible',
+  }),
 };
+
+/** The original profiles. Clients older than coaching client v2 can render only these. */
+export const LEGACY_AUTOMATIC_IDS: readonly string[] = [
+  'squat',
+  'pushup',
+  'curl',
+  'plank',
+  'lunge',
+  'shoulderpress',
+  'lateralraise',
+  'jumpingjack',
+  'glutebridge',
+  'crunch',
+  'row',
+  'sideplank',
+];
 
 export type ProfileExerciseId = keyof typeof exerciseProfiles;
 export const exerciseIds = Object.keys(exerciseProfiles) as [
@@ -286,6 +592,16 @@ export function getExerciseProfile(exercise: string): ExerciseProfile {
   const result = (exerciseProfiles as Record<string, ExerciseProfile>)[exercise];
   if (!result) throw new Error('This exercise has no automatic measurement profile.');
   return result;
+}
+/** A hold counts only while the observed angle is at its endpoint, or inside its band. */
+export function isHoldAngle(
+  profile: ExerciseProfile,
+  config: { topAngle: number; bottomAngle: number },
+  angle: number,
+): boolean {
+  return profile.holdBand
+    ? angle >= config.bottomAngle && angle <= config.topAngle
+    : angle >= config.topAngle;
 }
 export function isHoldExercise(exercise: string): boolean {
   return (exerciseProfiles as Record<string, ExerciseProfile>)[exercise]?.isHold ?? false;

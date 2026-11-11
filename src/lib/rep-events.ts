@@ -43,6 +43,7 @@ export function coordinateReps(
   mode: ArmMode,
   events: RepEvent[],
   now: number,
+  limb: 'arm' | 'leg' = 'arm',
 ) {
   state.pending = state.pending.filter((e) => now - e.endedAt <= 750);
   for (const event of events) {
@@ -51,7 +52,7 @@ export function coordinateReps(
     if (mode === 'alternating') {
       state.sequenceCue =
         state.previousSide === event.side
-          ? `Alternate arms. Your ${event.side} movement was recorded.`
+          ? `Alternate ${limb}s. Your ${event.side} movement was recorded.`
           : null;
       state.previousSide = event.side;
     }
@@ -68,7 +69,7 @@ export function coordinateReps(
       state.sequenceCue = null;
     } else {
       state.pending.push(event);
-      state.sequenceCue = 'Move both arms together. Each arm’s movement is recorded separately.';
+      state.sequenceCue = `Move both ${limb}s together. Each ${limb}’s movement is recorded separately.`;
     }
   }
   return state.pairs;

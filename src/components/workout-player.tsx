@@ -9,6 +9,8 @@ import {
   isAutomaticExercise,
   capabilityLabels,
   armModeLabels,
+  limbModeLabel,
+  limbNoun,
   type ArmMode,
 } from '@/lib/exercise-library';
 import { defaultWorkoutConfig } from '@/lib/workout-config';
@@ -115,7 +117,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
   const [previewPending, setPreviewPending] = useState(false);
   const previewRequest = useRef<AbortController | null>(null);
   const [armMode, setArmMode] = useState<ArmMode | undefined>(
-    props.block?.armMode ?? props.initialArmMode,
+    props.block?.armMode ?? props.initialArmMode ?? config.armMode,
   );
   const video = useRef<HTMLVideoElement>(null),
     owned = useRef<MediaStream | null>(null);
@@ -413,7 +415,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
             Target {config.target} {timed ? 'seconds' : 'reps'}
           </span>
         </div>
-        {props.exercise === 'curl' && (
+        {props.definition.modes.length > 1 && (
           <label>
             Workout mode
             <select
@@ -423,9 +425,9 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
               onChange={(e) => setArmMode(e.target.value as ArmMode)}
             >
               <option value="">Choose how you will curl</option>
-              {Object.entries(armModeLabels).map(([id, name]) => (
+              {props.definition.modes.map((id) => (
                 <option key={id} value={id}>
-                  {name}
+                  {limbModeLabel(props.exercise, id)}
                 </option>
               ))}
             </select>
@@ -433,12 +435,12 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
         )}
         {(armMode === 'both' || armMode === 'alternating') && (
           <p>
-            Enter completed pairs: one full repetition on each arm. Target {config.target} on each
-            arm.{' '}
+            Enter completed pairs: one full repetition on each {limbNoun(props.exercise)}. Target{' '}
+            {config.target} on each {limbNoun(props.exercise)}.{' '}
             {armMode === 'both'
-              ? 'Your coach checks that both arms move together.'
+              ? `Your coach checks that both ${limbNoun(props.exercise)}s move together.`
               : 'Alternate left and right.'}{' '}
-            Per-arm measurements are unavailable in manual mode.
+            Per-{limbNoun(props.exercise)} measurements are unavailable in manual mode.
           </p>
         )}
         <strong className="manual-counter">
@@ -452,7 +454,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
         {!timed && phase === 'active' && (
           <label>
             {armMode === 'both' || armMode === 'alternating'
-              ? 'Completed pairs (one repetition on each arm)'
+              ? `Completed pairs (one repetition on each ${limbNoun(props.exercise)})`
               : 'Completed repetitions'}
             <input
               aria-label="Manual repetitions"
@@ -468,7 +470,7 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
           {(phase === 'setup' || phase === 'rest') && (
             <button
               className="button lime"
-              disabled={props.paused || rest > 0 || (props.exercise === 'curl' && !armMode)}
+              disabled={props.paused || rest > 0 || (props.definition.modes.length > 1 && !armMode)}
               onClick={() => {
                 active.current = {
                   id: crypto.randomUUID(),

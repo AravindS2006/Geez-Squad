@@ -112,8 +112,13 @@ feedback. Brief uncertainty preserves observed evidence without adding hidden ti
 or endpoints. Sustained loss or incompatible geometry requires fresh readiness.
 
 The 36-exercise catalog separates definitions from measurement capabilities. The
-12 original camera profiles remain automatic beta. Other exercises are manual or
-timed until individual validation gates pass. Custom exercises are studio-scoped
+12 original camera profiles plus 13 single-camera-trackable additions (hammer curl,
+goblet/sumo squat, reverse lunge, incline/knee push-up, front raise, wall sit,
+Romanian deadlift, overhead triceps extension, band row, high knees, step jack) are
+automatic beta. High knees counts left+right pairs and requires depth (world)
+landmarks. The other 11 exercises are manual or timed. No profile becomes
+validated until `npm run pose:evaluate -- <manifest> --release-gates` passes for it.
+Clients older than coaching client v2 can render only `LEGACY_AUTOMATIC_IDS`. Custom exercises are studio-scoped
 and cannot acquire automatic support by copying thresholds. Never claim clinical
 angle accuracy, safety, calories or physical pilot precision from unit tests.
 

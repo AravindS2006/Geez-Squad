@@ -3,6 +3,7 @@ import {
   libraryExerciseIds,
   usesHoldTime,
   isAutomaticExercise,
+  exerciseDefinition,
   type LibraryExerciseId,
 } from './exercise-library';
 import { measurementSchema } from './measurement-contract';
@@ -201,7 +202,7 @@ export const workoutSetSchema = z
       ctx.addIssue({ code: 'custom', message: 'Workout timing and counts are inconsistent.' });
     if (data.measurementSource === 'automatic' && !isAutomaticExercise(data.exercise))
       ctx.addIssue({ code: 'custom', message: 'This exercise requires manual tracking.' });
-    if (data.armMode && data.exercise !== 'curl')
+    if (data.armMode && !exerciseDefinition(data.exercise).modes.includes(data.armMode))
       ctx.addIssue({ code: 'custom', message: 'This exercise does not support arm modes.' });
     if (data.armMode && data.arms) {
       const a = data.arms;

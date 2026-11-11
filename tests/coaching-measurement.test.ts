@@ -237,7 +237,7 @@ describe('repetition event coordination', () => {
   it('has 36 definitions and never promotes manual exercises by name similarity', () => {
     expect(exerciseLibrary).toHaveLength(36);
     expect(exerciseLibrary.filter((e) => e.capability === 'validated')).toHaveLength(0);
-    expect(isAutomaticExercise('hammercurl')).toBe(false);
+    expect(isAutomaticExercise('laterallunge')).toBe(false);
     expect(isAutomaticExercise('custom:curl')).toBe(false);
   });
   it('gives repeated legacy exercise blocks different stable identities', () => {

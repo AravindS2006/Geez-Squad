@@ -65,7 +65,7 @@ import {
   MAX_START_FRAME_GAP_MS,
 } from '@/lib/workout-start';
 import { workoutSetProgress } from '@/lib/workout-progress';
-import { armModeLabels, type ArmMode } from '@/lib/exercise-library';
+import { exerciseDefinition, limbModeLabel, limbNoun, type ArmMode } from '@/lib/exercise-library';
 import { setArms, readRunCheckpoint, type RunCheckpoint } from '@/lib/workout-run';
 import { measurementData } from '@/lib/measurement-contract';
 import { workoutSetSchema } from '@/lib/validation';
@@ -493,7 +493,7 @@ export function CameraAnalyzer({
     setCalibration(null);
     if (
       pausedRef.current ||
-      (exerciseRef.current === 'curl' && !configRef.current.armMode) ||
+      (exerciseDefinition(exerciseRef.current).modes.length > 0 && !configRef.current.armMode) ||
       document.hidden ||
       status !== 'ready' ||
       armedRef.current ||
@@ -1394,6 +1394,8 @@ export function CameraAnalyzer({
   }
   const definition = exercises.find((e) => e.id === exercise)!;
   const profile = getExerciseProfile(exercise);
+  const limbModes = definition.modes;
+  const limb = limbNoun(exercise);
   const progress = Math.floor(
     workoutSetProgress(exercise, analysis.reps, tally.current.holdMs, baseline.current),
   );
@@ -1652,34 +1654,36 @@ export function CameraAnalyzer({
           </button>
         </div>
         <section className="set-progress analyzer-progress" aria-label="Set progress">
-          {exercise === 'curl' && (
+          {limbModes.length > 0 && (
             <div className="arm-mode-setup">
-              <label>
-                Workout mode
-                <select
-                  aria-label="Curl workout mode"
-                  value={config.armMode ?? ''}
-                  disabled={mode !== 'setup' || armed || !!block?.armMode}
-                  onChange={(e) =>
-                    updateConfig({
-                      armMode: e.target.value as ArmMode,
-                      side: e.target.value === 'right' ? 'right' : 'left',
-                      calibrationSource: undefined,
-                      topAngle: profile.topAngle,
-                      bottomAngle: profile.bottomAngle,
-                    })
-                  }
-                >
-                  <option value="">Choose how you will curl</option>
-                  {Object.entries(armModeLabels).map(([id, label]) => (
-                    <option key={id} value={id}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {limbModes.length > 1 && (
+                <label>
+                  Workout mode
+                  <select
+                    aria-label="Curl workout mode"
+                    value={config.armMode ?? ''}
+                    disabled={mode !== 'setup' || armed || !!block?.armMode}
+                    onChange={(e) =>
+                      updateConfig({
+                        armMode: e.target.value as ArmMode,
+                        side: e.target.value === 'right' ? 'right' : 'left',
+                        calibrationSource: undefined,
+                        topAngle: profile.topAngle,
+                        bottomAngle: profile.bottomAngle,
+                      })
+                    }
+                  >
+                    <option value="">Choose how you will curl</option>
+                    {limbModes.map((id) => (
+                      <option key={id} value={id}>
+                        {limbModeLabel(exercise, id)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               {analysis.arms && (
-                <div className="arm-counters" aria-label="Per-arm progress">
+                <div className="arm-counters" aria-label={`Per-${limb} progress`}>
                   <span>
                     Left{' '}
                     <strong>
@@ -1698,10 +1702,10 @@ export function CameraAnalyzer({
               )}
               <small>
                 {config.armMode === 'both'
-                  ? 'One rep = both arms completing the movement together.'
+                  ? `One rep = both ${limb}s completing the movement together.`
                   : config.armMode === 'alternating'
-                    ? `${config.target} repetitions on each arm. Alternate sides.`
-                    : 'Choose the working arm before starting. Left and right refer to your body.'}
+                    ? `${config.target} repetitions on each ${limb}. Alternate sides.`
+                    : `Choose the working ${limb} before starting. Left and right refer to your body.`}
               </small>
             </div>
           )}
@@ -1736,7 +1740,7 @@ export function CameraAnalyzer({
                 className="button lime"
                 disabled={
                   paused ||
-                  (exercise === 'curl' && !config.armMode) ||
+                  (limbModes.length > 0 && !config.armMode) ||
                   status !== 'ready' ||
                   Boolean(calibrationRef.current) ||
                   (mode === 'rest' && restLeft > 0)
@@ -1987,13 +1991,13 @@ export function CameraAnalyzer({
                       value={config.side}
                       disabled={
                         mode !== 'setup' ||
-                        (exercise === 'curl' &&
+                        (limbModes.length > 0 &&
                           (config.armMode === 'both' || config.armMode === 'alternating'))
                       }
                       onChange={(e) =>
                         updateConfig({
                           side: e.target.value as WorkoutConfig['side'],
-                          ...(exercise === 'curl' && e.target.value !== 'auto'
+                          ...(limbModes.includes(e.target.value as ArmMode)
                             ? { armMode: e.target.value as ArmMode }
                             : {}),
                         })
@@ -2090,7 +2094,7 @@ export function CameraAnalyzer({
                     status !== 'ready' ||
                     paused ||
                     Boolean(calibrationRef.current) ||
-                    (exercise === 'curl' &&
+                    (limbModes.length > 0 &&
                       (!config.armMode ||
                         config.armMode === 'both' ||
                         config.armMode === 'alternating'))

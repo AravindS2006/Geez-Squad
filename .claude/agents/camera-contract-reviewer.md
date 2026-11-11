@@ -27,7 +27,7 @@ Check, citing `file:line`:
   paired cycles, and alternating progress is the lesser arm. No `+1` assumption.
 - **Records**: automatic counters are monotonic, corrections are append-only, and run and
   block IDs are stable (never identify a block by exercise ID alone).
-- **Capability gates**: there is no new automatic support beyond the 12 beta profiles, and
+- **Capability gates**: automatic support stays within the 25 beta profiles in `exercise-profiles.ts`, and
   custom exercises don't inherit automatic counting.
 - **Runtime fallbacks** (Heavy → Full → Lite, GPU → CPU, iOS canvas path) remain bounded.
 - **Privacy**: no frames or landmark traces are uploaded, and diagnostics stay opt-in and

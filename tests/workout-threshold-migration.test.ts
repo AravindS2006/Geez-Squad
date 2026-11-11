@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultWorkoutConfig,
+  DEFAULTS_GENERATION,
   migrateSavedThresholds,
   normalizeWorkoutConfig,
   stampWorkoutConfig,
@@ -38,5 +39,39 @@ describe('saved threshold migration', () => {
     expect(again.reset).toBe(false);
     expect(again.config.topAngle).toBe(130);
     expect(again.config).not.toHaveProperty('thresholdGeneration');
+  });
+  // profile-v10 changed the press top (155 -> 140) and the raise start (20 -> 28).
+  it.each([
+    ['shoulderpress', 'topAngle', 155, 140],
+    ['lateralraise', 'bottomAngle', 20, 28],
+  ] as const)(
+    'moves a %s %s saved at the old default %i to %i without a reset notice',
+    (exercise, field, old, current) => {
+      for (const thresholdGeneration of [9, undefined]) {
+        const result = migrateSavedThresholds(exercise, {
+          [field]: old,
+          target: 12,
+          thresholdGeneration,
+        });
+        expect(result.reset).toBe(false);
+        expect(result.config).toEqual({ target: 12 });
+        expect(normalizeWorkoutConfig(exercise, result.config)[field]).toBe(current);
+      }
+    },
+  );
+  it.each([
+    ['shoulderpress', 'topAngle', 155, 150],
+    ['lateralraise', 'bottomAngle', 20, 25],
+  ] as const)('keeps a tuned or calibrated %s %s', (exercise, field, old, tuned) => {
+    const handTuned = migrateSavedThresholds(exercise, { [field]: tuned, thresholdGeneration: 9 });
+    expect(handTuned).toEqual({ config: { [field]: tuned }, reset: false });
+    const calibrated = { side: 'left', calibrationSource: '2d', [field]: old } as const;
+    expect(
+      migrateSavedThresholds(exercise, { ...calibrated, thresholdGeneration: 9 }).config,
+    ).toEqual(calibrated);
+    // A config saved after profile-v10 that holds the old value was chosen on purpose.
+    const chosen = stampWorkoutConfig(normalizeWorkoutConfig(exercise, { [field]: old }));
+    expect(chosen.defaultsGeneration).toBe(DEFAULTS_GENERATION);
+    expect(migrateSavedThresholds(exercise, chosen).config[field]).toBe(old);
   });
 });

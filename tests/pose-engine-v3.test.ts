@@ -703,6 +703,31 @@ describe('exercise-specific profiles', () => {
       expect(result!.postureValid).toBe(true);
     } else expect(state.lastRepQuality).toBeGreaterThan(70);
   });
+  // profile-v10 defaults: arms resting slightly out from the body and a press that locks
+  // out short of full extension still start and finish a rep; partial ranges do not.
+  it.each([
+    ['lateralraise', 23, 90, 1, null],
+    ['lateralraise', 23, 50, 0, 'range'],
+    ['shoulderpress', 70, 145, 1, null],
+    ['shoulderpress', 70, 130, 0, 'range'],
+  ] as const)('%s from %i° to %i° counts %i', (exercise, start, end, reps, rejection) => {
+    const state = initialPoseState();
+    const rejections = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const result = analyzePose(
+        [exercisePose(exercise, i < 10 || i >= 25 ? start : end)],
+        exercise,
+        state,
+        100 + i * 100,
+        W,
+        H,
+      );
+      expect(result.tracked).toBe(true);
+      if (result.rejectionReason) rejections.add(result.rejectionReason);
+    }
+    expect(state.reps).toBe(reps);
+    expect([...rejections]).toEqual(rejection ? [rejection] : []);
+  });
   it.each(['plank', 'sideplank'] as const)(
     'accumulates only observed aligned %s hold time',
     (exercise) => {

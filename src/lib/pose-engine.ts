@@ -19,7 +19,7 @@ import {
   type RepCoordinator,
 } from './rep-events';
 
-export const RULE_VERSION = 'profile-v9';
+export const RULE_VERSION = 'profile-v10';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
   measurementSource?: 'automatic' | 'manual' | 'timer';

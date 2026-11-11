@@ -141,3 +141,44 @@ export function workoutCsv(sets: WorkoutSetView[]) {
   });
   return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
+
+/** `profile-v9` → 9. Unknown or legacy labels sort before every numbered version. */
+export function ruleVersionNumber(version: string): number {
+  const match = /^profile-v(\d+)$/.exec(version);
+  return match ? Number(match[1]) : 0;
+}
+/** From profile-v8 a saved set leads with rep tempo; earlier rules lead with a quality score. */
+export function showsRepTempo(version: string): boolean {
+  return ruleVersionNumber(version) >= 8;
+}
+type VersionRow = {
+  exercise: string;
+  version: string;
+  summary: { reps: number; holdMs: number; sets: number; completedSets: number };
+};
+/**
+ * One entry per exercise. Counts add up across rule versions; measurements are never
+ * blended across versions, so the newest version is `current` and the rest are `earlier`.
+ */
+export function groupExerciseBreakdown<T extends VersionRow>(rows: T[]) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) groups.set(row.exercise, [...(groups.get(row.exercise) ?? []), row]);
+  return [...groups].map(([exercise, versions]) => {
+    const [current, ...earlier] = [...versions].sort(
+      (a, b) =>
+        ruleVersionNumber(b.version) - ruleVersionNumber(a.version) ||
+        b.version.localeCompare(a.version),
+    );
+    const total = (field: keyof VersionRow['summary']) =>
+      versions.reduce((sum, row) => sum + row.summary[field], 0);
+    return {
+      exercise,
+      current,
+      earlier,
+      reps: total('reps'),
+      holdMs: total('holdMs'),
+      sets: total('sets'),
+      completedSets: total('completedSets'),
+    };
+  });
+}

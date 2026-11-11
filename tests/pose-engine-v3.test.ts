@@ -586,7 +586,18 @@ describe('exercise-specific profiles', () => {
       const image = exercisePose('jumpingjack', angle);
       const world = image.map((point) => ({ ...point, x: (point.x * W) / H, z: 0 }));
       if (uncertain) world[14].visibility = 0.2;
-      return analyzePose([image], 'jumpingjack', state, timestamp, W, H, false, {}, [world]);
+      // Planar profiles measure on screen by default; a depth calibration opts in.
+      return analyzePose(
+        [image],
+        'jumpingjack',
+        state,
+        timestamp,
+        W,
+        H,
+        false,
+        { side: 'left', calibrationSource: '3d' },
+        [world],
+      );
     };
     observe(15, 100);
     observe(15, 200);

@@ -147,7 +147,10 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await expect(trainee.getByRole('status').filter({ hasText: 'Workout saved' })).toBeVisible();
     await expect(trainee.locator('.set-completion strong')).toHaveText(completionText!);
     await trainee.goto('/app?view=analytics');
+    await trainee.getByRole('tab', { name: 'Records', exact: true }).click();
     await expect(trainee.getByText('Recent workout sets', { exact: true })).toBeVisible();
+    await trainee.getByRole('tab', { name: 'Exercises', exact: true }).click();
+    await expect(trainee.locator('.exercise-progress-card')).toHaveCount(1);
     await trainee.reload();
     const saved = await db.workoutSet.findMany({ where: { userId: users[1] } });
     expect(saved).toHaveLength(1);
@@ -218,6 +221,7 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     expect(interrupted).toMatchObject({ reps: 1, target: 2, exercise: 'squat' });
     expect(interrupted.activeMs).toBeGreaterThan(0);
     await trainee.reload();
+    await trainee.getByRole('tab', { name: 'Records', exact: true }).click();
     await expect(trainee.getByText('Finished early', { exact: true })).toBeVisible();
   } finally {
     await db.auditEvent.deleteMany({ where: { actorId: { in: users } } });

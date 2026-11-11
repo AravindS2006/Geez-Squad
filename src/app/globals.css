@@ -6766,6 +6766,69 @@ body:has(:is(.meeting-room, .meeting-practice)) .app-install {
 .progress-activity-head .microcopy {
   margin: 0;
 }
+/* Insights sections: Overview, Exercises or Trainees, Records. */
+.insight-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-1);
+}
+.insight-tabs > button {
+  min-height: 44px;
+  padding: 0 16px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.insight-tabs > button:hover {
+  color: var(--text-1);
+}
+.insight-tabs > button[aria-selected='true'] {
+  border-bottom-color: var(--brand);
+  color: var(--text-1);
+  font-weight: 600;
+}
+.insight-tabs > button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+.insight-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+/* `label >` outranks the shared 40px field rule in theme.css, which loads later. */
+.training-progress .progress-filters label > select,
+.training-progress .progress-toolbar .button {
+  min-height: 44px;
+}
+.exercise-progress-earlier {
+  margin-top: 12px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.exercise-progress-earlier summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-1);
+}
+.exercise-progress-earlier p {
+  margin: 0 0 6px;
+}
+@media (max-width: 600px) {
+  .insight-tabs > button {
+    flex: 1;
+    padding: 0 8px;
+  }
+}
 
 /* ---- Layout polish (structure and alignment fixes) ---- */
 .section-title > .text-link {

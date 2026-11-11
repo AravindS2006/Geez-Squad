@@ -49,6 +49,7 @@ test('manual activity saves, resumes after reload, and retains an audited correc
     await expect(page.getByText('Set 2 of 3', { exact: true })).toBeVisible();
     expect(await db.workoutSet.count({ where: { userId: user.id } })).toBe(1);
     await page.goto('/app?view=analytics');
+    await page.getByRole('tab', { name: 'Records', exact: true }).click();
     const record = page.locator('.workout-record').first();
     await expect(record).toContainText('Lateral lunge');
     await record.getByText('Exercise record details', { exact: true }).click();

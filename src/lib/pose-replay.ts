@@ -30,6 +30,8 @@ export function replayPoseReport(report: { frames: DiagnosticFrame[] }) {
       tracked: boolean;
       cue: string;
       rejectedJoints: number;
+      angle: number | null;
+      rejection: string | null;
     }[] = [];
   const seed = (p: PoseState): PoseState => ({
     ...structuredClone(p),
@@ -86,6 +88,8 @@ export function replayPoseReport(report: { frames: DiagnosticFrame[] }) {
       tracked: result.tracked,
       cue: result.cue,
       rejectedJoints: stable.rejectedJoints,
+      angle: result.angle,
+      rejection: result.rejectionReason ?? null,
     });
     wasActive = active;
   }

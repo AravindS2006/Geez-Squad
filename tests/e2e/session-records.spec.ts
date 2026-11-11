@@ -296,6 +296,7 @@ test('exercise history recovers a pending save and exposes records beyond the fi
       page.getByRole('status').filter({ hasText: 'Exercise records saved.' }),
     ).toBeVisible();
     expect(await db.workoutSet.count({ where: { userId } })).toBe(52);
+    await page.getByRole('tab', { name: 'Records', exact: true }).click();
     await expect(page.locator('.workout-record')).toHaveCount(50);
     await expect(page.locator('.workout-record').first()).toContainText('0s');
     await expect(page.locator('.workout-record').first()).toContainText('target 30s');

@@ -353,3 +353,14 @@ describe('extended catalog contract', () => {
     expect(state.sequenceCue).toBe('Alternate legs. Your left movement was recorded.');
   });
 });
+
+describe('geometry source', () => {
+  it('measures planar profiles on screen and keeps depth for movement toward the camera', async () => {
+    const { exerciseProfiles, usesImageGeometry } = await import('../src/lib/exercise-profiles');
+    const depth = Object.entries(exerciseProfiles)
+      .filter(([, profile]) => !usesImageGeometry(profile))
+      .map(([id]) => id)
+      .sort();
+    expect(depth).toEqual(['curl', 'hammercurl', 'highknees', 'sideplank', 'tricepsextension']);
+  });
+});

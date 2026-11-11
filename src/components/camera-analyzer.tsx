@@ -54,9 +54,14 @@ import {
 import { readBrowserPreference } from '@/lib/browser-preferences';
 import {
   defaultWorkoutConfig,
+  migrateSavedThresholds,
   normalizeWorkoutConfig,
+  stampWorkoutConfig,
   type WorkoutConfig,
 } from '@/lib/workout-config';
+
+const RANGE_RESET_MESSAGE =
+  'Your saved movement range was reset to the standard range because tracking now measures on-screen angles. Adjust it with your coach if needed.';
 import { Modal } from './ui';
 import {
   advanceStartCountdown,
@@ -400,7 +405,7 @@ export function CameraAnalyzer({
       reps: tally.current.reps,
       holdMs: tally.current.holdMs,
       arms: tally.current.armTotals,
-      config: configRef.current,
+      config: stampWorkoutConfig(configRef.current),
       completedSets: completedRef.current.length,
       results: completedRef.current.map(({ number, amount, score, range, tempo, quality }) => ({
         number,
@@ -672,9 +677,13 @@ export function CameraAnalyzer({
     try {
       saved = JSON.parse(readBrowserPreference(`geez-squad-workout-v3-${exercise}`) || '{}');
     } catch {}
+    // Hand-tuned thresholds from before profile-v9 meant depth angles; see migrateSavedThresholds.
+    const savedRange = migrateSavedThresholds(exercise, saved);
+    const restoredRange = migrateSavedThresholds(exercise, restored?.config);
+    const rangeReset = restored ? restoredRange.reset : savedRange.reset;
     const nextConfig = normalizeWorkoutConfig(exercise, {
-      ...saved,
-      ...(restored?.config ?? {}),
+      ...savedRange.config,
+      ...(restored ? restoredRange.config : {}),
       ...(block
         ? {
             sets: block.sets,
@@ -688,6 +697,13 @@ export function CameraAnalyzer({
     });
     configRef.current = nextConfig;
     setConfig(nextConfig);
+    if (savedRange.reset)
+      try {
+        localStorage.setItem(
+          `geez-squad-workout-v3-${exercise}`,
+          JSON.stringify(stampWorkoutConfig(nextConfig)),
+        );
+      } catch {}
     if (restored) {
       runIdentity.current = restored.runId;
       const previousResults = (Array.isArray(restored.results) ? restored.results : [])
@@ -744,6 +760,7 @@ export function CameraAnalyzer({
       }
       checkpoint(undefined, false, restored.restUntil);
     }
+    if (rangeReset) setSaveMessage(RANGE_RESET_MESSAGE);
     baseline.current = structuredClone(tally.current);
     setAnalysis({
       ...empty,
@@ -1411,7 +1428,10 @@ export function CameraAnalyzer({
     configRef.current = next;
     setConfig(next);
     try {
-      localStorage.setItem(`geez-squad-workout-v3-${exerciseRef.current}`, JSON.stringify(next));
+      localStorage.setItem(
+        `geez-squad-workout-v3-${exerciseRef.current}`,
+        JSON.stringify(stampWorkoutConfig(next)),
+      );
     } catch {}
   };
   const cue =

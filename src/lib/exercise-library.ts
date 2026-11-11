@@ -16,27 +16,14 @@ export type ExerciseDefinition = {
   color: string;
 };
 const additions = [
-  ['gobletsquat', 'Goblet squat', 'Lower body', 'Dumbbell', false],
-  ['sumosquat', 'Sumo squat', 'Lower body', 'Bodyweight or dumbbell', false],
-  ['reverselunge', 'Reverse lunge', 'Lower body', 'Bodyweight', false],
   ['laterallunge', 'Lateral lunge', 'Lower body', 'Bodyweight', false],
   ['stepup', 'Step-up', 'Lower body', 'Stable exercise step', false],
   ['calfraise', 'Calf raise', 'Lower body', 'Bodyweight', false],
-  ['wallsit', 'Wall sit', 'Lower body', 'Wall', true],
-  ['romaniandeadlift', 'Romanian deadlift', 'Lower body', 'Dumbbells', false],
-  ['inclinepushup', 'Incline push-up', 'Upper body', 'Stable bench', false],
-  ['kneepushup', 'Knee push-up', 'Upper body', 'Exercise mat', false],
   ['wallpushup', 'Wall push-up', 'Upper body', 'Wall', false],
-  ['hammercurl', 'Hammer curl', 'Upper body', 'Dumbbells', false],
-  ['frontraise', 'Front raise', 'Upper body', 'Light dumbbells', false],
-  ['tricepsextension', 'Overhead triceps extension', 'Upper body', 'Dumbbell', false],
   ['floorpress', 'Dumbbell floor press', 'Upper body', 'Dumbbells and mat', false],
-  ['bandrow', 'Resistance-band row', 'Upper body', 'Resistance band', false],
   ['birddog', 'Bird dog', 'Core', 'Exercise mat', false],
   ['deadbug', 'Dead bug', 'Core', 'Exercise mat', false],
   ['mountainclimber', 'Mountain climber', 'Conditioning', 'Exercise mat', false],
-  ['highknees', 'High knees', 'Conditioning', 'Bodyweight', false],
-  ['stepjack', 'Step jack', 'Conditioning', 'Bodyweight', false],
   ['catcow', 'Cat–cow', 'Mobility', 'Exercise mat', false],
   ['childspose', 'Child’s pose', 'Mobility', 'Exercise mat', true],
   ['hamstringstretch', 'Standing hamstring stretch', 'Mobility', 'Bodyweight', true],
@@ -62,15 +49,22 @@ export const exerciseLibrary: ExerciseDefinition[] = [
       id,
       name: p.name,
       group: p.category,
-      equipment: ['curl', 'shoulderpress', 'lateralraise', 'row'].includes(id)
-        ? 'Optional light dumbbells'
-        : 'Bodyweight / exercise mat',
+      equipment:
+        p.equipment ??
+        (['curl', 'shoulderpress', 'lateralraise', 'row'].includes(id)
+          ? 'Optional light dumbbells'
+          : 'Bodyweight / exercise mat'),
       instructions: [p.cameraCue, p.startCue, p.moveCue, p.returnCue],
       view: p.cameraCue,
       targetUnit: p.isHold ? 'seconds' : 'reps',
       capability: 'beta',
       profileId: id,
-      modes: id === 'curl' ? ['left', 'right', 'both', 'alternating'] : [],
+      modes:
+        p.limbModes === 'arm'
+          ? ['left', 'right', 'both', 'alternating']
+          : p.limbModes === 'leg'
+            ? ['alternating']
+            : [],
       color: p.category === 'Core' ? 'sky' : p.category === 'Lower body' ? 'lime' : 'lavender',
     };
   }),
@@ -119,6 +113,14 @@ export function exerciseDefinition(
       color: 'sky',
     }
   );
+}
+/** Body part counted by an exercise's left/right modes. */
+export function limbNoun(id: string): 'arm' | 'leg' {
+  return isAutomaticExercise(id) && getExerciseProfile(id).limbModes === 'leg' ? 'leg' : 'arm';
+}
+/** Mode label for an exercise; leg exercises say "leg" where curls say "arm". */
+export function limbModeLabel(id: string, mode: ArmMode): string {
+  return limbNoun(id) === 'leg' ? armModeLabels[mode].replace(/arm/g, 'leg') : armModeLabels[mode];
 }
 export function usesHoldTime(id: string, custom: ExerciseDefinition[] = []) {
   return exerciseDefinition(id, custom).targetUnit === 'seconds';

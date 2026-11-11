@@ -1,7 +1,8 @@
 import type { Analysis } from './pose-engine';
 import type { ExerciseId } from './types';
 import type { WorkoutConfig } from './workout-config';
-import { getExerciseProfile } from './exercise-profiles';
+import { getExerciseProfile, isHoldAngle } from './exercise-profiles';
+import { startPhase } from './pose-engine';
 
 export type StartCountdown = {
   remainingMs: number;
@@ -72,11 +73,12 @@ export function canStartWorkout(
     !Number.isFinite(config.bottomAngle)
   )
     return false;
-  if (profile.isHold) return result.phase === 'holding' && result.angle >= config.topAngle;
+  if (profile.isHold)
+    return result.phase === 'holding' && isHoldAngle(profile, config, result.angle);
   const atStart =
     profile.direction === 'decrease'
       ? result.angle >= config.topAngle - (continuing ? 8 : 0)
       : result.angle <= config.bottomAngle + (continuing ? 8 : 0);
   if (continuing) return atStart;
-  return atStart && result.phase === (exercise === 'curl' ? 'arm extended' : 'start position');
+  return atStart && result.phase === startPhase(profile);
 }

@@ -7,7 +7,7 @@ import { ApiError, requireUser, safeError } from '@/lib/security';
 import { measurementData } from '@/lib/measurement-contract';
 import { planBlocks } from '@/lib/workout-run';
 import type { Block } from '@/lib/types';
-import { isAutomaticExercise } from '@/lib/exercise-library';
+import { LEGACY_AUTOMATIC_IDS } from '@/lib/exercise-profiles';
 async function handleGET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser();
@@ -53,7 +53,7 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
     const activeBlock = blocks.find((b) => b.id === item.activeBlockId);
     if (
       _request.headers.get('X-Coaching-Client') !== '2' &&
-      (!isAutomaticExercise(item.exercise) || activeBlock?.armMode)
+      (!LEGACY_AUTOMATIC_IDS.includes(item.exercise) || activeBlock?.armMode)
     )
       throw new ApiError(
         409,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile, writeFile } from 'node:fs/promises';
 import { matchRepEvents, replayPoseReport } from '../src/lib/pose-replay';
 import { pilotReleaseGates } from '../src/lib/pilot-evaluation';
+import { RULE_VERSION } from '../src/lib/pose-engine';
 
 describe('local evidence replay', () => {
   it('matches events by side and time without reusing annotations', () => {
@@ -41,6 +42,36 @@ describe('local evidence replay', () => {
       ])[0].releaseReady,
     ).toBe(false);
   });
+  it('names failed gates and refuses evidence from another rule version', () => {
+    const row = (participant: number, set: number, reps: number) => ({
+      participantId: `p${participant}`,
+      exercise: 'gobletsquat',
+      device: 'desktop',
+      model: 'heavy',
+      expectedReps: reps,
+      observedReps: reps,
+      exactCount: true,
+      truePositives: reps,
+      falsePositives: 0,
+      falseNegatives: 0,
+      holdErrorMs: null,
+      physicalDevice: true,
+      setId: `s${participant}:${set}`,
+      ruleVersion: 'profile-v8',
+    });
+    const rows = [
+      ...Array.from({ length: 20 }, (_, p) => [row(p, 0, 10), row(p, 1, 10)]).flat(),
+      ...Array.from({ length: 30 }, (_, n) => row(n % 20, 100 + n, 0)),
+    ];
+    const [current] = pilotReleaseGates(rows, 'profile-v8');
+    expect(current.failedGates).toEqual([]);
+    expect(current.releaseReady).toBe(true);
+    const [stale] = pilotReleaseGates(rows, 'profile-v9');
+    expect(stale.failedGates).toEqual(['rule-version']);
+    expect(stale.releaseReady).toBe(false);
+    const [small] = pilotReleaseGates([row(0, 0, 10)], 'profile-v8');
+    expect(small.failedGates).toEqual(['overall-participants', 'coverage', 'negatives']);
+  });
   it.skipIf(!process.env.GEEZ_POSE_MANIFEST)(
     'evaluates a consented participant-disjoint pilot manifest',
     async () => {
@@ -58,8 +89,14 @@ describe('local evidence replay', () => {
         const report = JSON.parse(await readFile(clip.tracePath, 'utf8'));
         expect(report.frames.length).toBeGreaterThan(0);
         const replay = replayPoseReport(report);
-        const mode = report.frames.find((f: { mode: string }) => f.mode === 'active')?.config
-          .armMode;
+        const activeConfig = report.frames.find((f: { mode: string }) => f.mode === 'active')
+          ?.config as { armMode?: string; side?: string } | undefined;
+        // Group by limb mode, or by the selected body side for single-limb profiles.
+        const mode =
+          activeConfig?.armMode ??
+          (activeConfig?.side === 'left' || activeConfig?.side === 'right'
+            ? `side-${activeConfig.side}`
+            : undefined);
         const events =
           mode === 'left' || mode === 'right'
             ? replay.events.filter((e) => e.side === mode)
@@ -72,6 +109,7 @@ describe('local evidence replay', () => {
           mode,
           physicalDevice: clip.physicalDevice === true,
           setId: clip.setId,
+          ruleVersion: report.ruleVersion,
           ...matchRepEvents(events, clip.repetitions ?? []),
           expectedReps: clip.expectedReps,
           observedReps: replay.reps,
@@ -85,7 +123,8 @@ describe('local evidence replay', () => {
         generatedAt: new Date().toISOString(),
         evidence: 'Landmark replay; full video/model and physical-device trials are separate.',
         results,
-        groups: pilotReleaseGates(results),
+        ruleVersion: RULE_VERSION,
+        groups: pilotReleaseGates(results, RULE_VERSION),
       };
       if (process.env.GEEZ_POSE_REPORT)
         await writeFile(process.env.GEEZ_POSE_REPORT, JSON.stringify(output, null, 2));

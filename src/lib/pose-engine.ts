@@ -2,7 +2,7 @@ import { jointAngle, type Point } from './pose-geometry';
 import { analyzePoseForm } from './pose-form';
 export { jointAngle } from './pose-geometry';
 import type { ExerciseId } from './types';
-import { getExerciseProfile, type ExerciseProfile } from './exercise-profiles';
+import { getExerciseProfile, isHoldAngle, type ExerciseProfile } from './exercise-profiles';
 import { defaultWorkoutConfig, normalizeWorkoutConfig, type WorkoutConfig } from './workout-config';
 import { isAutomaticExercise, type ArmMode } from './exercise-library';
 import {
@@ -346,6 +346,11 @@ function worldGeometry(
   return angle === null ? null : { angle, lengths };
 }
 
+/** Phase name reported at the start endpoint; curl forms keep their established name. */
+export function startPhase(profile: ExerciseProfile): string {
+  return profile.form === 'curl' ? 'arm extended' : 'start position';
+}
+
 function reject(state: PoseState, reason: string, cue: string, timestamp: number) {
   state.feedbackUntil = timestamp + 1800;
   state.feedback = cue;
@@ -366,7 +371,8 @@ export function analyzePose(
   if (!isAutomaticExercise(exercise))
     return unavailable(state, 'Automatic measurement is unavailable. Use manual tracking.');
   const config = normalizeWorkoutConfig(exercise, settings);
-  if (exercise === 'curl' && config.armMode) {
+  // normalizeWorkoutConfig keeps armMode only for exercises that declare limb modes.
+  if (config.armMode) {
     return analyzeArms(
       poses,
       exercise,
@@ -654,6 +660,14 @@ function analyzeSinglePose(
       profile.occlusionGraceMs,
       confidence,
     );
+  if (profile.require3d && !trustworthyWorld)
+    return suspend(
+      state,
+      timestamp,
+      'Depth tracking is unavailable. Face the camera with your whole body visible, or use manual tracking.',
+      profile.occlusionGraceMs,
+      confidence,
+    );
   let source: '3d' | '2d' = trustworthyWorld ? '3d' : '2d';
   if (state.stage === 'working' && state.geometrySource === '3d' && !trustworthyWorld)
     return suspend(
@@ -718,7 +732,7 @@ function analyzeSinglePose(
       z: (shoulder.z ?? 0) - (hip.z ?? 0),
     };
   }
-  const form = analyzePoseForm(profile.form, imagePoint, formPoint, state.formReference);
+  const form = analyzePoseForm(profile.form, imagePoint, formPoint, state.formReference, profile);
   if (!form.valid && form.score !== null) form.score = Math.min(form.score, 60);
   if (form.score !== null && form.valid)
     form.score = clamp(filterValue(state, 'formScore', form.score, timestamp, 0.03));
@@ -740,8 +754,9 @@ function analyzeSinglePose(
   if (
     (profile.form === 'pushup' || profile.isHold) &&
     !form.valid &&
-    Math.abs(imagePoint(27).y - imagePoint(11).y) >
-      Math.abs(imagePoint(27).x - imagePoint(11).x) * 1.43
+    Math.abs(imagePoint(profile.bodyLineJoint ?? 27).y - imagePoint(11).y) >
+      Math.abs(imagePoint(profile.bodyLineJoint ?? 27).x - imagePoint(11).x) *
+        (profile.maxBodySlopeDeg ? Math.tan((profile.maxBodySlopeDeg * Math.PI) / 180) : 1.43)
   ) {
     resetCycle(state, false);
     return unavailable(state, form.cue ?? profile.startCue, confidence);
@@ -757,7 +772,7 @@ function analyzeSinglePose(
         return unavailable(state, 'Move into a side-on plank position.', confidence);
       }
     }
-    const holding = angle >= config.topAngle && form.valid;
+    const holding = isHoldAngle(profile, config, angle) && form.valid;
     if (
       holding &&
       state.previousHoldValid &&
@@ -803,8 +818,8 @@ function analyzeSinglePose(
     : angle;
   const ankleWidth = Math.abs(imagePoint(27).x - otherImagePoint(27).x);
   const shoulderSpan = Math.max(1, Math.abs(imagePoint(11).x - otherImagePoint(11).x));
-  const feetClosed = profile.form !== 'jumpingjack' || ankleWidth <= shoulderSpan * 1.1;
-  const feetOpen = profile.form !== 'jumpingjack' || ankleWidth >= shoulderSpan * 1.25;
+  const feetClosed = !profile.feet || ankleWidth <= shoulderSpan * profile.feet.closed;
+  const feetOpen = !profile.feet || ankleWidth >= shoulderSpan * profile.feet.open;
   const startTolerance = state.stage !== 'seek' ? profile.hysteresis : 0;
   const atStart =
     (decreasing
@@ -947,6 +962,15 @@ function analyzeSinglePose(
             'Rep not counted. Ask your coach to correct your alignment before continuing.',
           timestamp,
         );
+      // A hinge is invalid at the bottom of a squat but valid again when standing,
+      // so its form must hold across the whole cycle, not just the final frame.
+      else if (profile.strictCycleForm && state.cycleInvalidMs > 0)
+        reject(
+          state,
+          'form',
+          'Rep not counted. Keep your knees softly bent and push your hips back, not down.',
+          timestamp,
+        );
       else if (timestamp - state.lastRepAt < profile.cooldownMs)
         reject(state, 'cooldown', 'Finish one controlled movement at a time.', timestamp);
       else {
@@ -985,11 +1009,9 @@ function analyzeSinglePose(
     state.stage === 'seek'
       ? 'find start position'
       : atStart
-        ? exercise === 'curl'
-          ? 'arm extended'
-          : 'start position'
+        ? startPhase(profile)
         : atEnd
-          ? exercise === 'curl'
+          ? profile.form === 'curl'
             ? 'curled'
             : 'lowered'
           : 'moving';
@@ -1103,7 +1125,14 @@ function analyzeArms(
           : 0),
     };
   }
-  const pairs = coordinateReps(state.coordinator, mode, events, timestamp);
+  const profile = getExerciseProfile(exercise);
+  const pairs = coordinateReps(
+    state.coordinator,
+    mode,
+    events,
+    timestamp,
+    profile.limbModes === 'leg' ? 'leg' : 'arm',
+  );
   const base = state.armBaseline ?? { left: 0, right: 0, reps: 0 };
   state.reps =
     mode === 'both'
@@ -1126,7 +1155,7 @@ function analyzeArms(
   state.lastTimestamp = Math.max(
     ...results.map((_, i) => state.limbs![i ? 'right' : 'left'].lastTimestamp),
   );
-  const atStart = dual && results.every((r) => r.tracked && r.phase === 'arm extended');
+  const atStart = dual && results.every((r) => r.tracked && r.phase === startPhase(profile));
   const adjustment = dual ? results.find((r) => r.technique === 'adjust') : undefined;
   return {
     ...result,
@@ -1143,7 +1172,7 @@ function analyzeArms(
     confidence: dual ? Math.min(...results.map((r) => r.confidence)) : result.confidence,
     postureValid: dual ? results.every((r) => r.postureValid) : result.postureValid,
     phase: atStart
-      ? 'arm extended'
+      ? startPhase(profile)
       : dual
         ? (results.find((r) => !r.tracked)?.phase ?? 'moving')
         : result.phase,

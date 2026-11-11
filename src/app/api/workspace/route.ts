@@ -2,14 +2,14 @@ import { loggedRoute } from '@/lib/request-log';
 import { NextResponse } from 'next/server';
 import { requireUser, safeError, ApiError } from '@/lib/security';
 import { workspaceData } from '@/lib/workspace';
-import { isAutomaticExercise } from '@/lib/exercise-library';
+import { LEGACY_AUTOMATIC_IDS } from '@/lib/exercise-profiles';
 async function handleGET(request: Request) {
   try {
     const user = await requireUser();
     const data = await workspaceData(user.id);
     if (
       request.headers.get('X-Coaching-Client') !== '2' &&
-      data.plans.some((p) => p.blocks.some((b) => !isAutomaticExercise(b.exercise)))
+      data.plans.some((p) => p.blocks.some((b) => !LEGACY_AUTOMATIC_IDS.includes(b.exercise)))
     )
       throw new ApiError(
         409,

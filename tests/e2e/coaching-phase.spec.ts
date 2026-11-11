@@ -32,7 +32,7 @@ test('manual activity saves, resumes after reload, and retains an audited correc
     ).toBe(true);
     const user = await db.user.findUniqueOrThrow({ where: { email } });
     await page.goto('/app?view=practice');
-    await page.getByLabel('Exercise to practice').selectOption('gobletsquat');
+    await page.getByLabel('Exercise to practice').selectOption('laterallunge');
     await expect(page.getByText('Manual repetitions', { exact: true })).toBeVisible();
     await page
       .getByRole('checkbox', { name: 'Save workout history to my profile and share with my coach' })
@@ -44,13 +44,13 @@ test('manual activity saves, resumes after reload, and retains an audited correc
     await expect(page.getByText('Workout saved.', { exact: true })).toBeVisible();
     expect(await db.workoutSet.count({ where: { userId: user.id } })).toBe(1);
     await page.reload();
-    await page.getByLabel('Exercise to practice').selectOption('gobletsquat');
+    await page.getByLabel('Exercise to practice').selectOption('laterallunge');
     await expect(page.getByText(/Confirmed results restored/)).toBeVisible();
     await expect(page.getByText('Set 2 of 3', { exact: true })).toBeVisible();
     expect(await db.workoutSet.count({ where: { userId: user.id } })).toBe(1);
     await page.goto('/app?view=analytics');
     const record = page.locator('.workout-record').first();
-    await expect(record).toContainText('Goblet squat');
+    await expect(record).toContainText('Lateral lunge');
     await record.getByText('Exercise record details', { exact: true }).click();
     await record.getByRole('button', { name: 'Correct this result' }).click();
     await record.getByLabel('Repetitions', { exact: true }).fill('2');

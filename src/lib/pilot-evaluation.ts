@@ -13,9 +13,17 @@ export type PilotResult = {
   holdErrorMs: number | null;
   physicalDevice?: boolean;
   setId?: string;
+  ruleVersion?: string;
 };
+export type ReleaseGate =
+  | 'overall-participants'
+  | 'coverage'
+  | 'accuracy'
+  | 'negatives'
+  | 'physical-device'
+  | 'rule-version';
 /** A passing replay is evidence, not permission to promote a profile or deploy. */
-export function pilotReleaseGates(results: PilotResult[]) {
+export function pilotReleaseGates(results: PilotResult[], ruleVersion?: string) {
   const overallParticipants = new Set(results.map((r) => r.participantId)).size;
   const groups = new Map<string, PilotResult[]>();
   for (const row of results) {
@@ -46,8 +54,23 @@ export function pilotReleaseGates(results: PilotResult[]) {
     const accuracy = holds.length
       ? holdsWithinOneSecond! >= 0.95
       : precision >= 0.99 && recall >= 0.97 && exactSets! >= 0.95;
+    // Evidence counts only for the rules that produced it: a group replayed under
+    // another rule version, or a mix of versions, says nothing about current counting.
+    const versions = new Set(rows.map((r) => r.ruleVersion ?? 'unknown'));
+    const currentRules =
+      ruleVersion === undefined || (versions.size === 1 && versions.has(ruleVersion));
+    const failedGates: ReleaseGate[] = [];
+    if (overallParticipants < 20) failedGates.push('overall-participants');
+    if (!coverage) failedGates.push('coverage');
+    if (!accuracy) failedGates.push('accuracy');
+    if (negatives < 30) failedGates.push('negatives');
+    if (!rows.some((r) => r.physicalDevice)) failedGates.push('physical-device');
+    if (!currentRules) failedGates.push('rule-version');
     return {
       group,
+      exercise: rows[0].exercise,
+      ruleVersions: [...versions],
+      failedGates,
       participants,
       repetitions,
       sets,
@@ -57,12 +80,7 @@ export function pilotReleaseGates(results: PilotResult[]) {
       exactSets,
       holdsWithinOneSecond,
       physicalEvidence: rows.some((r) => r.physicalDevice),
-      releaseReady:
-        overallParticipants >= 20 &&
-        coverage &&
-        accuracy &&
-        negatives >= 30 &&
-        rows.some((r) => r.physicalDevice),
+      releaseReady: failedGates.length === 0,
     };
   });
 }

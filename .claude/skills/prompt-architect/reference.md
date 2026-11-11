@@ -32,7 +32,7 @@ and `<constraints>`. Every line is phrased as an action to take. Sources:
 <constraint>Leave borrowed LiveKit tracks running when layout or tracking mode changes.</constraint>
 <constraint>Keep the analyzer video/canvas DOM nodes and the active stream stable across layout changes.</constraint>
 <constraint>Derive counts only from observed frames; keep automatic counts monotonic and corrections append-only.</constraint>
-<constraint>Keep automatic support limited to the 12 beta profiles; offer manual or timed for the rest.</constraint>
+<constraint>Keep automatic support limited to the 25 beta profiles in exercise-profiles.ts; offer manual or timed for the rest.</constraint>
 <constraint>Describe synthetic test results as pipeline evidence, and list real-device checks as still required.</constraint>
 ```
 

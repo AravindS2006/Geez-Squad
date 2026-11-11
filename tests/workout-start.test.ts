@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Analysis } from '../src/lib/pose-engine';
+import { startPhase, type Analysis } from '../src/lib/pose-engine';
 import type { ExerciseId } from '../src/lib/types';
 import { exerciseIds, getExerciseProfile, isHoldExercise } from '../src/lib/exercise-profiles';
 import { defaultWorkoutConfig } from '../src/lib/workout-config';
@@ -16,13 +16,14 @@ function readyPose(exercise: ExerciseId, change: Partial<Analysis> = {}): Analys
     holdSeconds: 0,
     score: 100,
     confidence: 0.95,
-    phase: isHoldExercise(exercise)
-      ? 'holding'
-      : exercise === 'curl'
-        ? 'arm extended'
-        : 'start position',
+    phase: isHoldExercise(exercise) ? 'holding' : startPhase(getExerciseProfile(exercise)),
     cue: 'Ready',
-    angle: getExerciseProfile(exercise).direction === 'increase' ? 0 : 180,
+    // Band holds (wall sit) count only inside their knee-angle band; 180 is standing.
+    angle: getExerciseProfile(exercise).holdBand
+      ? 90
+      : getExerciseProfile(exercise).direction === 'increase'
+        ? 0
+        : 180,
     tracked: true,
     ruleVersion: 'profile-v3',
     ...change,
@@ -134,6 +135,11 @@ describe('hands-free set start', () => {
         config,
       ),
     ).toBe(true);
+  });
+
+  it('does not start a wall sit from standing', () => {
+    const config = defaultWorkoutConfig('wallsit');
+    expect(canStartWorkout(readyPose('wallsit', { angle: 170 }), 'wallsit', config)).toBe(false);
   });
 
   it.each([

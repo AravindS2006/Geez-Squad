@@ -34,8 +34,10 @@ exercise geometry → per-limb states → rep events → technique feedback → 
   total. Do not assume the total increments by exactly 1.
 - **Records**: automatic counts are monotonic. Corrections are append-only and keep the
   original measurement, the author and the reason.
-- **Capability**: only the 12 original profiles are automatic (beta). Everything else is
-  manual or timed. Custom exercises never gain automatic support by copying thresholds.
+- **Capability**: the 25 profiles in `exercise-profiles.ts` (12 original + 13 added) are
+  automatic beta. Everything else is manual or timed. No profile is labeled validated
+  without passing release gates. Custom exercises never gain automatic support by copying
+  thresholds.
 - **Runtime selection**: desktop tries Heavy first. iPhone and iPad start on Full via
   `pose-browser.ts`. GPU→CPU and Full/Lite fallbacks stay bounded.
 

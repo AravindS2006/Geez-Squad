@@ -186,6 +186,8 @@ export function CameraAnalyzer({
   const [modelVariant, setModelVariant] = useState(initialPoseModel);
   const modelVariantRef = useRef(modelVariant);
   modelVariantRef.current = modelVariant;
+  // The model the running worker reported. The selection above changes before a relaunch.
+  const loadedModel = useRef<string | undefined>(undefined);
   const [modelInfo, setModelInfo] = useState({
     variant: 'full',
     delegate: '',
@@ -997,6 +999,7 @@ export function CameraAnalyzer({
             if (data.delegate === 'CPU') recoverOnCPU.current = null;
             setStatus('ready');
             frameStats.current = { frames: 0, since: performance.now() };
+            loadedModel.current = data.variant ?? modelVariantRef.current;
             setModelInfo({
               variant: data.variant ?? modelVariantRef.current,
               delegate: data.delegate ?? '',
@@ -1163,6 +1166,7 @@ export function CameraAnalyzer({
               pausedRef.current,
               configRef.current,
               stable.worldPoses,
+              loadedModel.current,
             );
             if (observation.rejected) {
               result.phase = 'reacquiring body tracking';

@@ -80,6 +80,7 @@ export function replayPoseReport(report: { frames: DiagnosticFrame[] }) {
       false,
       frame.config,
       stable.worldPoses,
+      frame.model,
     );
     if (active) events.push(...(result.repEvents ?? []));
     frames.push({

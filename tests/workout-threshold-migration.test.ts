@@ -31,6 +31,13 @@ describe('saved threshold migration', () => {
     expect(migrateSavedThresholds('curl', { topAngle: 130 }).reset).toBe(false);
     expect(migrateSavedThresholds('pushup', null)).toEqual({ config: {}, reset: false });
   });
+  it('keeps a saved default curl range, so the Full and Lite model offsets still apply to it', () => {
+    expect(THRESHOLD_GENERATION).toBe(9);
+    const saved = { ...defaultWorkoutConfig('curl'), thresholdGeneration: 8 };
+    const result = migrateSavedThresholds('curl', saved);
+    expect(result.reset).toBe(false);
+    expect(result.config).toMatchObject({ topAngle: 145, bottomAngle: 85 });
+  });
   it('never resets a range saved under the current generation, so the reset happens once', () => {
     const tuned = normalizeWorkoutConfig('pushup', { topAngle: 130 });
     const stamped = stampWorkoutConfig(tuned);

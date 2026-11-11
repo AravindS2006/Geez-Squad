@@ -289,7 +289,7 @@ for (const condition of [
         const report = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         expect(report.frameCount).toBeGreaterThan(30);
         expect(report.frameCount).toBeLessThanOrEqual(600);
-        expect(report.ruleVersion).toBe('profile-v10');
+        expect(report.ruleVersion).toBe('profile-v11');
         expect(
           report.frames.some(
             (frame: { continuity: string }) => frame.continuity === 'landmark-identity',

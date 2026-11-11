@@ -197,7 +197,7 @@ for (const condition of [
         await page.getByRole('checkbox', { name: 'Record tracking report locally' }).check();
       await page.getByRole('button', { name: 'Close dialog' }).click();
       await expect(page.getByRole('button', { name: 'Start set', exact: true })).toBeDisabled();
-      await page.getByLabel('Curl workout mode').selectOption('right');
+      await page.getByLabel('Automatic workout mode').selectOption('right');
       await page.getByRole('button', { name: 'Enable camera' }).click();
       await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
       const reps = page.getByTestId('cumulative-reps');

@@ -26,7 +26,7 @@ for (const variant of ['heavy', 'full', 'lite']) {
       await page.goto('http://localhost:3000/demo?view=practice');
       await page.getByLabel('Exercise to practice').selectOption(annotation.exercise);
       if (annotation.exercise === 'curl')
-        await page.getByLabel('Curl workout mode').selectOption(annotation.armMode);
+        await page.getByLabel('Automatic workout mode').selectOption(annotation.armMode);
       await page.getByRole('button', { name: 'Workout settings', exact: true }).click();
       await page.getByLabel('Reps per set').fill('120');
       await page.locator('details.tracking-settings > summary').click();

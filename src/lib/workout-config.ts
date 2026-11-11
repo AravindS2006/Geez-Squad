@@ -24,7 +24,10 @@ function onlyMode(exercise: ExerciseId): ArmMode | undefined {
 
 export function defaultWorkoutConfig(exercise: ExerciseId, block?: Block): WorkoutConfig {
   const profile = isAutomaticExercise(exercise) ? getExerciseProfile(exercise) : null;
-  const armMode = block?.armMode ?? onlyMode(exercise);
+  const armMode =
+    block?.armMode && exerciseDefinition(exercise).modes.includes(block.armMode)
+      ? block.armMode
+      : onlyMode(exercise);
   return {
     sets: block?.sets ?? 3,
     target:

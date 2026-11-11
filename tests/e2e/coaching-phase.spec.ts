@@ -175,12 +175,12 @@ test('bilateral curl UI ignores a single arm and persists per-arm measurements',
     await page
       .getByRole('checkbox', { name: 'Save workout history to my profile and share with my coach' })
       .check();
-    await page.getByLabel('Curl workout mode').selectOption('both');
+    await page.getByLabel('Automatic workout mode').selectOption('both');
     await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
     await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Start set', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Pause set', exact: true })).toBeVisible();
-    await expect(page.getByLabel('Curl workout mode')).toBeDisabled();
+    await expect(page.getByLabel('Automatic workout mode')).toBeDisabled();
     async function curl(both: boolean) {
       for (const angle of [170, 150, 120, 85, 45, 0, 30, 70, 100, 130, 160, 170]) {
         await page.evaluate(

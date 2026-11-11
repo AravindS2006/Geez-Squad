@@ -419,12 +419,12 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
           <label>
             Workout mode
             <select
-              aria-label="Manual curl mode"
+              aria-label="Manual workout mode"
               value={armMode ?? ''}
               disabled={phase !== 'setup' || !!props.block?.armMode}
               onChange={(e) => setArmMode(e.target.value as ArmMode)}
             >
-              <option value="">Choose how you will curl</option>
+              <option value="">Choose a workout mode</option>
               {props.definition.modes.map((id) => (
                 <option key={id} value={id}>
                   {limbModeLabel(props.exercise, id)}

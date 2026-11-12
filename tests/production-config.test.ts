@@ -15,6 +15,20 @@ const valid = {
   CRON_SECRET: 'b'.repeat(43),
 };
 describe('production deployment guard', () => {
+  it('treats ALERT_WEBHOOK_URL as optional but requires a public https URL when set', () => {
+    expect(validateProductionConfig(valid)).toEqual([]);
+    expect(
+      validateProductionConfig({
+        ...valid,
+        ALERT_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/test-only',
+      }),
+    ).toEqual([]);
+    for (const bad of ['http://hooks.example.test/x', 'https://localhost/x', 'not a url']) {
+      const result = validateProductionConfig({ ...valid, ALERT_WEBHOOK_URL: bad }).join(' ');
+      expect(result).toContain('ALERT_WEBHOOK_URL must be a public https webhook URL');
+      expect(result).not.toContain(bad);
+    }
+  });
   it('accepts a free Gmail sender with SMTP instead of requiring a sending domain', () => {
     expect(
       validateProductionConfig({

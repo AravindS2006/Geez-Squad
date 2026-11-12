@@ -4,14 +4,22 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { db, databaseProvider } from './db';
 import { sendMail } from './mail';
 import { getEmailPolicy } from './email-policy.mjs';
-import { logEvent } from './logger';
+import { errorContext, logEvent } from './logger';
 import { requestContext } from './request-log';
 import { allowedOrigins } from './origins';
 export const emailPolicy = getEmailPolicy(process.env);
 export const auth = betterAuth({
   logger: {
     level: 'debug',
-    log: (level) => logEvent(level, 'auth_event', requestContext.getStore()),
+    // Keep Better Auth's message (redacted by the logger) and any error it passes.
+    log: (level, message, ...args) => {
+      const error = args.find((arg) => arg instanceof Error);
+      logEvent(level, 'auth_event', {
+        ...requestContext.getStore(),
+        ...(error ? errorContext(error, { withDetail: true }) : {}),
+        detail: error ? `${message}: ${error.message}` : message,
+      });
+    },
   },
   appName: 'Geez Squad',
   baseURL: process.env.BETTER_AUTH_URL,

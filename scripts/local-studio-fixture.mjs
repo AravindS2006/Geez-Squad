@@ -1,6 +1,7 @@
+import { assertDisposableTestDatabase } from './disposable-database.mjs';
 /** Explicit local fixtures, never a public onboarding privilege bypass. */
 export async function provisionTestAdmin(db, identity, name = 'Local test studio') {
-  if (!process.env.DATABASE_URL?.startsWith('file:')) throw new Error('Local SQLite fixture only.');
+  assertDisposableTestDatabase('Local disposable fixture database only.');
   const user = await db.user.findFirstOrThrow({
     where: { OR: [{ id: identity }, { email: identity }] },
   });

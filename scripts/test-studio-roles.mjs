@@ -1,3 +1,4 @@
+import { assertDisposableTestDatabase } from './disposable-database.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
@@ -6,7 +7,7 @@ import { reconcileStudioRoles } from './backfill-studio-roles.mjs';
 process.loadEnvFile('.env');
 const origin = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
 assert(['localhost', '127.0.0.1'].includes(new URL(origin).hostname));
-assert(process.env.DATABASE_URL?.startsWith('file:'), 'Disposable local fixtures only.');
+assertDisposableTestDatabase('Disposable local fixtures only.');
 const db = new PrismaClient(),
   key = randomUUID(),
   users = [],

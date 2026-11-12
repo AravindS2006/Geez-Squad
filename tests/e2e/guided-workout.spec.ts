@@ -1,6 +1,6 @@
 import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
-import { chromium, expect, test, type Page } from '@playwright/test';
+import { chromium, expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';

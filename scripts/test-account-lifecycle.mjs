@@ -1,3 +1,4 @@
+import { isDisposableTestDatabase } from './disposable-database.mjs';
 import { PrismaClient } from '@prisma/client';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -5,10 +6,7 @@ import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import { grantLocalTestTerm } from './test-member-fixture.mjs';
 process.loadEnvFile('.env');
 const base = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
-if (
-  !process.env.DATABASE_URL?.startsWith('file:') ||
-  !['localhost', '127.0.0.1'].includes(new URL(base).hostname)
-)
+if (!isDisposableTestDatabase() || !['localhost', '127.0.0.1'].includes(new URL(base).hostname))
   throw new Error('Local disposable database/server required.');
 const db = new PrismaClient(),
   ids = [],

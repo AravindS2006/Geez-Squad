@@ -5,6 +5,7 @@ import type { ExerciseId } from './types';
 import {
   getExerciseProfile,
   isHoldAngle,
+  modelEndpoints,
   usesImageGeometry,
   type ExerciseProfile,
 } from './exercise-profiles';
@@ -19,7 +20,7 @@ import {
   type RepCoordinator,
 } from './rep-events';
 
-export const RULE_VERSION = 'profile-v10';
+export const RULE_VERSION = 'profile-v11';
 export type Landmark = { x: number; y: number; z?: number; visibility?: number; presence?: number };
 export type Analysis = {
   measurementSource?: 'automatic' | 'manual' | 'timer';
@@ -372,10 +373,16 @@ export function analyzePose(
   paused = false,
   settings: Partial<WorkoutConfig> = defaultWorkoutConfig(exercise),
   worldLandmarks?: Landmark[][],
+  /** The pose model that produced these landmarks ('heavy' | 'full' | 'lite'); missing means Heavy. */
+  model?: string,
 ): Analysis {
   if (!isAutomaticExercise(exercise))
     return unavailable(state, 'Automatic measurement is unavailable. Use manual tracking.');
   const config = normalizeWorkoutConfig(exercise, settings);
+  // Full and Lite read a narrower range for some joints. Only an untouched default range moves.
+  const endpoints = modelEndpoints(getExerciseProfile(exercise), config, model);
+  const moved =
+    endpoints.topAngle !== config.topAngle || endpoints.bottomAngle !== config.bottomAngle;
   // normalizeWorkoutConfig keeps armMode only for exercises that declare limb modes.
   if (config.armMode) {
     return analyzeArms(
@@ -386,7 +393,7 @@ export function analyzePose(
       width,
       height,
       paused,
-      config,
+      { ...config, ...endpoints },
       worldLandmarks,
     );
   }
@@ -398,7 +405,7 @@ export function analyzePose(
     width,
     height,
     paused,
-    settings,
+    moved ? { ...settings, ...endpoints } : settings,
     worldLandmarks,
   );
 }

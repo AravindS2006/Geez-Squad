@@ -5,7 +5,12 @@ import {
   type Landmark,
   type PoseState,
 } from '../src/lib/pose-engine';
-import { getExerciseProfile, type ProfileExerciseId } from '../src/lib/exercise-profiles';
+import {
+  getExerciseProfile,
+  modelEndpoints,
+  type ProfileExerciseId,
+} from '../src/lib/exercise-profiles';
+import type { WorkoutConfig } from '../src/lib/workout-config';
 
 const W = 640,
   H = 480;
@@ -740,4 +745,123 @@ describe('exercise-specific profiles', () => {
       expect(state.holdMs).toBe(2000);
     },
   );
+});
+
+// profile-v11: Full and Lite read the elbow 10-20 degrees short of Heavy at extension and
+// several degrees short at full flexion. The angle paths below copy the shallower arm of a
+// local replay of one internet clip on each model. They are synthetic engine inputs, not
+// accuracy evidence.
+describe('curl endpoints per pose model', () => {
+  // Hold the first angle, then move 5 degrees per 100 ms frame through each waypoint,
+  // holding every waypoint for `hold` frames.
+  function path(waypoints: number[], hold = 8): number[] {
+    const angles: number[] = [];
+    let current = waypoints[0];
+    for (const target of waypoints) {
+      while (Math.abs(target - current) > 5) {
+        current += Math.sign(target - current) * 5;
+        angles.push(current);
+      }
+      current = target;
+      for (let i = 0; i < hold; i++) angles.push(target);
+    }
+    return angles;
+  }
+  function run(
+    angles: number[],
+    model: string | undefined,
+    settings: Partial<WorkoutConfig> = {},
+    state = initialPoseState(),
+    start = 100,
+  ) {
+    const counts: number[] = [];
+    angles.forEach((angle, index) => {
+      analyzePose(
+        [curl(angle)],
+        'curl',
+        state,
+        start + index * 100,
+        W,
+        H,
+        false,
+        settings,
+        undefined,
+        model,
+      );
+      counts.push(state.reps);
+    });
+    return { state, counts, end: start + angles.length * 100 };
+  }
+  const full = path([136, 94, 143]);
+  const lite = path([143, 96, 146]);
+
+  it('narrows only the default range, by 10 at the top and 6 at the bottom, on Full and Lite', () => {
+    const profile = getExerciseProfile('curl');
+    const defaults = { topAngle: 145, bottomAngle: 85 };
+    const narrowed = { topAngle: 135, bottomAngle: 91 };
+    expect(modelEndpoints(profile, defaults, 'full')).toEqual(narrowed);
+    expect(modelEndpoints(profile, defaults, 'lite')).toEqual(narrowed);
+    expect(modelEndpoints(getExerciseProfile('hammercurl'), defaults, 'full')).toEqual(narrowed);
+    for (const model of ['heavy', undefined, 'unknown'])
+      expect(modelEndpoints(profile, defaults, model)).toEqual(defaults);
+    expect(
+      modelEndpoints(getExerciseProfile('row'), { topAngle: 145, bottomAngle: 90 }, 'full'),
+    ).toEqual({
+      topAngle: 145,
+      bottomAngle: 90,
+    });
+    expect(modelEndpoints(profile, { ...defaults, calibrationSource: '3d' }, 'full')).toEqual(
+      defaults,
+    );
+    for (const tuned of [
+      { topAngle: 150, bottomAngle: 85 },
+      { topAngle: 145, bottomAngle: 80 },
+    ])
+      expect(modelEndpoints(profile, tuned, 'full')).toEqual(tuned);
+  });
+  it.each([
+    ['full', full],
+    ['lite', lite],
+  ] as const)('counts the compressed %s curl once', (model, angles) => {
+    expect(run(angles, model).state.reps).toBe(1);
+    expect(run(angles, model, { armMode: 'both' }).state.reps).toBe(1);
+  });
+  it('keeps Heavy on the 145 and 85 degree endpoints', () => {
+    expect(run(full, 'heavy').state.reps).toBe(0);
+    expect(run(full, undefined).state.reps).toBe(0);
+    expect(run(path([150, 80, 155]), 'heavy').state.reps).toBe(1);
+    expect(run(path([150, 90, 130]), 'heavy').state.reps).toBe(0);
+    expect(run(path([150, 95, 155]), 'heavy').state.reps).toBe(0);
+  });
+  it('still rejects partial curls on Full', () => {
+    // Return below the 129-degree return threshold, or a bend that stops above 97 degrees.
+    expect(run(path([136, 88, 125]), 'full').state.reps).toBe(0);
+    expect(run(path([136, 100, 143]), 'full').state.reps).toBe(0);
+  });
+  it('never moves calibrated or hand-tuned endpoints', () => {
+    const calibrated = {
+      side: 'left',
+      calibrationSource: '2d',
+      topAngle: 145,
+      bottomAngle: 85,
+    } as const;
+    expect(run(full, 'full', calibrated).state.reps).toBe(0);
+    expect(run(full, 'full', { topAngle: 150 }).state.reps).toBe(0);
+    expect(run(full, 'full', { bottomAngle: 80 }).state.reps).toBe(0);
+  });
+  it('keeps the tally through a Heavy to Full switch and rearms on the Full endpoints', () => {
+    const heavy = run(path([150, 80, 155]), 'heavy');
+    expect(heavy.state.reps).toBe(1);
+    // camera-analyzer invalidateTracking: fresh readiness plus the retained tally.
+    const resumed = run(
+      full,
+      'full',
+      {},
+      { ...initialPoseState(), reps: heavy.state.reps },
+      heavy.end,
+    );
+    expect(resumed.state.reps).toBe(2);
+    const counts = [...heavy.counts, ...resumed.counts];
+    expect(counts.every((count, index) => index === 0 || count >= counts[index - 1])).toBe(true);
+  });
 });

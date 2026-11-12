@@ -129,7 +129,10 @@ movement toward the camera (curls, overhead triceps, high knees), the side plank
 3D calibration. `profile-v10` changed only two defaults: lateral raise start 20 to 28 degrees
 and shoulder press top 155 to 140 degrees (press minimum range 39 degrees). Saved configs that
 still hold the old values are moved to the new defaults silently (`SUPERSEDED_DEFAULTS` in
-`workout-config.ts`, stamped by `DEFAULTS_GENERATION`).
+`workout-config.ts`, stamped by `DEFAULTS_GENERATION`). `profile-v11` narrows the untouched
+default curl and hammer curl range from 145/85 to 135/91 on the Full and Lite models, which
+read a narrower elbow range than Heavy (`modelEndpoints` in `exercise-profiles.ts`; `analyzePose`
+takes the loaded model). Calibrated or hand-tuned ranges and Heavy are unchanged.
 
 Use `pose-diagnostics.ts` and `pose-replay.ts` for opt-in local evidence. No camera
 frames, landmark traces or research recordings are automatically uploaded.

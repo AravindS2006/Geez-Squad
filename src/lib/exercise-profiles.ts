@@ -61,6 +61,12 @@ export type ExerciseProfile = {
   imagePlane?: boolean;
   /** Reject a rep when form was invalid on two adjacent frames anywhere in the cycle, not only at its end. */
   strictCycleForm?: boolean;
+  /**
+   * Degrees added to the default endpoints on the Full and Lite pose models, which read a
+   * narrower elbow range than Heavy: a negative top and a positive bottom offset narrow the
+   * range to match. Never applied to calibrated or hand-tuned endpoints.
+   */
+  modelEndpointOffset?: Partial<Record<'full' | 'lite', { top: number; bottom: number }>>;
 };
 
 const profile = (
@@ -127,6 +133,7 @@ export const exerciseProfiles = {
     isHold: false,
     topAngle: 145,
     bottomAngle: 85,
+    modelEndpointOffset: { full: { top: -10, bottom: 6 }, lite: { top: -10, bottom: 6 } },
     minimumRom: 45,
     minRepMs: 450,
     startCue: 'Stand tall with your working arm comfortably extended.',
@@ -321,6 +328,7 @@ export const exerciseProfiles = {
     isHold: false,
     topAngle: 145,
     bottomAngle: 85,
+    modelEndpointOffset: { full: { top: -10, bottom: 6 }, lite: { top: -10, bottom: 6 } },
     minimumRom: 45,
     minRepMs: 450,
     startCue: 'Stand tall with palms facing your body and the working arm extended.',
@@ -601,6 +609,30 @@ export const exerciseIds = Object.keys(exerciseProfiles) as [
 /** Whether the profile measures in the image plane rather than with depth landmarks. */
 export function usesImageGeometry(profile: ExerciseProfile): boolean {
   return profile.imagePlane ?? (profile.view !== 'either' && !profile.require3d);
+}
+/**
+ * The endpoints the engine compares with on this pose model. Only the untouched profile
+ * default range moves: a calibrated range or any hand-tuned endpoint belongs to the trainee
+ * or coach and is returned unchanged. An unknown or missing model is treated as Heavy. Keeps
+ * the normalized limits (top at least 110 degrees for non-shoulder signals and a 25-degree gap).
+ */
+export function modelEndpoints(
+  profile: ExerciseProfile,
+  config: { topAngle: number; bottomAngle: number; calibrationSource?: '2d' | '3d' },
+  model?: string,
+): { topAngle: number; bottomAngle: number } {
+  const { topAngle, bottomAngle } = config;
+  const offset =
+    model === 'full' || model === 'lite' ? profile.modelEndpointOffset?.[model] : undefined;
+  if (
+    !offset ||
+    config.calibrationSource ||
+    topAngle !== profile.topAngle ||
+    bottomAngle !== profile.bottomAngle
+  )
+    return { topAngle, bottomAngle };
+  const top = Math.max(profile.signal === 'shoulder' ? 50 : 110, topAngle + offset.top);
+  return { topAngle: top, bottomAngle: Math.min(top - 25, bottomAngle + offset.bottom) };
 }
 export function getExerciseProfile(exercise: string): ExerciseProfile {
   const result = (exerciseProfiles as Record<string, ExerciseProfile>)[exercise];

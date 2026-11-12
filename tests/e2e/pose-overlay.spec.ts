@@ -22,7 +22,7 @@ test('a cropped joint preserves visible body points, gives framing instructions,
       .toBe(20);
     await expect(page.getByTestId('cumulative-reps')).toHaveText('00');
     await page.getByRole('button', { name: 'Start set', exact: true }).click();
-    await expect(page.locator('.analyzer-cue')).toContainText('farther back');
+    await expect(page.locator('.analyzer-cue')).toContainText('lighting');
     await expect(page.getByLabel('Set start countdown')).toBeHidden();
     await expect(page.getByRole('button', { name: 'Pause set', exact: true })).toBeHidden();
     await changePose(page, { poseAngle: 95 });

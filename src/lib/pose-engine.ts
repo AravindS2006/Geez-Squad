@@ -1,5 +1,6 @@
 import { jointAngle, type Point } from './pose-geometry';
 import { analyzePoseForm } from './pose-form';
+import { occlusionCue } from './pose-cues';
 export { jointAngle } from './pose-geometry';
 import type { ExerciseId } from './types';
 import {
@@ -232,17 +233,6 @@ function suspend(
   if (!state.lastTimestamp || timestamp - state.lastTimestamp > graceMs) resetCycle(state, true);
   return unavailable(state, cue, confidence);
 }
-
-const jointNames: Record<number, string> = {
-  11: 'shoulder',
-  13: 'elbow',
-  15: 'wrist',
-  23: 'hip',
-  25: 'knee',
-  27: 'ankle',
-  29: 'heel',
-  31: 'foot',
-};
 
 function confidenceOf(point: Landmark | undefined): number {
   if (
@@ -561,17 +551,10 @@ function analyzeSinglePose(
   // Layer 2: an occluded limb stays selected during a cycle. The other limb is
   // never spliced into its movement just because its confidence becomes higher.
   if (confidence < 0.65) {
-    const hidden = profile.joints
-      .filter(
-        (index) =>
-          confidenceOf(pose[index + side]) < 0.65 ||
-          (profile.bilateral && confidenceOf(pose[index + 1 - side]) < 0.65),
-      )
-      .map((index) => jointNames[index] ?? 'body joint');
     return suspend(
       state,
       timestamp,
-      `${side === 0 ? 'Left' : 'Right'} ${hidden.join(', ')} hidden. Turn slightly, improve lighting, or move farther back until the required joints fit.`,
+      occlusionCue(pose, profile.joints, profile.bilateral === true, side),
       profile.occlusionGraceMs,
       confidence,
     );

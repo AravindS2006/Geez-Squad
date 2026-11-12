@@ -15,6 +15,7 @@ docs/screenshots/
 public/models/
 public/vision/
 public/wasm/
+public/pose-assets/
 prisma/postgres/schema.prisma
 .agents/
 skills-lock.json

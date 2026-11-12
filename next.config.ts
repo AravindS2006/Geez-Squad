@@ -22,6 +22,12 @@ const config: NextConfig = {
         ],
       },
       {
+        // Content-addressed pose assets (vision bundle, WASM, models): the version segment
+        // changes whenever MediaPipe or a pinned model changes (scripts/pose-assets.mjs).
+        source: '/pose-assets/:version/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },

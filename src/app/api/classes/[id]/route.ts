@@ -1,7 +1,8 @@
 import { classPermissions } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
 import { participation, reconcileClassParticipants } from '@/lib/member-access';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
+import { recordClassPresence } from '@/lib/class-completion';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, safeError } from '@/lib/security';
 import { measurementData } from '@/lib/measurement-contract';
@@ -23,6 +24,9 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
     if (!item) throw new ApiError(404, 'This session is not available.');
     const permissions = await classPermissions(item, user.id);
     const coach = permissions.canManage;
+    // Lifecycle bookkeeping after the response: throttled coach presence, or
+    // completion of a class its coach abandoned (src/lib/class-completion.ts).
+    after(() => recordClassPresence(item, coach));
     // Every participant polls this route every few seconds. These reads are
     // independent, so they run concurrently instead of as sequential round trips.
     // Authorization still completes (above) before any of them is returned.

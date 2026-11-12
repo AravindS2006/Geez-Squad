@@ -5,7 +5,13 @@ const fx = vi.hoisted(() => ({
   participation: vi.fn(),
   reconcile: vi.fn(),
   findClass: vi.fn(),
+  presence: vi.fn(),
 }));
+vi.mock('next/server', async (load) => ({
+  ...(await load<typeof import('next/server')>()),
+  after: (task: () => unknown) => void task(),
+}));
+vi.mock('@/lib/class-completion', () => ({ recordClassPresence: fx.presence }));
 vi.mock('@/lib/security', async () => {
   const { TestApiError, testSafeError } = await import('./route-mocks');
   return {
@@ -63,4 +69,11 @@ it('revokes HTTP access on the next poll even when the sweep is throttled', asyn
   fx.participation.mockResolvedValue({ allowed: false, reason: 'Membership expired.' });
   const body = await (await poll()).json();
   expect(body.participationAllowed).toBe(false);
+});
+it('hands the class and the caller role to the lifecycle hook after authorization', async () => {
+  expect((await poll()).status).toBe(200);
+  expect(fx.presence).toHaveBeenCalledWith(expect.objectContaining({ id: 'class' }), false);
+  fx.permissions.mockResolvedValue({ canManage: true, hostId: 'coach' });
+  expect((await poll()).status).toBe(200);
+  expect(fx.presence).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'class' }), true);
 });

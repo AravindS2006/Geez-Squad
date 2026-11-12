@@ -330,6 +330,7 @@ model ClassSession {
   paused Boolean @default(false)
   startedAt DateTime?
   endedAt DateTime?
+  hostLastSeenAt DateTime?
   createdAt DateTime @default(now())
   studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
   plan WorkoutPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)

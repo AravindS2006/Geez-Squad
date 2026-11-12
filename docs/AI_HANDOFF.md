@@ -133,6 +133,8 @@ still hold the old values are moved to the new defaults silently (`SUPERSEDED_DE
 default curl and hammer curl range from 145/85 to 135/91 on the Full and Lite models, which
 read a narrower elbow range than Heavy (`modelEndpoints` in `exercise-profiles.ts`; `analyzePose`
 takes the loaded model). Calibrated or hand-tuned ranges and Heavy are unchanged.
+`tests/pose-regression.test.ts` replays synthetic per-model angle traces through `replayPoseReport`
+to pin the v10/v11 counts; it is synthetic, not accuracy or release evidence.
 
 Use `pose-diagnostics.ts` and `pose-replay.ts` for opt-in local evidence. No camera
 frames, landmark traces or research recordings are automatically uploaded.

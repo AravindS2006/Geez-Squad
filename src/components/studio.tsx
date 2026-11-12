@@ -28,6 +28,8 @@ import {
   Dumbbell,
   PhoneOff,
   CircleStop,
+  Pin,
+  RefreshCw,
 } from 'lucide-react';
 import type { Room, Participant, Track } from 'livekit-client';
 import type { Analysis } from '@/lib/pose-engine';
@@ -39,6 +41,9 @@ import { isHoldExercise } from '@/lib/exercise-profiles';
 import { exerciseDefinition, type ExerciseDefinition } from '@/lib/exercise-library';
 import { coachingFeatures, type CoachingFeatures } from '@/lib/coaching-features';
 import { reportCoachingHealth } from '@/lib/coaching-health';
+import { disconnectPolicy, rejoinDelayMs } from '@/lib/room-disconnect';
+import { summaryChanged, summaryDue } from '@/lib/summary-sharing';
+import { cueHideDelay } from '@/lib/live-room-a11y';
 import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
@@ -90,13 +95,9 @@ type CoachVideoLayout = {
 const coachVideoPreferenceKey = 'geez-squad:coach-video-layout:v1';
 /** Phones keep the coach floating so the trainee's own camera stays the main view. */
 const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
-/** A coach cue stays readable for this long, then gives the screen back (chat keeps it). */
-const CUE_VISIBLE_MS = 20000;
 const COACH_CONTROLS_MS = 4000;
 /** Polling interval while the tab is hidden (analysis is already stopped there). */
 const HIDDEN_POLL_MS = 15000;
-/** Unchanged live summaries are re-sent this often; coach freshness is 12 s. */
-const METRIC_HEARTBEAT_MS = 9000;
 export function Studio({
   initialClass,
   user,
@@ -183,6 +184,22 @@ export function Studio({
     position: 'top-right',
   });
   const [dismissedCueId, setDismissedCueId] = useState<string | null>(null);
+  // Each hold names the cue it applies to, so a new cue starts with a fresh timer.
+  const [keptCueId, setKeptCueId] = useState<string | null>(null);
+  const [hoveredCueId, setHoveredCueId] = useState<string | null>(null);
+  const [focusedCueId, setFocusedCueId] = useState<string | null>(null);
+  // True once the server records consent on join; summaries depend on it, not on video,
+  // so they keep flowing through a network drop or a failed join. It is cleared when
+  // this tab stops being the trainee's place in class (left, moved to another tab or
+  // device, removed, ended or access lost) so two tabs never both send summaries.
+  const [sharingSummaries, setSharingSummaries] = useState(false);
+  const [disconnectNotice, setDisconnectNotice] = useState<{
+    message: string;
+    offerRejoin: boolean;
+    automatic: boolean;
+  } | null>(null);
+  const rejoinAttempt = useRef(0);
+  const cancelRejoin = useRef<(() => void) | null>(null);
   const [cameraHeight, setCameraHeight] = useState(0);
   const [cameraTop, setCameraTop] = useState(0);
   const onCameraBounds = useCallback((height: number, top: number) => {
@@ -289,6 +306,7 @@ export function Studio({
     return () => {
       mounted.current = false;
       joinGeneration.current++;
+      cancelRejoin.current?.();
       void room.current?.disconnect();
       room.current = null;
     };
@@ -313,6 +331,7 @@ export function Studio({
         setParticipationReason(state.participationAllowed ? '' : state.participationReason);
         if (!state.participationAllowed) {
           joinGeneration.current++;
+          setSharingSummaries(false);
           setShowConsent(false);
           void room.current?.disconnect();
         }
@@ -333,6 +352,7 @@ export function Studio({
             (err.status === 403 || err.status === 404)
           ) {
             joinGeneration.current++;
+            setSharingSummaries(false);
             void room.current?.disconnect();
             setConnected(false);
             setShowConsent(false);
@@ -383,20 +403,26 @@ export function Studio({
     if (demo || coach) return;
     const timer = setInterval(async () => {
       const snapshot = latestAnalysis.current,
-        c = current.current;
+        c = current.current,
+        now = Date.now();
+      // Video is not required: local counting keeps feeding the coach over HTTP
+      // while the room is reconnecting, dropped or unavailable.
       if (
         !snapshot ||
         !c ||
-        c.status !== 'live' ||
-        c.paused ||
-        !connected ||
-        !consent ||
-        metricBusy.current ||
-        Date.now() - lastShared.current < 2800
+        !summaryDue({
+          consentRecorded: sharingSummaries,
+          classLive: c.status === 'live',
+          classPaused: c.paused,
+          hasSnapshot: true,
+          requestInFlight: metricBusy.current,
+          now,
+          lastSentAt: lastShared.current,
+        })
       )
         return;
       const a =
-        Date.now() - snapshot.at < 2000
+        now - snapshot.at < 2000
           ? snapshot.value
           : {
               ...snapshot.value,
@@ -405,7 +431,8 @@ export function Studio({
               phase: 'tracking unavailable',
               cue: 'Camera analysis is unavailable. Re-enable your camera.',
             };
-      if (Date.now() - snapshot.at >= 2000) reportCoachingHealth('stale_summary', consent && !demo);
+      if (now - snapshot.at >= 2000)
+        reportCoachingHealth('stale_summary', !demo, { classId: c.id });
       const summary = {
         classId: c.id,
         exercise: c.exercise,
@@ -432,10 +459,9 @@ export function Studio({
       const body = JSON.stringify(summary);
       // An unchanged summary is only re-sent as a heartbeat, often enough that the
       // coach view (12 s freshness window) keeps showing the trainee as live.
-      if (body === lastSharedBody.current && Date.now() - lastShared.current < METRIC_HEARTBEAT_MS)
-        return;
+      if (!summaryChanged(body, lastSharedBody.current, now, lastShared.current)) return;
       metricBusy.current = true;
-      lastShared.current = Date.now();
+      lastShared.current = now;
       try {
         await fetchJson('/api/metrics', {
           method: 'POST',
@@ -453,7 +479,7 @@ export function Studio({
       }
     }, 3000);
     return () => clearInterval(timer);
-  }, [demo, coach, connected, consent]);
+  }, [demo, coach, sharingSummaries]);
   async function control(control: string, exercise?: string, blockId?: string) {
     if (!item || controlPending.current) return;
     controlPending.current = true;
@@ -498,8 +524,47 @@ export function Studio({
       setBusy(false);
     }
   }
-  async function connect() {
+  /** Rejoin after a transient network loss, with bounded backoff and never while offline. */
+  function scheduleRejoin(generation: number) {
+    cancelRejoin.current?.();
+    cancelRejoin.current = null;
+    const delay = rejoinDelayMs(rejoinAttempt.current);
+    if (delay === null) {
+      setDisconnectNotice({
+        message: 'Video could not reconnect on its own. Rejoin when your connection is steady.',
+        offerRejoin: true,
+        automatic: false,
+      });
+      return;
+    }
+    const attempt = () => {
+      cancelRejoin.current = null;
+      if (
+        !mounted.current ||
+        joinGeneration.current !== generation ||
+        room.current ||
+        current.current?.status !== 'live'
+      )
+        return;
+      if (navigator.onLine === false) {
+        window.addEventListener('online', attempt, { once: true });
+        cancelRejoin.current = () => window.removeEventListener('online', attempt);
+        return;
+      }
+      rejoinAttempt.current++;
+      void connectRef.current({ automatic: true });
+    };
+    const timer = window.setTimeout(attempt, delay);
+    cancelRejoin.current = () => window.clearTimeout(timer);
+  }
+  function rejoin() {
+    rejoinAttempt.current = 0;
+    void connect();
+  }
+  async function connect({ automatic = false }: { automatic?: boolean } = {}) {
     if (!item || demo) return;
+    cancelRejoin.current?.();
+    cancelRejoin.current = null;
     setShowConsent(false);
     setConnecting(true);
     setError('');
@@ -507,6 +572,7 @@ export function Studio({
     try {
       await apiCommand({ action: 'consent', id: item.id, consent: true });
       setConsent(true);
+      setSharingSummaries(true);
       const credentials = await fetchJson<{ token: string; url: string }>('/api/video/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -611,8 +677,10 @@ export function Studio({
       instance.on(RoomEvent.ConnectionStateChanged, (s) => {
         if (mounted.current && room.current === instance) setConnectionState(s);
       });
-      instance.on(RoomEvent.Disconnected, () => {
+      instance.on(RoomEvent.Disconnected, (reason) => {
         if (mounted.current && room.current === instance) {
+          const policy = disconnectPolicy(reason);
+          const generation = joinGeneration.current;
           setConnected(false);
           setStream(null);
           setCamera(false);
@@ -623,6 +691,19 @@ export function Studio({
           setPresenting(false);
           setConnectionState('Not connected');
           room.current = null;
+          setDisconnectNotice(
+            policy.message
+              ? {
+                  message: policy.message,
+                  offerRejoin: policy.offerRejoin,
+                  automatic: policy.autoRejoin,
+                }
+              : null,
+          );
+          // Only a network loss keeps this tab sharing summaries (local counting goes on);
+          // after leaving, a second tab or device, removal or the class ending it stops.
+          if (policy.kind !== 'network') setSharingSummaries(false);
+          if (policy.autoRejoin) scheduleRejoin(generation);
         }
       });
       await instance.connect(credentials.url, credentials.token, { autoSubscribe: false });
@@ -631,6 +712,8 @@ export function Studio({
         return;
       }
       setConnected(true);
+      rejoinAttempt.current = 0;
+      setDisconnectNotice(null);
       try {
         await instance.startAudio();
       } catch {
@@ -653,18 +736,28 @@ export function Studio({
       update();
     } catch (err) {
       if (mounted.current && joinGeneration.current === run) {
-        setError(
-          err instanceof Error ? err.message : 'Could not join video. Check permissions and retry.',
-        );
+        reportCoachingHealth('media_join_failed', true, { classId: item.id });
+        const message =
+          err instanceof Error ? err.message : 'Could not join video. Check permissions and retry.';
         if (room.current?.state !== 'connected') {
           await room.current?.disconnect();
           room.current = null;
         }
+        if (automatic) {
+          setDisconnectNotice({
+            message: `Video connection lost. ${message}`,
+            offerRejoin: true,
+            automatic: true,
+          });
+          scheduleRejoin(run);
+        } else setError(message);
       }
     } finally {
       if (mounted.current) setConnecting(false);
     }
   }
+  const connectRef = useRef(connect);
+  connectRef.current = connect;
   async function toggleCamera() {
     if (!room.current || deviceBusy) return;
     setDeviceBusy(true);
@@ -829,11 +922,18 @@ export function Studio({
   const latestCueId = [...messages]
     .reverse()
     .find((m) => m.kind === 'cue' && (!m.recipientId || m.recipientId === user.id))?.id;
+  const cueDelay = latestCueId
+    ? cueHideDelay({
+        kept: keptCueId === latestCueId,
+        hovered: hoveredCueId === latestCueId,
+        focused: focusedCueId === latestCueId,
+      })
+    : null;
   useEffect(() => {
-    if (!latestCueId) return;
-    const timer = window.setTimeout(() => setDismissedCueId(latestCueId), CUE_VISIBLE_MS);
+    if (!latestCueId || cueDelay === null) return;
+    const timer = window.setTimeout(() => setDismissedCueId(latestCueId), cueDelay);
     return () => window.clearTimeout(timer);
-  }, [latestCueId]);
+  }, [latestCueId, cueDelay]);
   // On a phone the floating coach tile hides its controls until it is tapped.
   const [coachControls, setCoachControls] = useState(false);
   useEffect(() => {
@@ -1119,6 +1219,24 @@ export function Studio({
           </button>
         </p>
       )}
+      {!connected && !ended && disconnectNotice && (
+        <p className="inline-notice meeting-notice meeting-disconnect-notice" role="status">
+          <span>
+            {disconnectNotice.message}
+            {disconnectNotice.automatic && !connecting ? ' Reconnecting automatically…' : ''}
+          </span>
+          {disconnectNotice.offerRejoin && (
+            <button
+              className="meeting-rejoin"
+              disabled={connecting || Boolean(participationReason) || item.status !== 'live'}
+              onClick={rejoin}
+            >
+              <RefreshCw size={15} aria-hidden="true" />
+              {connecting ? 'Rejoining…' : 'Rejoin video'}
+            </button>
+          )}
+        </p>
+      )}
       {connected && connectionState !== 'connected' && (
         <p className="inline-notice meeting-notice" role="status">
           Reconnecting… wait for video and tracking to recover.
@@ -1208,7 +1326,11 @@ export function Studio({
                           ? item.workout?.find((b) => b.exercise === item.exercise)
                           : undefined
                     }
-                    sessionCamera={!demo && services.video}
+                    // After consent, a dropped or failed room lets the trainee track with a
+                    // local camera; the room's camera replaces it once video rejoins.
+                    sessionCamera={
+                      !demo && services.video && (connected || connecting || !sharingSummaries)
+                    }
                     onEnableCamera={
                       item.status === 'live'
                         ? connected
@@ -1216,7 +1338,7 @@ export function Studio({
                           : () => setShowConsent(true)
                         : undefined
                     }
-                    onAnalysis={connected ? onAnalysis : undefined}
+                    onAnalysis={sharingSummaries ? onAnalysis : undefined}
                     initialReps={me?.metric?.revision === item.revision ? me.metric.reps : 0}
                     initialHoldSeconds={
                       me?.metric?.revision === item.revision ? me.metric.holdSeconds : 0
@@ -1332,9 +1454,32 @@ export function Studio({
             )}
           </div>
           {!coach && visibleCue && (
-            <div className="human-cue meeting-human-cue" role="status">
+            <div
+              className="human-cue meeting-human-cue"
+              role="status"
+              onPointerEnter={() => setHoveredCueId(visibleCue.id)}
+              onPointerLeave={() => setHoveredCueId(null)}
+              onFocus={() => setFocusedCueId(visibleCue.id)}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                  setFocusedCueId(null);
+              }}
+            >
               <strong>{item.coachName}</strong>
               <p>{visibleCue.text}</p>
+              <button
+                className="meeting-cue-keep"
+                aria-pressed={keptCueId === visibleCue.id}
+                aria-label="Keep coach message on screen"
+                title={
+                  keptCueId === visibleCue.id
+                    ? 'Kept until you dismiss it'
+                    : 'Keep on screen (otherwise it hides after 20 seconds)'
+                }
+                onClick={() => setKeptCueId(keptCueId === visibleCue.id ? null : visibleCue.id)}
+              >
+                <Pin size={16} />
+              </button>
               <button
                 className="meeting-cue-dismiss"
                 aria-label="Dismiss coach message"
@@ -1456,6 +1601,9 @@ export function Studio({
                   title="Leave the video call. The class keeps running for everyone else."
                   onClick={async () => {
                     joinGeneration.current++;
+                    cancelRejoin.current?.();
+                    setDisconnectNotice(null);
+                    setSharingSummaries(false);
                     await room.current?.disconnect();
                     setConnected(false);
                     setStream(null);

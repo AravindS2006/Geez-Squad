@@ -34,7 +34,12 @@ import {
   pauseTrainingMetrics,
   trainingMetricsSummary,
 } from '@/lib/training-metrics';
-import { saveWorkoutSet, retryWorkoutSets, pendingWorkoutSets } from '@/lib/workout-save';
+import {
+  saveWorkoutSet,
+  retryWorkoutSets,
+  pendingWorkoutSets,
+  shouldAutoRetry,
+} from '@/lib/workout-save';
 import {
   analyzePose,
   initialPoseState,
@@ -238,6 +243,7 @@ export function CameraAnalyzer({
   const [saveMessage, setSaveMessage] = useState('');
   const [saveFailed, setSaveFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const soundContext = useRef<AudioContext | null>(null);
   const lastVideoTime = useRef(-1);
   const lastCaptureAt = useRef(0);
@@ -456,7 +462,7 @@ export function CameraAnalyzer({
           );
         })
         .catch(() => {
-          reportCoachingHealth('save_failed', !!owner);
+          reportCoachingHealth('save_failed', !!owner, { classId: record.classId });
           setSaveFailed(true);
           setSaveMessage('Workout save pending. Retry when connected.');
         });
@@ -620,22 +626,56 @@ export function CameraAnalyzer({
     setAnalysis(unavailable);
     analysisCallback.current?.(unavailable);
   }
-  async function retrySaving() {
-    if (!retryOwner.current || saving) return;
+  /**
+   * Manual retry also resends this run's completed sets; the automatic retry (on `online`
+   * or when the page becomes visible) only drains the queue. Both are idempotent: saves
+   * are keyed by the record's stable clientId and overlapping calls share one request.
+   */
+  async function retrySaving(automatic = false) {
+    const owner = retryOwner.current;
+    if (!owner || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
-      await retryWorkoutSets(retryOwner.current);
-      for (const entry of completedRef.current)
-        if (entry.record) await saveWorkoutSet(retryOwner.current, entry.record);
-      setSaveFailed(false);
-      setSaveMessage('Workout saved');
+      await retryWorkoutSets(owner);
+      if (!automatic)
+        for (const entry of completedRef.current)
+          if (entry.record) await saveWorkoutSet(owner, entry.record);
+      if (pendingWorkoutSets(owner) === 0) {
+        setSaveFailed(false);
+        setSaveMessage('Workout saved');
+      }
     } catch {
       setSaveFailed(true);
-      setSaveMessage('Workout save pending. Check your connection and retry.');
+      setSaveMessage(
+        automatic
+          ? 'Workout save pending. It retries when your connection returns.'
+          : 'Workout save pending. Check your connection and retry.',
+      );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
+  const retrySavingRef = useRef(retrySaving);
+  retrySavingRef.current = retrySaving;
+  useEffect(() => {
+    const attempt = () => {
+      if (
+        shouldAutoRetry(retryOwner.current, {
+          online: navigator.onLine !== false,
+          hidden: document.hidden,
+        })
+      )
+        void retrySavingRef.current(true);
+    };
+    window.addEventListener('online', attempt);
+    document.addEventListener('visibilitychange', attempt);
+    return () => {
+      window.removeEventListener('online', attempt);
+      document.removeEventListener('visibilitychange', attempt);
+    };
+  }, []);
   useEffect(
     () => () => {
       const unfinished = recordSet();
@@ -815,6 +855,7 @@ export function CameraAnalyzer({
     if (historyUserId && pendingWorkoutSets(historyUserId)) {
       setSaveFailed(true);
       setSaveMessage('Unsaved workout summaries are available. Retry saving.');
+      if (navigator.onLine !== false && !document.hidden) void retrySavingRef.current(true);
     }
   }, [historyUserId]);
   useEffect(() => {
@@ -984,7 +1025,9 @@ export function CameraAnalyzer({
               restartInBrowser();
               return;
             }
-            reportCoachingHealth('model_startup_failed', !!saveOwner.current);
+            reportCoachingHealth('model_startup_failed', !!saveOwner.current, {
+              classId: sessionContext.current.classId,
+            });
             stop();
             setStatus('off');
             setError(data.message);
@@ -1091,7 +1134,10 @@ export function CameraAnalyzer({
               recentInferenceMs.current.reduce((sum, ms) => sum + ms, 0) /
               recentInferenceMs.current.length;
             if (recentInferenceMs.current.length >= 20 && meanInferenceMs > 100)
-              reportCoachingHealth('inference_slow', !!saveOwner.current, meanInferenceMs);
+              reportCoachingHealth('inference_slow', !!saveOwner.current, {
+                durationMs: meanInferenceMs,
+                classId: sessionContext.current.classId,
+              });
             // Heavy at 6–9 FPS can miss short exercise endpoints despite clearer
             // individual frames. Keep it only when it meets a 100 ms frame budget.
             if (
@@ -1227,7 +1273,9 @@ export function CameraAnalyzer({
               lastObservedAt.current = new Date().toISOString();
               const measured = trainingMetricsSummary(metrics.current);
               if (measured.activeMs > 10000 && (measured.trackingCoverage ?? 100) < 50)
-                reportCoachingHealth('tracking_low', !!saveOwner.current);
+                reportCoachingHealth('tracking_low', !!saveOwner.current, {
+                  classId: sessionContext.current.classId,
+                });
               result.trackingCoverage = measured.trackingCoverage;
               result.rejectedReps = measured.rejectedReps;
               if (result.reps > tally.current.reps) signalRep();

@@ -2,7 +2,15 @@ import { loggedRoute } from '@/lib/request-log';
 import { requireParticipation } from '@/lib/member-access';
 import { NextResponse } from 'next/server';
 import { db, isSqliteDatabase } from '@/lib/db';
-import { ApiError, requireUser, readJson, rateLimit, safeError } from '@/lib/security';
+import {
+  ApiError,
+  requireUser,
+  readJson,
+  localRateLimit,
+  rateLimit,
+  safeError,
+} from '@/lib/security';
+import { metricNeedsSharedLimit } from '@/lib/rate-window';
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
 import { metricElapsedSeconds } from '@/lib/metric-policy';
@@ -108,6 +116,11 @@ async function handlePOST(request: Request) {
               trackingCoverage: data.trackingCoverage ?? null,
               rejectedReps: data.rejectedReps ?? 0,
             };
+            // Steady-cadence heartbeats write no RateLimit row; faster summaries for this
+            // enrollment are charged to the shared limit (in this transaction, so a
+            // refused or rolled-back summary is not counted twice on retry).
+            if (metricNeedsSharedLimit(previous?.updatedAt, Date.now()))
+              await rateLimit(user.id, 'metrics', 30, tx);
             await tx.metric.upsert({
               where: { enrollmentId: enrollment.id },
               create: { enrollmentId: enrollment.id, ...values },
@@ -134,7 +147,9 @@ async function handlePOST(request: Request) {
         );
       },
       isSqliteDatabase(),
-      () => rateLimit(user.id, 'metrics', 30),
+      // Per-instance first filter with no write; the shared limit is applied in the
+      // transaction to summaries faster than the steady cadence.
+      async () => localRateLimit(user.id, 'metrics', 30),
     );
     return NextResponse.json({ ok: true });
   } catch (error) {

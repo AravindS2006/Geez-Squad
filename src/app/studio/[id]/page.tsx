@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect, notFound } from 'next/navigation';
 import { ApiError, requireUser } from '@/lib/security';
-import { workspaceData } from '@/lib/workspace';
+import { liveRoomData } from '@/lib/workspace';
 import { StudioPage } from '@/components/studio-page';
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Live session', robots: { index: false } };
@@ -16,12 +16,12 @@ export default async function LiveStudio({ params }: { params: Promise<{ id: str
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
     redirect(`/login?next=${encodeURIComponent(`/studio/${id}`)}`);
   }
-  const data = await workspaceData(user.id, id);
-  const item = data.classes.find((c) => c.id === id);
-  if (!item) notFound();
+  // Only the live room's own data; the full workspace payload is not needed here.
+  const data = await liveRoomData(user, id);
+  if (!data.item) notFound();
   return (
     <StudioPage
-      item={item}
+      item={data.item}
       user={data.user}
       services={data.services}
       customExercises={data.customExercises}

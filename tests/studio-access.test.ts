@@ -83,19 +83,39 @@ describe('studio-scoped permissions', () => {
     });
   });
   it('group hosting grants session management without a primary assignment', async () => {
-    fixture.studio.findFirst.mockResolvedValue({
-      id: 'studio',
-      ownerId: 'owner',
-      roleGrants: [{ role: 'coach', status: 'active' }],
-    });
     const item = { studioId: 'studio', hostId: 'coach', studio: { ownerId: 'owner' } };
+    fixture.studioRoleGrant.findMany.mockResolvedValue([
+      { userId: 'coach', role: 'coach', status: 'active' },
+    ]);
     expect((await classPermissions(item, 'coach')).canManage).toBe(true);
+    fixture.studioRoleGrant.findMany.mockResolvedValue([
+      { userId: 'other-coach', role: 'coach', status: 'active' },
+    ]);
     expect((await classPermissions(item, 'other-coach')).canManage).toBe(false);
-    fixture.studio.findFirst.mockResolvedValue({
-      id: 'studio',
-      ownerId: 'owner',
-      roleGrants: [{ role: 'coach', status: 'suspended' }],
-    });
+    fixture.studioRoleGrant.findMany.mockResolvedValue([
+      { userId: 'coach', role: 'coach', status: 'suspended' },
+    ]);
     expect((await classPermissions(item, 'coach')).canManage).toBe(false);
+  });
+  it('reads own grants and studio admins in one scoped query', async () => {
+    const item = { studioId: 'studio', hostId: 'coach', studio: { ownerId: 'owner' } };
+    fixture.studioRoleGrant.findMany.mockResolvedValue([
+      { userId: 'admin', role: 'admin', status: 'active' },
+      { userId: 'trainee', role: 'trainee', status: 'active' },
+    ]);
+    const view = await classPermissions(item, 'trainee');
+    expect(fixture.studioRoleGrant.findMany).toHaveBeenCalledTimes(1);
+    expect(fixture.studioRoleGrant.findMany.mock.calls[0][0].where).toEqual({
+      studioId: 'studio',
+      OR: [{ userId: 'trainee' }, { role: 'admin', status: 'active' }],
+    });
+    // A trainee grant never grants management; admins and the owner present.
+    expect(view).toEqual({
+      canManage: false,
+      hostId: 'coach',
+      presenterIds: ['coach', 'owner', 'admin'],
+    });
+    expect((await classPermissions(item, 'admin')).canManage).toBe(true);
+    expect((await classPermissions(item, 'owner')).canManage).toBe(true);
   });
 });

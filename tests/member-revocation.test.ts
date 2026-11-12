@@ -6,6 +6,8 @@ const fixture = vi.hoisted(() => ({
   studio: { findUniqueOrThrow: vi.fn() },
   studioRoleGrant: { findMany: vi.fn() },
   studioMember: { findMany: vi.fn() },
+  rateLimit: { create: vi.fn() },
+  claims: new Set<string>(),
   list: vi.fn(),
   remove: vi.fn(),
 }));
@@ -39,6 +41,13 @@ beforeEach(() => {
     { userId: 'former-host' },
   ]);
   fixture.remove.mockResolvedValue(undefined);
+  // The shared RateLimit table: a second insert of the same key is a unique conflict.
+  fixture.claims.clear();
+  fixture.rateLimit.create.mockImplementation(async ({ data }: { data: { key: string } }) => {
+    if (fixture.claims.has(data.key)) throw Object.assign(new Error('Unique'), { code: 'P2002' });
+    fixture.claims.add(data.key);
+    return data;
+  });
 });
 afterEach(() => vi.unstubAllEnvs());
 describe('live revocation reconciliation', () => {
@@ -105,5 +114,34 @@ describe('class poll revocation throttle', () => {
       ),
     ).toBe(true);
     expect(fixture.list).toHaveBeenCalledTimes(4);
+  });
+  it('lets one server instance sweep per window even when another instance has no memory of it', async () => {
+    const { reconcileClassParticipants, resetClassRevocationThrottle } =
+      await import('../src/lib/member-access');
+    resetClassRevocationThrottle();
+    fixture.list.mockResolvedValue([]);
+    const start = 2_000_000;
+    expect(await reconcileClassParticipants('class', 'studio', undefined, start)).toBe(true);
+    // A fresh instance (empty in-memory throttle) in the same window sees the claim row.
+    resetClassRevocationThrottle();
+    expect(await reconcileClassParticipants('class', 'studio', undefined, start + 1000)).toBe(
+      false,
+    );
+    expect(fixture.list).toHaveBeenCalledTimes(1);
+    expect(fixture.rateLimit.create.mock.calls[0][0].data.key).toMatch(/^sweep:class:\*:/);
+  });
+  it('still sweeps when the claim cannot be written, and skips everything without LiveKit', async () => {
+    const { reconcileClassParticipants, resetClassRevocationThrottle } =
+      await import('../src/lib/member-access');
+    resetClassRevocationThrottle();
+    fixture.list.mockResolvedValue([]);
+    fixture.rateLimit.create.mockRejectedValueOnce(new Error('database unavailable'));
+    expect(await reconcileClassParticipants('class', 'studio', undefined, 3_000_000)).toBe(true);
+    expect(fixture.list).toHaveBeenCalledTimes(1);
+    vi.stubEnv('LIVEKIT_URL', '');
+    resetClassRevocationThrottle();
+    fixture.rateLimit.create.mockClear();
+    expect(await reconcileClassParticipants('class', 'studio', undefined, 4_000_000)).toBe(false);
+    expect(fixture.rateLimit.create).not.toHaveBeenCalled();
   });
 });

@@ -39,6 +39,9 @@ await withDisposablePostgres(async (url) => {
     SMTP_PASSWORD: '',
     RESEND_API_KEY: '',
     LOG_LEVEL: 'error',
+    // Same operator allow-list as scripts/local-coaching-check.mjs; the account suite
+    // approves a studio request as this operator.
+    PLATFORM_OPERATOR_EMAILS: 'platform-operator@example.test',
   };
   const run = (args, label) => {
     const child = spawnSync(process.execPath, args, { env, stdio: 'inherit', windowsHide: true });

@@ -24,9 +24,6 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
     if (!item) throw new ApiError(404, 'This session is not available.');
     const permissions = await classPermissions(item, user.id);
     const coach = permissions.canManage;
-    // Lifecycle bookkeeping after the response: throttled coach presence, or
-    // completion of a class its coach abandoned (src/lib/class-completion.ts).
-    after(() => recordClassPresence(item, coach));
     // Every participant polls this route every few seconds. These reads are
     // independent, so they run concurrently instead of as sequential round trips.
     // Authorization still completes (above) before any of them is returned.
@@ -72,6 +69,11 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
         ? reconcileClassParticipants(id, item.studio.id, coach ? undefined : user.id)
         : null,
     ]);
+    // Lifecycle bookkeeping after the response (src/lib/class-completion.ts):
+    // throttled coach presence, or completion of a class its coach abandoned.
+    // Registered only once the caller is the class coach or an eligible enrolled
+    // trainee, because `after` also runs when a later step throws.
+    if (coach || eligibility.allowed) after(() => recordClassPresence(item, coach));
     return NextResponse.json(
       {
         participationAllowed: eligibility.allowed,

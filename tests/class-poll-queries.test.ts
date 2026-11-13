@@ -376,7 +376,10 @@ describe('live class poll', () => {
         expect(result.status).toBe(200);
         counts[role].push(result.queries);
         // No LiveKit in tests: the deferred sweep is a no-op and writes no claim row.
-        expect(result.deferredQueries).toBe(0);
+        // The only deferred write is the host's throttled presence stamp
+        // (src/lib/class-completion.ts), taken on the first host poll only.
+        if (role === 'host' && i === 0) expect(result.deferredQueries).toBeGreaterThan(0);
+        else expect(result.deferredQueries).toBe(0);
         if (i === 2)
           report(
             `sql-${role}`,

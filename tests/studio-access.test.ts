@@ -117,5 +117,9 @@ describe('studio-scoped permissions', () => {
     });
     expect((await classPermissions(item, 'admin')).canManage).toBe(true);
     expect((await classPermissions(item, 'owner')).canManage).toBe(true);
+    // A closed studio grants no staff access, like studioAccess.
+    const closed = { ...item, studio: { ...item.studio, status: 'closed' } };
+    expect((await classPermissions(closed, 'admin')).canManage).toBe(false);
+    expect((await classPermissions(closed, 'owner')).canManage).toBe(false);
   });
 });

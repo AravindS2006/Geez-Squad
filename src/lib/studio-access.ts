@@ -130,13 +130,19 @@ export function classAccessGrants(
  * active coach grant in this studio); trainee status never grants it.
  */
 export function classPermissionsFromGrants(
-  item: { studioId: string; hostId: string | null; studio: { ownerId: string } },
+  item: {
+    studioId: string;
+    hostId: string | null;
+    studio: { ownerId: string; status?: string };
+  },
   userId: string,
   grants: ClassAccessGrant[],
 ) {
+  // A closed studio grants no staff access, matching `studioAccess` (active studios only).
+  const open = item.studio.status !== 'closed';
   const own = (role: string) =>
-    grants.some((g) => g.userId === userId && g.role === role && g.status === 'active');
-  const admin = item.studio.ownerId === userId || own('admin');
+    open && grants.some((g) => g.userId === userId && g.role === role && g.status === 'active');
+  const admin = (open && item.studio.ownerId === userId) || own('admin');
   const coach = admin || own('coach');
   return classPermissionView(
     item,

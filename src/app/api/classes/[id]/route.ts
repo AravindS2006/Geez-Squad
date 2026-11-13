@@ -22,7 +22,7 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
     const item = await db.classSession.findUnique({
       where: { id },
       include: {
-        studio: { select: { id: true, ownerId: true } },
+        studio: { select: { id: true, ownerId: true, status: true } },
         _count: { select: { enrollments: true } },
       },
     });

@@ -2,11 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 mkdirSync('test-results', { recursive: true });
+// GEEZ_TEST_PORT lets a second isolated server run beside one on the default port.
+const port = process.env.GEEZ_TEST_PORT || '3000';
+if (!/^\d{2,5}$/.test(port)) throw new Error('GEEZ_TEST_PORT must be a port number.');
 const env = {
   ...process.env,
   DATABASE_PROVIDER: 'sqlite',
   DATABASE_URL: `file:${resolve('test-results/coaching-phase.db').replaceAll('\\', '/')}`,
-  BETTER_AUTH_URL: 'http://localhost:3000',
+  BETTER_AUTH_URL: `http://localhost:${port}`,
   BETTER_AUTH_SECRET: 'local-coaching-verification-only-2026-10-24',
   EMAIL_DELIVERY: 'test',
   LIVEKIT_URL: '',
@@ -33,9 +36,9 @@ if (action === 'build') {
   run(['scripts/prepare-assets.mjs']);
   run(['node_modules/next/dist/bin/next', 'build']);
 } else if (action === 'dev')
-  run(['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1']);
+  run(['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '--port', port]);
 else if (action === 'serve')
-  run(['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1']);
+  run(['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', port]);
 else if (action === 'e2e')
   run(['node_modules/@playwright/test/cli.js', 'test', '--workers=1', ...process.argv.slice(3)]);
 else if (action === 'unit')

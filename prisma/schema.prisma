@@ -342,6 +342,12 @@ model ClassSession {
   messages Message[]
   workoutSets WorkoutSet[]
   @@index([studioId, startsAt])
+  // Workspace class lists (admin: studio + status, ordered by start), live-class checks.
+  @@index([studioId, status, startsAt])
+  // Coach-hosted lists, host reassignment on deletion/demotion, overlap checks.
+  @@index([hostId, status, startsAt])
+  // Retention sweep of abandoned live classes (status live, oldest startedAt first).
+  @@index([status, startedAt])
 }
 model Enrollment {
   id String @id @default(cuid())
@@ -495,6 +501,7 @@ model BillingSubscription {
 model WebhookEvent {
   id String @id
   createdAt DateTime @default(now())
+  @@index([createdAt])
 }
 model AuditEvent {
   detailsJson Json?
@@ -504,6 +511,10 @@ model AuditEvent {
   targetId String
   createdAt DateTime @default(now())
   @@index([actorId, createdAt])
+  // Booking history (My bookings, data export) looks events up by target.
+  @@index([targetId, createdAt])
+  // Retention pruning, oldest first.
+  @@index([createdAt])
 }
 
 model StudioRoleGrant {

@@ -20,6 +20,13 @@ Use the trusted Vercel proxy for authentication's forwarded-IP rate limiting; se
 
 The cleanup endpoint is cron-secret-protected. Latest metrics: 7 days. Class messages: 90 days. Expired invites, sessions, verification records, and rate records are deleted. Summaries/account/studio records are retained for the operator's declared policy. Audit records contain actor/target IDs and control action but no camera frame data.
 
+| Table | Kept for | Why |
+| --- | --- | --- |
+| `WebhookEvent` | 30 days (`createdAt`) | Only deduplicates billing webhook deliveries; Stripe stops retrying after 3 days. |
+| `AuditEvent` | 400 days (`createdAt`), override with `AUDIT_RETENTION_DAYS` | A bit over a year keeps an annual review traceable. Values that are not whole numbers or are below 90 are ignored. Older booking events also drop out of My bookings history and the data export; `account.deleted` and `studio.*` events follow the same window. No access decision reads audit events. |
+
+Both tables are pruned oldest first in batches of 500 IDs, at most 20 batches per table and 20 seconds in total per run (`src/lib/retention-policy.ts`), outside the main cleanup transaction. The JSON response reports `webhookEvents` / `auditEvents` as `{ deleted, complete }`. `complete: false` means a backlog remains, and the next daily run continues it. Set `AUDIT_RETENTION_DAYS` higher if a legal or contractual retention duty applies; the operator decides that duty.
+
 Data export returns only the requesting user's own records. Settings → Delete my account (`POST /api/account`, `src/lib/account-deletion.ts`) erases the account after password re-entry and a typed `DELETE` confirmation, rate-limited to five attempts a minute. The user row cascades sign-in, sessions, workouts, check-ins, nutrition, enrollments and messages. Studio-owned member, term, payment, attendance and booking records are retained and unlinked (`userId` set to null). A deleted coach's primary-coach assignments are written to `CoachAssignmentHistory`, hosted upcoming classes fall back to the studio owner, live rooms are revoked, and an `account.deleted` audit event (IDs only) is kept. Owners of an open studio and users with an open subscription are refused with `STUDIO_OWNER` / `BILLING_ACTIVE`. An owner first transfers ownership or closes the studio (below); after that their deletion proceeds. Deleting the owner of a closed studio re-points the studio to a placeholder owner (`closed-studio-<studioId>`, `.invalid` address, no credential) inside the same transaction, so the studio's member, term, payment, attendance, class and workout records are retained instead of cascading. Do not delete financial records without an approved retention policy.
 
 ## Studio lifecycle

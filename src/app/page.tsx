@@ -19,7 +19,10 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 
 export default async function Home() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
   if (session) redirect('/app');
   return (
     <div className="landing">

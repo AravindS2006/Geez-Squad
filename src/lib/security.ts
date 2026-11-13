@@ -28,12 +28,13 @@ async function currentSession(freshSession = false) {
   return session;
 }
 /**
- * The signed-in user, read from the User table. The session itself may come from the
- * short-lived session cookie cache (`SESSION_COOKIE_CACHE_SECONDS`); pass
- * `freshSession` for actions that must reject a session revoked seconds ago.
+ * The signed-in user, read from the User table. The session is read from the database
+ * by default, so a revoked or expired session is rejected at once. Only
+ * high-frequency calls (the live-class metrics heartbeat) pass `freshSession: false`
+ * to accept the short-lived session cookie cache (`SESSION_COOKIE_CACHE_SECONDS`).
  */
 export async function requireUser(options: { freshSession?: boolean } = {}) {
-  const session = await currentSession(options.freshSession);
+  const session = await currentSession(options.freshSession ?? true);
   const user = await db.user.findUnique({ where: { id: session.user.id } });
   if (!user) throw new ApiError(401, 'Your session has expired.');
   if (emailPolicy.requireVerification && !user.emailVerified)

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import { grantLocalTestTerm } from './test-member-fixture.mjs';
+import { mergeCookies } from './test-cookies.mjs';
 process.loadEnvFile('.env');
 const base = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
 if (!isDisposableTestDatabase() || !['localhost', '127.0.0.1'].includes(new URL(base).hostname))
@@ -26,10 +27,7 @@ async function request(actor, path, body, expected = 200) {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (response.headers.getSetCookie().length)
-    actor.cookie = response.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    actor.cookie = mergeCookies(actor.cookie, response.headers.getSetCookie());
   const data = await response.json();
   assert.equal(response.status, expected, `${path}: ${JSON.stringify(data)}`);
   checks++;

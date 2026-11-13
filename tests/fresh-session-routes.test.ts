@@ -101,6 +101,11 @@ describe('fresh session on sensitive routes', () => {
     expect(fx.getSession).toHaveBeenCalledTimes(1);
     expect(fx.getSession.mock.calls[0][0].query).toEqual({ disableCookieCache: true });
   });
+  it('reads the session from the database by default', async () => {
+    const { requireUser } = await import('../src/lib/security');
+    await expect(requireUser()).rejects.toMatchObject({ status: 401 });
+    expect(fx.getSession.mock.calls[0][0].query).toEqual({ disableCookieCache: true });
+  });
   it('keeps the cache on the high-frequency metrics heartbeat', async () => {
     const { POST } = await import('../src/app/api/metrics/route');
     expect((await POST(post('/api/metrics'))).status).toBe(401);

@@ -2,6 +2,7 @@ import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { mergeCookies } from './test-cookies.mjs';
 process.loadEnvFile('.env');
 const base = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
 if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname))
@@ -23,7 +24,7 @@ async function request(path, body, jar = {}, method = body ? 'POST' : 'GET', ori
     body: body ? JSON.stringify(body) : undefined,
   });
   const cookies = response.headers.getSetCookie();
-  if (cookies.length) jar.cookie = cookies.map((c) => c.split(';')[0]).join('; ');
+  if (cookies.length) jar.cookie = mergeCookies(jar.cookie, cookies);
   let json;
   try {
     json = await response.json();

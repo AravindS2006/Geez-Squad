@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { provisionTestAdmin } from './local-studio-fixture.mjs';
+import { mergeCookies } from './test-cookies.mjs';
 
 /**
  * Disposable signed-in accounts for the accessibility gate: a studio owner (admin), an
@@ -26,7 +27,7 @@ export async function createSignedInFixture(db, base) {
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
     const cookies = response.headers.getSetCookie();
-    if (cookies.length) actor.cookie = cookies.map((c) => c.split(';')[0]).join('; ');
+    if (cookies.length) actor.cookie = mergeCookies(actor.cookie, cookies);
     const data = await response.json().catch(() => null);
     if (!accepted.includes(response.status))
       throw new Error(`${path} returned ${response.status}: ${JSON.stringify(data)}`);

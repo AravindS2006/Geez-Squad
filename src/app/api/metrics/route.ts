@@ -21,7 +21,8 @@ import { planBlocks } from '@/lib/workout-run';
 import type { Block } from '@/lib/types';
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    // Heartbeat cadence: accept the session cookie cache (see requireUser).
+    const user = await requireUser({ freshSession: false });
     const data = metricSchema.parse(await readJson(request));
     await writeMetrics(
       async () => {

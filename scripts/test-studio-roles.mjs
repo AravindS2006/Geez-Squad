@@ -4,6 +4,7 @@ import { randomUUID, randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import { reconcileStudioRoles } from './backfill-studio-roles.mjs';
+import { mergeCookies } from './test-cookies.mjs';
 process.loadEnvFile('.env');
 const origin = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
 assert(['localhost', '127.0.0.1'].includes(new URL(origin).hostname));
@@ -31,10 +32,7 @@ async function call(actor, path, body, expected = 200) {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (response.headers.getSetCookie().length)
-    actor.cookie = response.headers
-      .getSetCookie()
-      .map((c) => c.split(';')[0])
-      .join('; ');
+    actor.cookie = mergeCookies(actor.cookie, response.headers.getSetCookie());
   const data = await response.json();
   assert.equal(response.status, expected, `${path}: ${JSON.stringify(data)}`);
   checks++;

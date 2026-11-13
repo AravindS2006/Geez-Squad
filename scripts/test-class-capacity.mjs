@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { PrismaClient } from '@prisma/client';
+import { mergeCookies } from './test-cookies.mjs';
 
 process.loadEnvFile('.env');
 const base = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
@@ -35,7 +36,7 @@ async function request(path, client, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const cookies = response.headers.getSetCookie();
-  if (cookies.length) client.cookie = cookies.map((c) => c.split(';')[0]).join('; ');
+  if (cookies.length) client.cookie = mergeCookies(client.cookie, cookies);
   const data = await response.json();
   return { status: response.status, data, ms: performance.now() - began };
 }

@@ -162,13 +162,13 @@ describe('session identity', () => {
     fx.findUser.mockResolvedValue({ id: 'u1', emailVerified: false });
     await expect(requireSessionUser()).rejects.toMatchObject({ status: 403 });
   });
-  it('bypasses the cookie cache only when asked', async () => {
+  it('reads a fresh session by default and uses the cookie cache only when asked', async () => {
     fx.getSession.mockResolvedValue(session);
     fx.findUser.mockResolvedValue({ id: 'u1', emailVerified: true });
     await requireUser();
-    expect(fx.getSession.mock.calls[0][0].query).toBeUndefined();
-    await requireUser({ freshSession: true });
-    expect(fx.getSession.mock.calls[1][0].query).toEqual({ disableCookieCache: true });
+    expect(fx.getSession.mock.calls[0][0].query).toEqual({ disableCookieCache: true });
+    await requireUser({ freshSession: false });
+    expect(fx.getSession.mock.calls[1][0].query).toBeUndefined();
     fx.getSession.mockResolvedValue(null);
     await expect(requireSessionUser()).rejects.toMatchObject({ status: 401 });
   });

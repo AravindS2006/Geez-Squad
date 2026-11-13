@@ -110,6 +110,10 @@ jobs:
       - run: npm run build
       - name: API and browser verification
         shell: pwsh
+        env:
+          # Same operator allow-list as scripts/local-coaching-check.mjs; the account suite
+          # approves a studio request as this operator.
+          PLATFORM_OPERATOR_EMAILS: platform-operator@example.test
         run: |
           $geezSquadServer = Start-Process -FilePath node -ArgumentList 'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1' -WindowStyle Hidden -PassThru
           try {

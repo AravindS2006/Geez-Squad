@@ -5,4 +5,4 @@
  * scripts/prepare-assets.mjs fails the build when this value, public/pose-worker.js or
  * public/sw.js disagree with the installed assets.
  */
-export const POSE_ASSET_BASE = '/pose-assets/mp0.10.32-27563efb7a';
+export const POSE_ASSET_BASE = '/pose-assets/mp0.10.35-27563efb7a';

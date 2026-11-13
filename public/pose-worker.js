@@ -1,5 +1,7 @@
+// Versioned asset prefix; must equal POSE_ASSET_BASE in src/lib/pose-assets.ts (build-checked).
+const POSE_ASSET_BASE = '/pose-assets/mp0.10.32-27563efb7a';
 self.exports = {};
-importScripts('/vision/vision_bundle.js');
+importScripts(`${POSE_ASSET_BASE}/vision/vision_bundle.js`);
 const { FilesetResolver, PoseLandmarker } = self.exports;
 let model;
 let variant = 'full';
@@ -23,10 +25,13 @@ self.onmessage = async ({ data }) => {
         return;
       }
       context.getExtension('WEBGL_lose_context')?.loseContext();
-      files = await FilesetResolver.forVisionTasks('/wasm');
+      files = await FilesetResolver.forVisionTasks(`${POSE_ASSET_BASE}/wasm`);
       variant = ['lite', 'full', 'heavy'].includes(data.variant) ? data.variant : 'full';
       const options = {
-        baseOptions: { modelAssetPath: `/models/pose_landmarker_${variant}.task`, delegate: 'CPU' },
+        baseOptions: {
+          modelAssetPath: `${POSE_ASSET_BASE}/models/pose_landmarker_${variant}.task`,
+          delegate: 'CPU',
+        },
         runningMode: 'VIDEO',
         // One camera represents one trainee. This enables MediaPipe's native
         // temporal smoothing and avoids running its body detector on every frame.

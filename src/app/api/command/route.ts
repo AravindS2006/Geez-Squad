@@ -27,7 +27,7 @@ import {
   safeError,
   requireClass,
 } from '@/lib/security';
-import { RoomServiceClient, TrackSource } from 'livekit-server-sdk';
+import { TrackSource } from 'livekit-server-sdk';
 import { validateBlocks, requireExercise } from '@/lib/exercise-access';
 import { planBlocks } from '@/lib/workout-run';
 import type { Block } from '@/lib/types';
@@ -40,16 +40,39 @@ import {
   requireStudio,
   traineeStudioIds,
 } from '@/lib/studio-access';
+import {
+  closeClassRoom,
+  completeLiveClass,
+  isRoomMissing,
+  videoRoomService as videoService,
+} from '@/lib/class-completion';
+import { requireStudioEntitlement } from '@/lib/billing-entitlement';
+import { COMMAND_LIMITS, IN_CLASS_ACTIONS, classRateBuckets } from '@/lib/class-lifecycle';
+/** Per-class limits after authorization: the class coach is not throttled by trainee caps. */
+async function limitInClass(
+  userId: string,
+  classId: string,
+  manager: boolean,
+  kind: 'message' | 'control',
+) {
+  for (const bucket of classRateBuckets(classId, manager, kind))
+    await rateLimit(userId, bucket.action, bucket.max);
+}
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const data = commandSchema.parse(await readJson(request));
     logEvent('info', 'command_received', {
       ...requestContext.getStore(),
       action: data.action,
       actorId: user.id,
     });
-    await rateLimit(user.id, 'command');
+    // In-class commands get a wide pre-authorization ceiling here and their
+    // per-class bucket once the class and the caller's role in it are known.
+    const limit = IN_CLASS_ACTIONS.has(data.action)
+      ? COMMAND_LIMITS.inClassCeiling
+      : COMMAND_LIMITS.general;
+    await rateLimit(user.id, limit.action, limit.max);
     const access = await studioAccess(user.id);
     const studio = access?.studio;
     const requireCoach = () => {
@@ -85,6 +108,7 @@ async function handlePOST(request: Request) {
         const permissions = await classPermissions(item, user.id);
         if (!permissions.canManage)
           throw new ApiError(403, 'Only this session’s coach can mute participants.');
+        await limitInClass(user.id, item.id, true, 'control');
         if (item.status !== 'live')
           throw new ApiError(409, 'Start this class before managing microphones.');
         const allowed = new Set(item.enrollments.map((e) => e.userId));
@@ -670,12 +694,10 @@ async function handlePOST(request: Request) {
         const permissions = await classPermissions(item, user.id);
         if (!permissions.canManage)
           throw new ApiError(403, 'Only this class coach can control it.');
+        await limitInClass(user.id, item.id, true, 'control');
         if (data.control === 'end' && item.status === 'completed') {
-          await deleteRoom(existingVideoRoomName(item), [
-            item.studio.ownerId,
-            permissions.hostId,
-            ...item.enrollments.map((e) => e.userId),
-          ]);
+          // Retrying End on an ended class only retries the room teardown.
+          result = { ok: true, roomClosed: await closeClassRoom(item) };
           break;
         }
         const allowed =
@@ -695,7 +717,25 @@ async function handlePOST(request: Request) {
         if (data.blockId && (!selectedBlock || selectedBlock.exercise !== data.exercise))
           throw new ApiError(400, 'Choose a current workout block.');
         if (data.exercise) await requireExercise(data.exercise, item.studioId);
-        if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
+        if (data.control === 'end') {
+          // Shared with automatic completion: commit first, then revoke tokens and close the room.
+          const ended = await completeLiveClass(item, {
+            actorId: user.id,
+            action: 'end',
+            guard: { revision: item.revision, hostId: item.hostId },
+          });
+          if (!ended.completed && !ended.alreadyCompleted)
+            throw new ApiError(409, 'Another update was applied. Refresh and retry.');
+          if (ended.completed)
+            after(() => notifyMeeting({ ...item, controlSequence: item.controlSequence + 1 }));
+          result = { ok: true, roomClosed: ended.roomClosed };
+          break;
+        }
+        if (data.control === 'start') {
+          // Paid feature: a no-op unless billing is configured.
+          await requireStudioEntitlement(item.studioId);
+          await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
+        }
         const change =
           data.control === 'start'
             ? {
@@ -706,17 +746,15 @@ async function handlePOST(request: Request) {
                 workoutSnapshot: blocks,
                 ...(blocks[0] ? { exercise: blocks[0].exercise, activeBlockId: blocks[0].id } : {}),
               }
-            : data.control === 'end'
-              ? { status: 'completed', endedAt: new Date(), paused: true }
-              : data.control === 'cancel'
-                ? { status: 'cancelled', endedAt: new Date() }
-                : data.control === 'exercise'
-                  ? {
-                      exercise: data.exercise,
-                      activeBlockId: selectedBlock?.id ?? null,
-                      revision: { increment: 1 },
-                    }
-                  : { paused: data.control === 'pause' };
+            : data.control === 'cancel'
+              ? { status: 'cancelled', endedAt: new Date() }
+              : data.control === 'exercise'
+                ? {
+                    exercise: data.exercise,
+                    activeBlockId: selectedBlock?.id ?? null,
+                    revision: { increment: 1 },
+                  }
+                : { paused: data.control === 'pause' };
         const updated = await db.classSession.updateMany({
           where: { id: item.id, status: allowed, revision: item.revision, hostId: item.hostId },
           data: { ...change, controlSequence: { increment: 1 } },
@@ -729,18 +767,13 @@ async function handlePOST(request: Request) {
           data: { actorId: user.id, action: data.control, targetId: item.id },
         });
         after(() => notifyMeeting({ ...item, controlSequence: item.controlSequence + 1 }));
-        if (data.control === 'end')
-          await deleteRoom(existingVideoRoomName(item), [
-            item.studio.ownerId,
-            permissions.hostId,
-            ...item.enrollments.map((e) => e.userId),
-          ]);
         break;
       }
       case 'consent': {
         const item = await requireClass(data.id, user.id);
         const permissions = await classPermissions(item, user.id);
         if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
+        await limitInClass(user.id, item.id, permissions.canManage, 'control');
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         if (!permissions.canManage)
           await db.enrollment.updateMany({
@@ -753,6 +786,7 @@ async function handlePOST(request: Request) {
         const item = await requireClass(data.id, user.id);
         const permissions = await classPermissions(item, user.id);
         if (!permissions.canManage) await requireParticipation(item.studioId, user.id);
+        await limitInClass(user.id, item.id, permissions.canManage, 'control');
         if (item.status !== 'live') throw new ApiError(409, 'This session is not live.');
         const target = data.userId ?? user.id;
         if (target !== user.id && (!permissions.canManage || data.requested))
@@ -788,7 +822,7 @@ async function handlePOST(request: Request) {
           target !== item.studio.ownerId
         )
           throw new ApiError(403, 'Private trainee messages can only go to the coach.');
-        await rateLimit(user.id, 'message', 20);
+        await limitInClass(user.id, item.id, permissions.canManage, 'message');
         await db.message.create({
           data: {
             classId: item.id,
@@ -812,15 +846,6 @@ async function handlePOST(request: Request) {
   } catch (error) {
     return safeError(error);
   }
-}
-function videoService() {
-  if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET)
-    return null;
-  return new RoomServiceClient(
-    process.env.LIVEKIT_URL.replace('wss://', 'https://').replace('ws://', 'http://'),
-    process.env.LIVEKIT_API_KEY,
-    process.env.LIVEKIT_API_SECRET,
-  );
 }
 async function createRoom(id: string, maxParticipants: number) {
   const service = videoService();
@@ -861,35 +886,4 @@ async function discardPreparedRoom(classId: string) {
     logEvent('warn', 'orphaned_room_cleanup_failed', { targetId: classId, ...errorContext(error) });
   }
 }
-async function deleteRoom(roomName: string, identities: string[]) {
-  const service = videoService();
-  if (!service) return;
-  const cutoff = BigInt(Math.floor(Date.now() / 1000) + 1);
-  const revocations = await Promise.allSettled(
-    identities.map((identity) =>
-      service.removeParticipant(roomName, identity, { revokeTokenTs: cutoff }),
-    ),
-  );
-  const revoked = revocations.every(
-    (result) => result.status === 'fulfilled' || isRoomMissing(result.reason),
-  );
-  try {
-    await service.deleteRoom(roomName);
-  } catch (error) {
-    if (isRoomMissing(error) && revoked) return;
-    throw new ApiError(
-      502,
-      'The class ended, but video room cleanup failed. Retry End session to close the room.',
-    );
-  }
-  if (!revoked)
-    throw new ApiError(
-      502,
-      'The class ended and the room closed, but token revocation needs retry. Use End session again.',
-    );
-}
-function isRoomMissing(error: unknown) {
-  return !!error && typeof error === 'object' && 'status' in error && error.status === 404;
-}
-
 export const POST = loggedRoute('/api/command', handlePOST);

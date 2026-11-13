@@ -17,6 +17,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, resolve, sep } from 'node:path';
 import { chromium } from '@playwright/test';
+import { poseAssetBase } from './pose-assets.mjs';
 
 const flags = Object.fromEntries(
   process.argv
@@ -53,10 +54,14 @@ await mkdir(outputDir, { recursive: true });
 const tracePath = (clip) => resolve(outputDir, `${clip.id}.${model}.${fps}fps.trace.json`);
 
 const publicDir = resolve('public');
+const { version: mediapipeVersion } = JSON.parse(
+  await readFile('node_modules/@mediapipe/tasks-vision/package.json', 'utf8'),
+);
+const assetBase = poseAssetBase(mediapipeVersion);
 for (const asset of [
-  'vision/vision_bundle.mjs',
-  'wasm/vision_wasm_internal.wasm',
-  `models/pose_landmarker_${model}.task`,
+  `${assetBase.slice(1)}/vision/vision_bundle.mjs`,
+  `${assetBase.slice(1)}/wasm/vision_wasm_internal.wasm`,
+  `${assetBase.slice(1)}/models/pose_landmarker_${model}.task`,
 ])
   if (!existsSync(resolve(publicDir, asset)))
     throw new Error(`Missing public/${asset}. Run "npm run assets" first.`);
@@ -75,16 +80,16 @@ const types = {
 };
 const page = `<!doctype html><meta charset="utf-8"><video id="clip" muted playsinline preload="auto"></video>
 <script type="module">
-import { FilesetResolver, PoseLandmarker } from '/vision/vision_bundle.mjs';
+import { FilesetResolver, PoseLandmarker } from '${assetBase}/vision/vision_bundle.mjs';
 const round = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 1e5) / 1e5 : null);
 const points = (poses) => (poses ?? []).slice(0, 2).map((pose) => pose.slice(0, 33).map((p) => ({
   x: round(p.x), y: round(p.y), z: round(p.z), visibility: round(p.visibility), presence: round(p.presence ?? 1),
 })));
 window.runClip = async ({ url, model, fps, startMs, endMs }) => {
-  const files = await FilesetResolver.forVisionTasks('/wasm');
+  const files = await FilesetResolver.forVisionTasks('${assetBase}/wasm');
   // Same options as public/pose-worker.js. CPU keeps a headless run reproducible.
   const landmarker = await PoseLandmarker.createFromOptions(files, {
-    baseOptions: { modelAssetPath: '/models/pose_landmarker_' + model + '.task', delegate: 'CPU' },
+    baseOptions: { modelAssetPath: '${assetBase}/models/pose_landmarker_' + model + '.task', delegate: 'CPU' },
     runningMode: 'VIDEO',
     numPoses: 1,
     minPoseDetectionConfidence: 0.5,

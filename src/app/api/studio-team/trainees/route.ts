@@ -25,7 +25,7 @@ export const GET = loggedRoute('/api/studio-team/trainees', async () => {
 });
 export const POST = loggedRoute('/api/studio-team/trainees', async (request) => {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const data = z
       .object({
         memberId: z.string().min(1).max(100),

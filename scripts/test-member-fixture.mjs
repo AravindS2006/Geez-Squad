@@ -1,6 +1,7 @@
+import { assertDisposableTestDatabase } from './disposable-database.mjs';
 // Used only by local load/RTC rehearsals; production entitlement has no bypass.
 export async function grantLocalTestTerm(db, studioId, userId) {
-  if (!process.env.DATABASE_URL?.startsWith('file:')) throw new Error('Local fixture only.');
+  assertDisposableTestDatabase('Local fixture only.');
   const user = await db.user.findUniqueOrThrow({ where: { id: userId } });
   if (!user.email.endsWith('@example.test'))
     throw new Error('Disposable fixture account required.');

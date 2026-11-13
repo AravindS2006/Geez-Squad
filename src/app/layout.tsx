@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { connection } from 'next/server';
 import { Inter, Instrument_Serif } from 'next/font/google';
 import './tokens.css';
 import './globals.css';
@@ -8,6 +9,7 @@ import './next-phase.css';
 import './theme.css';
 import { TimeProvider } from '@/components/time-provider';
 import { AppInstall } from '@/components/app-install';
+import { ClientErrorReporter } from '@/components/client-error-reporter';
 import { ToastProvider } from '@/components/primitives/toast';
 import { siteOrigin } from '@/lib/site';
 
@@ -47,7 +49,11 @@ export const metadata: Metadata = {
   twitter: { card: 'summary_large_image', title: 'Geez Squad', description },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The nonce CSP from src/proxy.ts only works on per-request renders: Next.js stamps the nonce
+  // from the request header onto its scripts, and a prerendered page has none. Waiting for the
+  // request opts every page out of static prerendering.
+  await connection();
   return (
     <html lang="en" className={`${inter.variable} ${serif.variable}`}>
       <body>
@@ -55,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <TimeProvider>{children}</TimeProvider>
         </ToastProvider>
         <AppInstall />
+        <ClientErrorReporter />
       </body>
     </html>
   );

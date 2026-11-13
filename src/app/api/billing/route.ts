@@ -7,7 +7,7 @@ import { db } from '@/lib/db';
 import { ApiError, requireUser, readJson, safeError, rateLimit } from '@/lib/security';
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const { action } = z
       .object({ action: z.enum(['checkout', 'portal']) })
       .parse(await readJson(request));

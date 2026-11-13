@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { logEvent } from './logger';
+import { errorContext, logEvent } from './logger';
 export const requestContext = new AsyncLocalStorage<{
   requestId: string;
   route: string;
@@ -29,7 +29,11 @@ export function loggedRoute<T extends unknown[]>(
         );
         return response;
       } catch (error) {
-        logEvent('error', 'request_unhandled', context);
+        logEvent('error', 'request_unhandled', {
+          ...context,
+          durationMs: Math.round(performance.now() - started),
+          ...errorContext(error, { withDetail: true }),
+        });
         throw error;
       }
     });

@@ -1,4 +1,5 @@
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
+import { POSE_ASSET_BASE } from './pose-assets';
 
 export type PoseFrame = ImageBitmap | HTMLCanvasElement;
 export type PoseModel = 'lite' | 'full' | 'heavy';
@@ -97,7 +98,7 @@ export class BrowserPoseTask {
 
   private async load(cpuOnly: boolean) {
     const { FilesetResolver, PoseLandmarker } = await import('@mediapipe/tasks-vision');
-    const files = await FilesetResolver.forVisionTasks('/wasm');
+    const files = await FilesetResolver.forVisionTasks(`${POSE_ASSET_BASE}/wasm`);
     if (this.disposed) return;
     const create = async (delegate: 'GPU' | 'CPU') => {
       if (this.canvas) {
@@ -107,7 +108,10 @@ export class BrowserPoseTask {
       this.canvas = document.createElement('canvas');
       const model = await PoseLandmarker.createFromOptions(files, {
         canvas: this.canvas,
-        baseOptions: { modelAssetPath: `/models/pose_landmarker_${this.variant}.task`, delegate },
+        baseOptions: {
+          modelAssetPath: `${POSE_ASSET_BASE}/models/pose_landmarker_${this.variant}.task`,
+          delegate,
+        },
         runningMode: 'VIDEO',
         numPoses: 1,
         minPoseDetectionConfidence: 0.5,

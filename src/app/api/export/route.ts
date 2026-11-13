@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { requireUser, safeError, rateLimit } from '@/lib/security';
 async function handleGET() {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     await rateLimit(user.id, 'export', 3);
     const enrollments = await db.enrollment.findMany({
       where: { userId: user.id },

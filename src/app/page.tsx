@@ -19,7 +19,10 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 
 export default async function Home() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+    query: { disableCookieCache: true },
+  });
   if (session) redirect('/app');
   return (
     <div className="landing">
@@ -336,6 +339,7 @@ export default async function Home() {
         <p>Move better. Live stronger. Together.</p>
         <div>
           <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <Link href="/login">
             Member login
             <ArrowUpRight size={14} />

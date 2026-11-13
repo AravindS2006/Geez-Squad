@@ -328,7 +328,8 @@
   flex: 1;
   min-width: 0;
 }
-.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss) {
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss),
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-keep) {
   flex: 0 0 44px;
   display: inline-grid;
   place-items: center;
@@ -341,12 +342,30 @@
   color: inherit;
   cursor: pointer;
 }
-.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss:hover) {
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss:hover),
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-keep:hover) {
   background: #ffffff1a;
 }
-.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss:focus-visible) {
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss:focus-visible),
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-keep:focus-visible) {
   outline: 2px solid var(--meeting-accent, #bef264);
   outline-offset: -2px;
+}
+/* A kept cue shows its pressed state without a new colour. */
+.room:global(.meeting-room.meeting-v2) :global(.meeting-cue-keep[aria-pressed='true']) {
+  background: #ffffff1a;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+/* One-tap rejoin after an unexpected video disconnect. */
+.room:global(.meeting-room.meeting-v2) :global(.meeting-rejoin) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 10px;
+  font-weight: 600;
+  cursor: pointer;
 }
 @media (max-width: 950px) {
   .room:global(.meeting-room.meeting-v2) :global(.monitor-summary > span) {
@@ -554,7 +573,8 @@
     font-size: 12.5px;
     line-height: 1.3;
   }
-  .room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss) {
+  .room:global(.meeting-room.meeting-v2) :global(.meeting-cue-dismiss),
+  .room:global(.meeting-room.meeting-v2) :global(.meeting-cue-keep) {
     margin: 0;
   }
   /* Phone coach tile: the coach's video and name only. Its two controls cover the tile

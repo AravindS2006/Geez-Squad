@@ -1,0 +1,82 @@
+name: Release database migrations
+# Applies the committed PostgreSQL migrations (prisma/postgres/migrations) to one deployment
+# environment. Manual only. The job binds to a GitHub Environment, so the `production`
+# environment's required reviewers must approve every run before any secret is released to it.
+# Set up the environments and their secrets as described in docs/DEPLOYMENT.md, section 1.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub Environment
+        type: choice
+        options: [staging, production]
+        default: staging
+      apply:
+        description: Apply pending migrations (unchecked = report status only)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+# Never run two migrations against the same database at once; never cancel one mid-flight.
+concurrency:
+  group: release-migrate-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  migrate:
+    # Releases come from master only, so the migrations applied are the reviewed ones.
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 15
+    env:
+      DATABASE_PROVIDER: postgresql
+      # Environment secrets: the pooled runtime URL and the direct (unpooled) migration URL.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - run: npm ci
+      - name: Require the environment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ] || [ -z "${DIRECT_URL:-}" ]; then
+            echo "::error::Set DATABASE_URL and DIRECT_URL as secrets of the '${{ inputs.environment }}' environment."
+            exit 1
+          fi
+      - name: Generate the PostgreSQL schema
+        # postgres.mjs writes prisma/postgres/schema.prisma; "check" is read-only.
+        shell: bash
+        run: node scripts/postgres.mjs check || true
+      - name: Migration status before
+        shell: bash
+        # Prisma prints the database host; logs of a public repository are public, so hide it.
+        run: |
+          set +e
+          node node_modules/prisma/build/index.js migrate status --schema=prisma/postgres/schema.prisma 2>&1 \
+            | sed -E 's/ at "[^"]*"/ at "[host hidden]"/'
+          echo "migrate status exit code: ${PIPESTATUS[0]} (1 means migrations are pending or the database is unreachable)"
+          exit 0
+      - name: Apply committed migrations
+        if: inputs.apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/postgres.mjs migrate 2>&1 | sed -E 's/ at "[^"]*"/ at "[host hidden]"/'
+      - name: Migration status after
+        # Fails the run unless the database matches this commit's migration history.
+        if: inputs.apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          node node_modules/prisma/build/index.js migrate status --schema=prisma/postgres/schema.prisma 2>&1 \
+            | sed -E 's/ at "[^"]*"/ at "[host hidden]"/'
+      - name: Release readiness
+        if: inputs.apply
+        run: node scripts/postgres.mjs check

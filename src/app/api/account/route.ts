@@ -17,7 +17,7 @@ const schema = z
 
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const data = schema.parse(await readJson(request));
     // A low limit bounds password guessing through this endpoint.
     await rateLimit(user.id, 'account-delete', 5);

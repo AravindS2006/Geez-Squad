@@ -1407,7 +1407,8 @@ export function StudioOperations({
               squad
             </span>
           </div>
-          <div className="ops-kanban">
+          {/* Keyboard users can scroll the pipeline even when no stage has a lead card. */}
+          <div className="ops-kanban" role="region" aria-label="Enquiry pipeline" tabIndex={0}>
             {['new', 'contacted', 'trial', 'won', 'lost'].map((stage) => (
               <section className="ops-kanban-column" key={stage}>
                 <h2>

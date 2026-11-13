@@ -471,7 +471,8 @@ try {
   assert.deepEqual(errors, []);
   const report = {
     timestamp: new Date().toISOString(),
-    server: 'LiveKit 1.13.7 Windows, localhost',
+    // The CI workflow (.github/workflows/media-capacity.yml) labels its Linux runner.
+    server: process.env.MEDIA_SERVER_LABEL || 'LiveKit 1.13.7 Windows, localhost',
     browserProcesses: 2,
     pages: publishers.length + 1,
     nativePublishers: nativeProcesses.length,

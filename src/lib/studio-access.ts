@@ -11,6 +11,8 @@ export async function studioAccess(userId: string, studioId?: string, store: Acc
   const studio = await store.studio.findFirst({
     where: {
       ...(studioId ? { id: studioId } : {}),
+      // A closed studio grants nobody access, its former owner included.
+      status: 'active',
       OR: [
         { ownerId: userId },
         { roleGrants: { some: { userId, status: 'active', role: { in: ['admin', 'coach'] } } } },
@@ -106,23 +108,58 @@ export async function requireTraineeAccess(
     throw new ApiError(404, 'This trainee is not assigned to you.');
   return { access, member, since: access.admin ? null : member.primaryCoach!.assignedAt };
 }
+export type ClassAccessGrant = { userId: string; role: string; status: string };
+/**
+ * One read for everything class permissions need: the actor's own grants in the
+ * class's studio (any role or status, so a revoked trainee grant is visible too) and
+ * the studio's active admins (presenters).
+ */
+export function classAccessGrants(
+  studioId: string,
+  userId: string,
+  store: Pick<AccessStore, 'studioRoleGrant'> = db,
+): Promise<ClassAccessGrant[]> {
+  return store.studioRoleGrant.findMany({
+    where: { studioId, OR: [{ userId }, { role: 'admin', status: 'active' }] },
+    select: { userId: true, role: true, status: true },
+  });
+}
+/**
+ * Same result as `classPermissionView(item, userId, studioAccess(userId, studioId), admins)`:
+ * class management only needs the staff half of `studioAccess` (owner, active admin or
+ * active coach grant in this studio); trainee status never grants it.
+ */
+export function classPermissionsFromGrants(
+  item: {
+    studioId: string;
+    hostId: string | null;
+    studio: { ownerId: string; status?: string };
+  },
+  userId: string,
+  grants: ClassAccessGrant[],
+) {
+  // A closed studio grants no staff access, matching `studioAccess` (active studios only).
+  const open = item.studio.status !== 'closed';
+  const own = (role: string) =>
+    open && grants.some((g) => g.userId === userId && g.role === role && g.status === 'active');
+  const admin = (open && item.studio.ownerId === userId) || own('admin');
+  const coach = admin || own('coach');
+  return classPermissionView(
+    item,
+    userId,
+    coach ? { studio: { id: item.studioId }, admin, coach } : null,
+    [
+      ...new Set(
+        grants.filter((g) => g.role === 'admin' && g.status === 'active').map((g) => g.userId),
+      ),
+    ],
+  );
+}
 export async function classPermissions(
   item: { studioId: string; hostId: string | null; studio: { ownerId: string } },
   userId: string,
 ) {
-  const [access, admins] = await Promise.all([
-    studioAccess(userId, item.studioId),
-    db.studioRoleGrant.findMany({
-      where: { studioId: item.studioId, role: 'admin', status: 'active' },
-      select: { userId: true },
-    }),
-  ]);
-  return classPermissionView(
-    item,
-    userId,
-    access,
-    admins.map((a) => a.userId),
-  );
+  return classPermissionsFromGrants(item, userId, await classAccessGrants(item.studioId, userId));
 }
 export function classPermissionView(
   item: { studioId: string; hostId: string | null; studio: { ownerId: string } },

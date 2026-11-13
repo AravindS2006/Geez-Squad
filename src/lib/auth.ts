@@ -1,17 +1,35 @@
 import 'server-only';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { nextCookies } from 'better-auth/next-js';
 import { db, databaseProvider } from './db';
 import { sendMail } from './mail';
 import { getEmailPolicy } from './email-policy.mjs';
-import { logEvent } from './logger';
+import { errorContext, logEvent } from './logger';
 import { requestContext } from './request-log';
 import { allowedOrigins } from './origins';
 export const emailPolicy = getEmailPolicy(process.env);
+/**
+ * Seconds a signed session cookie may stand in for the Session table lookup. A session
+ * revoked elsewhere (sign-out on another device, password reset, account deletion)
+ * stops authenticating within this bound; studio, membership, assignment and cue
+ * permissions are never cached and are read from the database on every request.
+ */
+export const SESSION_COOKIE_CACHE_SECONDS = 60;
 export const auth = betterAuth({
   logger: {
     level: 'debug',
-    log: (level) => logEvent(level, 'auth_event', requestContext.getStore()),
+    // Keep Better Auth's own message (redacted by the logger) and the type, code and
+    // frames of any error it passes. The error's message is left out: mail-provider
+    // errors pass through here and can echo recipient details.
+    log: (level, message, ...args) => {
+      const error = args.find((arg) => arg instanceof Error);
+      logEvent(level, 'auth_event', {
+        ...requestContext.getStore(),
+        ...(error ? errorContext(error) : {}),
+        detail: message,
+      });
+    },
   },
   appName: 'Geez Squad',
   baseURL: process.env.BETTER_AUTH_URL,
@@ -57,7 +75,16 @@ export const auth = betterAuth({
       consentVersion: { type: 'string', required: false, input: false },
     },
   },
-  session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24 },
+  session: {
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
+    // No `refreshCache`: an expired cache must go back to the database, otherwise a
+    // revoked session could keep renewing itself from the cookie alone.
+    cookieCache: { enabled: true, maxAge: SESSION_COOKIE_CACHE_SECONDS },
+  },
+  // Lets server-side `auth.api.getSession` calls in route handlers re-issue the cache
+  // cookie after a database lookup. Must stay the last plugin.
+  plugins: [nextCookies()],
   rateLimit: {
     enabled: true,
     storage: 'database',

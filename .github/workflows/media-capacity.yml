@@ -1,0 +1,91 @@
+name: Media capacity rehearsal
+# Runs scripts/test-media-capacity.mjs on one Linux runner: the real app classroom (coach
+# browser) plus N synthetic canvas publishers against a local LiveKit server in --dev mode.
+# No LiveKit Cloud account or repository secret is used: devkey/secret are LiveKit's public
+# development-mode defaults and the server only listens on loopback of a disposable runner.
+# This is a software regression rehearsal. Every publisher, the coach and the SFU share one
+# small VM, so a missed performance target here is not a LiveKit Cloud capacity result, and a
+# pass is not the 36-trainee field soak test on real devices and networks.
+on:
+  workflow_dispatch:
+    inputs:
+      cameras:
+        description: Synthetic trainee cameras (17-36)
+        type: number
+        default: 17
+permissions:
+  contents: read
+concurrency:
+  group: media-capacity-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  POSE_MODEL_CACHE_DIR: .cache/pose-models
+  EMAIL_DELIVERY: test
+  LIVEKIT_URL: ws://127.0.0.1:7880
+  LIVEKIT_API_KEY: devkey
+  LIVEKIT_API_SECRET: secret
+jobs:
+  media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - name: Restore verified pose models
+        uses: actions/cache@v4
+        with:
+          path: .cache/pose-models
+          key: pose-models-${{ hashFiles('scripts/pose-assets.mjs') }}
+      - run: npm ci
+      - run: npm run setup
+      - name: Install Edge for Playwright
+        run: npx playwright install --with-deps msedge
+      - name: Start a local LiveKit server in development mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Pinned to the server version of the recorded local rehearsal (docs/results).
+          docker run --detach --rm --name geez-livekit --network host \
+            livekit/livekit-server:v1.13.7 --dev --bind 127.0.0.1 --node-ip 127.0.0.1
+          for attempt in $(seq 1 30); do
+            curl --silent --fail http://127.0.0.1:7880/ >/dev/null && exit 0
+            sleep 1
+          done
+          docker logs geez-livekit
+          exit 1
+      - run: npm run build
+      - name: Run the media capacity rehearsal
+        shell: bash
+        env:
+          CAMERAS: ${{ inputs.cameras }}
+          MEDIA_SERVER_LABEL: LiveKit 1.13.7 Linux (Docker, --dev), GitHub-hosted ubuntu-latest runner
+        run: |
+          set -euo pipefail
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 60); do
+            curl --silent --fail http://localhost:3000/api/health >/dev/null && break
+            sleep 1
+          done
+          node scripts/test-media-capacity.mjs "$CAMERAS"
+      # Measurements and the synthetic coach-gallery screenshot only: no traces or cookies.
+      - name: Upload measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-capacity-${{ github.run_id }}
+          path: |
+            docs/results/media-capacity-*-results.json
+            test-results/media-*-raw.json
+            docs/screenshots/media-*-overview.png
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Stop LiveKit
+        if: always()
+        run: docker rm --force geez-livekit || true

@@ -7,7 +7,12 @@ export default defineConfig({
   // The real WASM model and shared SQLite fixtures contend on small CI runners.
   workers: process.env.CI ? 1 : undefined,
   expect: { timeout: 10000 },
-  use: { baseURL: 'http://localhost:3000', trace: 'retain-on-failure' },
+  // Failure output stays local; CI uploads it only after scripts/redact-playwright-results.mjs.
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'msedge' } }],
   reporter: 'list',
 });

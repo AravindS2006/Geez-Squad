@@ -12,6 +12,10 @@ permissions:
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Verified pose models are reused from this directory (actions/cache below) instead of being
+# downloaded from Google storage on every build (scripts/prepare-assets.mjs).
+env:
+  POSE_MODEL_CACHE_DIR: .cache/pose-models
 jobs:
   # Decide which heavy jobs a PR needs. master pushes and manual runs need all of them.
   changes:
@@ -87,17 +91,29 @@ jobs:
         with:
           node-version: '22.22.0'
           cache: npm
+      - name: Restore verified pose models
+        uses: actions/cache@v4
+        with:
+          path: .cache/pose-models
+          key: pose-models-${{ hashFiles('scripts/pose-assets.mjs') }}
       - run: npm ci
       - run: npm run setup
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
+      # Production dependencies fail on moderate. The dev toolchain (eslint-config-next and its
+      # typescript-eslint/minimatch chain) still has moderate advisories, so it stays on high.
+      - run: npm audit --omit=dev --audit-level=moderate
       - run: npm audit --audit-level=high
       - run: npm run db:roles:rehearse
       - run: npm run build
       - name: API and browser verification
         shell: pwsh
+        env:
+          # Same operator allow-list as scripts/local-coaching-check.mjs; the account suite
+          # approves a studio request as this operator.
+          PLATFORM_OPERATOR_EMAILS: platform-operator@example.test
         run: |
           $geezSquadServer = Start-Process -FilePath node -ArgumentList 'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1' -WindowStyle Hidden -PassThru
           try {
@@ -129,8 +145,51 @@ jobs:
         run: npm run test:email-disabled
       - name: Testing signup and both roles
         run: npm run test:signup
-      # Browser traces can contain session cookies and request bodies. Keep them
-      # on the disposable runner; do not publish test-results as an artifact.
+      # Traces record cookies and request bodies. Only on failure: delete storage-state/HAR
+      # files, strip each trace's network log and request bodies, redact cookie, token,
+      # password and typed values, then upload screenshots and traces with short retention.
+      - name: Redact failed browser output
+        if: failure()
+        run: node scripts/redact-playwright-results.mjs test-results/browser-runs test-results/webkit-runs
+      - name: Upload redacted browser failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/browser-runs/**/*.png
+            test-results/browser-runs/**/trace.zip
+            test-results/browser-runs/**/error-context.md
+            test-results/webkit-runs/**/*.png
+            test-results/webkit-runs/**/trace.zip
+            test-results/webkit-runs/**/error-context.md
+          if-no-files-found: ignore
+          retention-days: 3
+  # The same API suites as the Windows job, against a production build on Linux with
+  # PostgreSQL (the production provider). The database is a throwaway loopback container with
+  # a password generated at runtime (scripts/ci-postgres-container.mjs); no repository secret.
+  postgres-api:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - name: Restore verified pose models
+        uses: actions/cache@v4
+        with:
+          path: .cache/pose-models
+          key: pose-models-${{ hashFiles('scripts/pose-assets.mjs') }}
+      - run: npm ci
+      - name: Create the local fallback environment file the suites load
+        run: node scripts/init-local.mjs
+      - name: Migrate, build and run the API suites against PostgreSQL
+        run: node scripts/ci-postgres-api.mjs
   postgres-coaching:
     needs: changes
     if: needs.changes.outputs.schema == 'true'

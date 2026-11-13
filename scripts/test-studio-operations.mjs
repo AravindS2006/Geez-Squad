@@ -2,6 +2,7 @@ import { provisionTestAdmin } from './local-studio-fixture.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { mergeCookies } from './test-cookies.mjs';
 process.loadEnvFile('.env');
 const db = new PrismaClient(),
   origin = 'http://localhost:3000',
@@ -44,7 +45,7 @@ async function agent(name, role) {
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
     const cookies = response.headers.getSetCookie();
-    if (cookies.length) session.cookie = cookies.map((c) => c.split(';')[0]).join('; ');
+    if (cookies.length) session.cookie = mergeCookies(session.cookie, cookies);
     return { status: response.status, data: await response.json() };
   };
   const signup = await session.call('/api/auth/sign-up/email', {

@@ -1,4 +1,4 @@
-import { readFile, unlink } from 'node:fs/promises';
+import { readFile, readdir, unlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -41,13 +41,12 @@ try {
     INSERT INTO "StudioStaff" (id,"studioId",name,role) VALUES ('directory','studio','Directory coach','Head coach');
     INSERT INTO "ClassSession" (id,"studioId",title,"startsAt") VALUES ('class','studio','Legacy class',CURRENT_TIMESTAMP);`);
   sql(await readFile(`prisma/migrations/${migrations[6]}/migration.sql`, 'utf8'));
-  for (const name of [
-    '20261024000000_coaching_measurements',
-    '20261024010000_workout_snapshot',
-    '20261024020000_nutrition',
-    '20261024030000_operation_corrections',
-  ])
-    sql(await readFile(`prisma/migrations/${name}/migration.sql`, 'utf8'));
+  // Every later migration, in order, so the generated client matches the database.
+  const later = (await readdir('prisma/migrations', { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name > migrations[6])
+    .map((entry) => entry.name)
+    .sort();
+  for (const name of later) sql(await readFile(`prisma/migrations/${name}/migration.sql`, 'utf8'));
   assert.equal(
     (await db.account.findUnique({ where: { id: 'account' } })).password,
     'unchanged-password-hash',

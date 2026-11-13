@@ -2,7 +2,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { WorkoutSetRecord } from '../src/lib/types';
 const request = vi.hoisted(() => vi.fn());
 vi.mock('../src/lib/client', () => ({ fetchJson: request }));
-import { saveWorkoutSet, retryWorkoutSets, pendingWorkoutSets } from '../src/lib/workout-save';
+import {
+  saveWorkoutSet,
+  retryWorkoutSets,
+  pendingWorkoutSets,
+  shouldAutoRetry,
+} from '../src/lib/workout-save';
 const key = 'geez-squad:pending-sets:v1';
 const record: WorkoutSetRecord = {
   clientId: '018f165d-c727-4951-8f0e-e6f9d9fddba9',
@@ -95,6 +100,46 @@ it('retries later records when one pending record is rejected', async () => {
   await expect(retryWorkoutSets('owner')).rejects.toThrow('1 workout saves are still pending.');
   expect(request).toHaveBeenCalledTimes(2);
   expect(pendingWorkoutSets('owner')).toBe(1);
+});
+it('shares one request when overlapping triggers save the same record', async () => {
+  let release!: () => void;
+  request.mockImplementation(() => new Promise<void>((resolve) => (release = resolve)));
+  const first = saveWorkoutSet('owner', record);
+  const second = saveWorkoutSet('owner', record);
+  expect(request).toHaveBeenCalledTimes(1);
+  release();
+  await Promise.all([first, second]);
+  expect(pendingWorkoutSets('owner')).toBe(0);
+});
+it('runs one retry pass when online and visibility triggers overlap', async () => {
+  const later = { ...record, clientId: '01636788-f8a1-44e7-88b4-ae74a9fe5895' };
+  values.set(
+    key,
+    JSON.stringify([
+      { userId: 'owner', record },
+      { userId: 'owner', record: later },
+    ]),
+  );
+  request.mockResolvedValue({ saved: true });
+  const [a, b] = await Promise.all([retryWorkoutSets('owner'), retryWorkoutSets('owner')]);
+  expect(a).toBe(2);
+  expect(b).toBe(2);
+  expect(request).toHaveBeenCalledTimes(2);
+  // Stable client ids are sent unchanged, so the server upsert keeps one row per set.
+  expect(request.mock.calls.map((call) => JSON.parse(call[1].body).clientId)).toEqual([
+    record.clientId,
+    later.clientId,
+  ]);
+  expect(pendingWorkoutSets('owner')).toBe(0);
+});
+it('auto-retries only when something is queued, the browser is online and the page is visible', () => {
+  expect(shouldAutoRetry('owner', { online: true, hidden: false })).toBe(false);
+  values.set(key, JSON.stringify([{ userId: 'owner', record }]));
+  expect(shouldAutoRetry('owner', { online: true, hidden: false })).toBe(true);
+  expect(shouldAutoRetry('owner', { online: false, hidden: false })).toBe(false);
+  expect(shouldAutoRetry('owner', { online: true, hidden: true })).toBe(false);
+  expect(shouldAutoRetry('other', { online: true, hidden: false })).toBe(false);
+  expect(shouldAutoRetry(undefined, { online: true, hidden: false })).toBe(false);
 });
 it('tolerates corrupt device storage without duplicating the current record', async () => {
   values.set(key, 'invalid JSON');

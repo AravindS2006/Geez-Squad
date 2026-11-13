@@ -10,7 +10,7 @@ import {
   rateLimit,
   safeError,
 } from '@/lib/security';
-import { metricNeedsSharedLimit } from '@/lib/rate-window';
+import { latestUserMetricAt, metricNeedsSharedLimit } from '@/lib/rate-window';
 import { metricSchema } from '@/lib/validation';
 import { writeMetrics } from '@/lib/metrics-write';
 import { metricElapsedSeconds } from '@/lib/metric-policy';
@@ -116,10 +116,11 @@ async function handlePOST(request: Request) {
               trackingCoverage: data.trackingCoverage ?? null,
               rejectedReps: data.rejectedReps ?? 0,
             };
-            // Steady-cadence heartbeats write no RateLimit row; faster summaries for this
-            // enrollment are charged to the shared limit (in this transaction, so a
-            // refused or rolled-back summary is not counted twice on retry).
-            if (metricNeedsSharedLimit(previous?.updatedAt, Date.now()))
+            // Steady-cadence heartbeats write no RateLimit row; summaries faster than that
+            // across all of this user's classes are charged to the shared per-user limit
+            // (in this transaction, so a rolled-back summary is not counted twice on retry;
+            // under Serializable, two concurrent "steady" summaries conflict and retry).
+            if (metricNeedsSharedLimit(await latestUserMetricAt(tx, user.id), Date.now()))
               await rateLimit(user.id, 'metrics', 30, tx);
             await tx.metric.upsert({
               where: { enrollmentId: enrollment.id },

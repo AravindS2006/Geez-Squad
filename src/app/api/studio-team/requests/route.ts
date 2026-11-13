@@ -34,7 +34,7 @@ export const GET = loggedRoute('/api/studio-team/requests', async () => {
 });
 export const POST = loggedRoute('/api/studio-team/requests', async (request) => {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     if (!user.emailVerified)
       throw new ApiError(
         403,

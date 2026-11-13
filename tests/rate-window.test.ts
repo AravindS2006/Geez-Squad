@@ -19,6 +19,7 @@ import {
   FixedWindows,
   METRIC_STEADY_INTERVAL_MS,
   fixedWindow,
+  latestUserMetricAt,
   metricNeedsSharedLimit,
 } from '../src/lib/rate-window';
 import {
@@ -70,6 +71,52 @@ describe('metric heartbeat limiting', () => {
     // The live room's own cadence (2.8 s changed, 9 s heartbeat) never writes a row.
     expect(metricNeedsSharedLimit(new Date(now - 2_800), now)).toBe(false);
     expect(metricNeedsSharedLimit(new Date(now - 9_000), now)).toBe(false);
+  });
+  it('keys the steady-cadence exemption per user across several live classes', async () => {
+    // Stored Metric rows: enrollment -> { userId, updatedAt }.
+    const rows = new Map<string, { userId: string; updatedAt: Date }>();
+    const store = {
+      metric: {
+        findFirst: vi.fn(
+          async ({ where }: { where: { enrollment: { userId: string } } }) =>
+            [...rows.values()]
+              .filter((r) => r.userId === where.enrollment.userId)
+              .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0] ?? null,
+        ),
+      },
+    };
+    // One trainee in two live classes, each posting at the live room's 2.8 s cadence,
+    // offset by 1.4 s, for one minute; another user posts in parallel.
+    let exempt = 0;
+    let charged = 0;
+    const start = 50_000_000;
+    for (let t = 0; t < 60_000; t += 1_400) {
+      const enrollment = (t / 1_400) % 2 === 0 ? 'class-a' : 'class-b';
+      const now = start + t;
+      if (metricNeedsSharedLimit(await latestUserMetricAt(store, 'trainee'), now)) charged++;
+      else exempt++;
+      rows.set(enrollment, { userId: 'trainee', updatedAt: new Date(now) });
+      rows.set(`other-${enrollment}`, { userId: 'other', updatedAt: new Date(now) });
+    }
+    // Each class alone is at steady cadence, but together the user is faster than the
+    // per-user steady rate, so every summary after the first is charged to the shared
+    // limit (30 a minute per user, as before the change).
+    expect(exempt + charged).toBe(43);
+    expect(exempt).toBe(0);
+    expect(store.metric.findFirst.mock.calls[0][0]).toEqual({
+      where: { enrollment: { userId: 'trainee' } },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    });
+    // A single class at the same cadence stays exempt after its first summary.
+    rows.clear();
+    exempt = 0;
+    for (let t = 0; t < 60_000; t += 2_800) {
+      if (!metricNeedsSharedLimit(await latestUserMetricAt(store, 'trainee'), start + t)) exempt++;
+      rows.set('class-a', { userId: 'trainee', updatedAt: new Date(start + t) });
+    }
+    expect(exempt).toBe(21);
+    expect(exempt).toBeLessThanOrEqual(30);
   });
 });
 

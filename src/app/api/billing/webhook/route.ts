@@ -4,7 +4,8 @@ import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { shouldReconcileSubscription } from '@/lib/billing-policy';
 import type { BillingSubscription } from '@prisma/client';
-import { logEvent } from '@/lib/logger';
+import { errorContext, logEvent } from '@/lib/logger';
+import { requestContext } from '@/lib/request-log';
 async function handlePOST(request: Request) {
   if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET)
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
@@ -81,7 +82,14 @@ async function handlePOST(request: Request) {
       await tx.webhookEvent.create({ data: { id: event.id } });
     });
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    // Stripe retries a 500, but an operator still needs to see why it failed.
+    logEvent('error', 'billing_webhook_failed', {
+      ...requestContext.getStore(),
+      targetId: event.id,
+      action: event.type,
+      ...errorContext(error, { withDetail: true }),
+    });
     return NextResponse.json(
       { error: 'Webhook processing failed; retry required.' },
       { status: 500 },

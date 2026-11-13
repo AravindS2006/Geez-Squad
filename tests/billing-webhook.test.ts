@@ -76,6 +76,22 @@ describe('billing webhook reconciliation', () => {
       fixtures.retrieve.mock.invocationCallOrder[0],
     );
   });
+  it('logs why processing failed, with the event id and type but no payload', async () => {
+    const output = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fixtures.retrieve.mockRejectedValue(new Error('Stripe timeout for cus_private@example.test'));
+    expect((await POST(request())).status).toBe(500);
+    const line = output.mock.calls
+      .map((call) => String(call[0]))
+      .find((entry) => entry.includes('billing_webhook_failed'))!;
+    expect(JSON.parse(line)).toMatchObject({
+      route: '/api/billing/webhook',
+      targetId: 'event',
+      action: 'customer.subscription.deleted',
+      type: 'Error',
+    });
+    expect(line).not.toMatch(/example\.test|signed-test-body/);
+    output.mockRestore();
+  });
   it('deduplicates a previously processed event before contacting Stripe', async () => {
     fixtures.findEvent.mockResolvedValue({ id: 'event' });
     expect((await POST(request())).status).toBe(200);

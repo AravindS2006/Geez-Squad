@@ -1,4 +1,6 @@
 'use client';
+import { useEffect } from 'react';
+import { reportClientError } from '@/lib/client-error-reporter';
 export default function ErrorPage({
   error,
   retry,
@@ -6,6 +8,7 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
+  useEffect(() => reportClientError('boundary', error, error.digest), [error]);
   return (
     <main className="error-page">
       <h1>Let’s try that again.</h1>

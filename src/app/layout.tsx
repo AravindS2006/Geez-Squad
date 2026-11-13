@@ -9,6 +9,7 @@ import './next-phase.css';
 import './theme.css';
 import { TimeProvider } from '@/components/time-provider';
 import { AppInstall } from '@/components/app-install';
+import { ClientErrorReporter } from '@/components/client-error-reporter';
 import { ToastProvider } from '@/components/primitives/toast';
 import { siteOrigin } from '@/lib/site';
 
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <TimeProvider>{children}</TimeProvider>
         </ToastProvider>
         <AppInstall />
+        <ClientErrorReporter />
       </body>
     </html>
   );

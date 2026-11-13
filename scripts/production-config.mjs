@@ -114,6 +114,27 @@ export function validateProductionConfig(env) {
     errors.push('SMTP_PORT must be 465 or 587 with TLS.');
   if (env.LOG_LEVEL && !['debug', 'info', 'warn', 'error'].includes(env.LOG_LEVEL))
     errors.push('LOG_LEVEL must be debug, info, warn, or error.');
+  // Optional alert sink (src/lib/logger.ts). Its path usually holds the webhook secret,
+  // so diagnostics name the key only.
+  if (env.ALERT_WEBHOOK_URL?.trim()) {
+    let valid = false;
+    try {
+      const url = new URL(env.ALERT_WEBHOOK_URL.trim());
+      valid =
+        url.protocol === 'https:' && !!url.hostname && !localHost(url.hostname) && !url.username;
+    } catch {
+      valid = false;
+    }
+    if (!valid || placeholder(env.ALERT_WEBHOOK_URL))
+      errors.push('ALERT_WEBHOOK_URL must be a public https webhook URL, or leave it unset.');
+  }
+  // Optional bearer token that unlocks per-dependency detail on /api/health.
+  if (env.HEALTH_CHECK_TOKEN?.trim()) {
+    if (env.HEALTH_CHECK_TOKEN.trim().length < 32)
+      errors.push('HEALTH_CHECK_TOKEN must be at least 32 characters, or leave it unset.');
+    if ([env.BETTER_AUTH_SECRET, env.CRON_SECRET].includes(env.HEALTH_CHECK_TOKEN))
+      errors.push('Use an independent HEALTH_CHECK_TOKEN, not the auth or cleanup secret.');
+  }
   const billingKeys = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_ID'];
   const billingConfigured = billingKeys.filter((key) => !!env[key]?.trim());
   if (billingConfigured.length && billingConfigured.length !== billingKeys.length)

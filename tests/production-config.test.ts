@@ -15,6 +15,29 @@ const valid = {
   CRON_SECRET: 'b'.repeat(43),
 };
 describe('production deployment guard', () => {
+  it('treats HEALTH_CHECK_TOKEN as optional but requires a long, independent token', () => {
+    expect(validateProductionConfig({ ...valid, HEALTH_CHECK_TOKEN: 'h'.repeat(40) })).toEqual([]);
+    expect(validateProductionConfig({ ...valid, HEALTH_CHECK_TOKEN: 'short' }).join(' ')).toContain(
+      'HEALTH_CHECK_TOKEN must be at least 32 characters',
+    );
+    expect(
+      validateProductionConfig({ ...valid, HEALTH_CHECK_TOKEN: valid.CRON_SECRET }).join(' '),
+    ).toContain('independent HEALTH_CHECK_TOKEN');
+  });
+  it('treats ALERT_WEBHOOK_URL as optional but requires a public https URL when set', () => {
+    expect(validateProductionConfig(valid)).toEqual([]);
+    expect(
+      validateProductionConfig({
+        ...valid,
+        ALERT_WEBHOOK_URL: 'https://hooks.slack.com/services/T000/B000/test-only',
+      }),
+    ).toEqual([]);
+    for (const bad of ['http://hooks.example.test/x', 'https://localhost/x', 'not a url']) {
+      const result = validateProductionConfig({ ...valid, ALERT_WEBHOOK_URL: bad }).join(' ');
+      expect(result).toContain('ALERT_WEBHOOK_URL must be a public https webhook URL');
+      expect(result).not.toContain(bad);
+    }
+  });
   it('accepts a free Gmail sender with SMTP instead of requiring a sending domain', () => {
     expect(
       validateProductionConfig({

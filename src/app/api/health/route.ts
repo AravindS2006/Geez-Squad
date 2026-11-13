@@ -3,33 +3,50 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { errorContext, logEvent } from '@/lib/logger';
 import { requestContext } from '@/lib/request-log';
-async function handleGET() {
+import {
+  failingChecks,
+  hasHealthToken,
+  livekitStatus,
+  mailStatus,
+  schemaProbeSql,
+  type HealthChecks,
+} from '@/lib/health';
+
+const probe = schemaProbeSql();
+
+async function databaseStatus(): Promise<HealthChecks['database']> {
   try {
-    // Validate the schema the app actually needs, without reading personal records.
+    // Every table and column the deployed client expects, without reading records.
     // A reachable database with unapplied migrations must not report healthy.
-    await db.$queryRaw`
-      SELECT s."address", s."hours", s."phone", m."joinedOn", o."pricePaise",
-        t."endsOn", p."amountPaise", a."date", e."followUpOn", f."role",
-        c."startsAt", b."status", m."userId", j."status", j."targetUserId",
-        r."role", r."status", pc."assignedAt", pc."note", tr."expiresAt", ls."hostId", wp."createdById", ah."endedAt"
-      FROM "Studio" s, "StudioMember" m, "MembershipOffer" o, "MemberTerm" t,
-        "StudioPayment" p, "StudioAttendance" a, "StudioEnquiry" e,
-        "StudioStaff" f, "StudioClass" c, "StudioBooking" b, "StudioJoinRequest" j,
-        "StudioRoleGrant" r, "PrimaryCoachAssignment" pc, "StudioTeamRequest" tr,
-        "ClassSession" ls, "WorkoutPlan" wp, "CoachAssignmentHistory" ah
-      WHERE 1 = 0
-    `;
-    return NextResponse.json({ status: 'ok' }, { headers: { 'Cache-Control': 'no-store' } });
+    await db.$queryRawUnsafe(probe);
+    return 'ok';
   } catch (error) {
     logEvent('error', 'schema_readiness_failed', {
       ...requestContext.getStore(),
       ...errorContext(error),
     });
-    return NextResponse.json(
-      { status: 'unavailable' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
-    );
+    return 'down';
   }
+}
+
+async function handleGET(request: Request) {
+  const [database, livekit] = await Promise.all([databaseStatus(), livekitStatus()]);
+  const checks: HealthChecks = { database, livekit, mail: mailStatus() };
+  const failing = failingChecks(checks);
+  if (failing.length)
+    logEvent('error', 'health_dependency_down', {
+      ...requestContext.getStore(),
+      action: failing.join(','),
+    });
+  // Anonymous callers get the overall status only, so the response does not reveal which
+  // services are configured. With the health token, status words per dependency (still
+  // no hostnames, versions, provider names or error text).
+  const status = failing.length ? 'unavailable' : 'ok';
+  const detailed = hasHealthToken(request.headers.get('authorization'));
+  return NextResponse.json(detailed ? { status, checks } : { status }, {
+    status: failing.length ? 503 : 200,
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 
 export const GET = loggedRoute('/api/health', handleGET);

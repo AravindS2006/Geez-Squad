@@ -1,8 +1,11 @@
 'use client';
+import { useEffect } from 'react';
+import { reportClientError } from '@/lib/client-error-reporter';
 // Replaces the root layout when it fails, so styles are inline and self-contained.
 export default function GlobalError({ error, retry }: { error: unknown; retry: () => void }) {
   const digest =
     typeof error === 'object' && error && 'digest' in error ? String(error.digest) : undefined;
+  useEffect(() => reportClientError('global-boundary', error, digest), [error, digest]);
   return (
     <html lang="en">
       <body

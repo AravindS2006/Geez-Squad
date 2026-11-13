@@ -6,6 +6,7 @@ import type { ClassView } from '@/lib/types';
 import { COACH_PAGE_SIZE } from '@/lib/meeting-policy';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { limbModeLabel } from '@/lib/exercise-library';
+import { galleryTileDescription, galleryTileName } from '@/lib/live-room-a11y';
 import { Avatar } from './ui';
 
 export function freshMetric(person: ClassView['participants'][number], item: ClassView) {
@@ -195,16 +196,46 @@ export function CoachMonitor({
           >
             {visible.map((p, i) => {
               const person = people.get(p.id),
-                metric = freshMetric(p, item);
+                metric = freshMetric(p, item),
+                timed = metric?.targetUnit === 'seconds' || isHoldExercise(item.exercise),
+                descriptionId = `tile-stats-${p.id}`;
               return (
                 <button
                   type="button"
                   key={p.id}
                   className={`participant-tile meeting-tile ${p.helpRequested ? 'needs-attention' : ''} ${person?.isSpeaking ? 'is-speaking' : ''} ${focus === p.id ? 'selected-trainee' : ''}`}
-                  aria-label={`Focus ${p.name}${p.helpRequested ? ', help requested' : ''}`}
+                  aria-label={galleryTileName(p)}
+                  aria-describedby={descriptionId}
                   aria-pressed={focus === p.id}
                   onClick={() => onFocus(focus === p.id ? null : p.id)}
                 >
+                  {/* The label replaces the visible stats, so they are repeated here. */}
+                  <span id={descriptionId} hidden>
+                    {galleryTileDescription({
+                      name: p.name,
+                      helpRequested: p.helpRequested,
+                      paused: item.paused,
+                      metric: metric
+                        ? {
+                            reps: metric.reps,
+                            holdSeconds: metric.holdSeconds,
+                            timed,
+                            technique:
+                              metric.measurementSource === 'manual' ||
+                              metric.measurementSource === 'timer'
+                                ? 'manual'
+                                : metric.technique === 'steady' || metric.technique === 'adjust'
+                                  ? metric.technique
+                                  : 'uncertain',
+                            tracked: (metric.confidence ?? 0) >= 0.65,
+                            arms: metric.arms
+                              ? { left: metric.arms.left.reps, right: metric.arms.right.reps }
+                              : null,
+                          }
+                        : null,
+                      connection: person ? (person.connectionQuality ?? 'unknown') : null,
+                    })}
+                  </span>
                   <div className="participant-feed">
                     {person ? (
                       renderVideo(person)

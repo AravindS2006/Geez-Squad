@@ -1,7 +1,8 @@
 import { classPermissions } from '@/lib/studio-access';
 import { loggedRoute } from '@/lib/request-log';
 import { participation, reconcileClassParticipants } from '@/lib/member-access';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
+import { recordClassPresence } from '@/lib/class-completion';
 import { db } from '@/lib/db';
 import { ApiError, requireUser, safeError } from '@/lib/security';
 import { measurementData } from '@/lib/measurement-contract';
@@ -68,6 +69,11 @@ async function handleGET(_request: Request, context: { params: Promise<{ id: str
         ? reconcileClassParticipants(id, item.studio.id, coach ? undefined : user.id)
         : null,
     ]);
+    // Lifecycle bookkeeping after the response (src/lib/class-completion.ts):
+    // throttled coach presence, or completion of a class its coach abandoned.
+    // Registered only once the caller is the class coach or an eligible enrolled
+    // trainee, because `after` also runs when a later step throws.
+    if (coach || eligibility.allowed) after(() => recordClassPresence(item, coach));
     return NextResponse.json(
       {
         participationAllowed: eligibility.allowed,

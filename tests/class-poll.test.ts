@@ -5,7 +5,14 @@ const fx = vi.hoisted(() => ({
   participation: vi.fn(),
   reconcile: vi.fn(),
   findClass: vi.fn(),
+  presence: vi.fn(),
+  enrollments: vi.fn(),
 }));
+vi.mock('next/server', async (load) => ({
+  ...(await load<typeof import('next/server')>()),
+  after: (task: () => unknown) => void task(),
+}));
+vi.mock('@/lib/class-completion', () => ({ recordClassPresence: fx.presence }));
 vi.mock('@/lib/security', async () => {
   const { TestApiError, testSafeError } = await import('./route-mocks');
   return {
@@ -23,9 +30,7 @@ vi.mock('@/lib/db', () => ({
   db: {
     classSession: { findUnique: fx.findClass },
     user: { findUnique: async () => ({ name: 'Coach' }) },
-    enrollment: {
-      findMany: async () => [{ userId: 'trainee', user: { id: 'trainee', name: 'T' } }],
-    },
+    enrollment: { findMany: fx.enrollments },
     message: { findMany: async () => [] },
   },
 }));
@@ -44,6 +49,7 @@ beforeEach(() => {
   });
   fx.permissions.mockResolvedValue({ canManage: false, hostId: 'coach' });
   fx.participation.mockResolvedValue({ allowed: true, reason: '' });
+  fx.enrollments.mockResolvedValue([{ userId: 'trainee', user: { id: 'trainee', name: 'T' } }]);
 });
 const poll = () =>
   GET(
@@ -63,4 +69,21 @@ it('revokes HTTP access on the next poll even when the sweep is throttled', asyn
   fx.participation.mockResolvedValue({ allowed: false, reason: 'Membership expired.' });
   const body = await (await poll()).json();
   expect(body.participationAllowed).toBe(false);
+});
+it('hands the class and the caller role to the lifecycle hook after authorization', async () => {
+  expect((await poll()).status).toBe(200);
+  expect(fx.presence).toHaveBeenCalledWith(expect.objectContaining({ id: 'class' }), false);
+  fx.permissions.mockResolvedValue({ canManage: true, hostId: 'coach' });
+  expect((await poll()).status).toBe(200);
+  expect(fx.presence).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'class' }), true);
+});
+it('does not run the lifecycle hook for a caller who is not in the class', async () => {
+  fx.enrollments.mockResolvedValue([]);
+  expect((await poll()).status).toBe(404);
+  expect(fx.presence).not.toHaveBeenCalled();
+});
+it('does not run the lifecycle hook for a trainee whose participation is not allowed', async () => {
+  fx.participation.mockResolvedValue({ allowed: false, reason: 'Membership ended.' });
+  expect((await poll()).status).toBe(200);
+  expect(fx.presence).not.toHaveBeenCalled();
 });

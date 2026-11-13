@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { safeError } from '@/lib/security';
+import { completeAbandonedClasses } from '@/lib/class-completion';
 async function handleGET(request: Request) {
   try {
     const expected = `Bearer ${process.env.CRON_SECRET || ''}`;
@@ -22,7 +23,9 @@ async function handleGET(request: Request) {
       db.metric.deleteMany({ where: { updatedAt: { lt: new Date(Date.now() - 7 * 86400000) } } }),
       db.message.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 90 * 86400000) } } }),
     ]);
-    return NextResponse.json({ ok: true });
+    // Backstop for live classes nobody is polling: coach gone or past the hard maximum.
+    const classes = await completeAbandonedClasses(now);
+    return NextResponse.json({ ok: true, classes });
   } catch (error) {
     return safeError(error);
   }

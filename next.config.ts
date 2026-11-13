@@ -1,17 +1,16 @@
 import type { NextConfig } from 'next';
+import { buildContentSecurityPolicy } from './src/lib/content-security-policy';
 const config: NextConfig = {
   turbopack: { root: process.cwd() },
   serverExternalPackages: ['@prisma/client'],
   async headers() {
-    const livekit = process.env.LIVEKIT_URL || 'wss://*.livekit.cloud';
-    const endpoint = livekit.startsWith('wss://')
-      ? livekit.replace('wss://', 'https://')
-      : livekit.replace('ws://', 'http://');
-    // LiveKit Cloud selects and reconnects through regional hosts.
-    const cloudSources =
-      livekit.endsWith('.livekit.cloud') || livekit.includes('*.livekit.cloud')
-        ? ' wss://*.livekit.cloud https://*.livekit.cloud'
-        : '';
+    // Pages get a per-request nonce CSP from src/proxy.ts. Static documents that the proxy skips
+    // (pose worker, service worker, offline page) and API responses get the same policy without
+    // a nonce, so no response carries two policies and none allows inline scripts.
+    const staticPolicy = buildContentSecurityPolicy({
+      livekitUrl: process.env.LIVEKIT_URL,
+      isDev: process.env.NODE_ENV === 'development',
+    });
     return [
       {
         source: '/sw.js',
@@ -30,16 +29,15 @@ const config: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
           // Browsers ignore HSTS on plain-HTTP localhost, so local development is unaffected.
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
-          {
-            // script-src keeps 'unsafe-inline': App Router streams its flight data as inline
-            // scripts, and most pages (landing, login, docs) are statically generated, where
-            // per-request nonces cannot be injected. Removing it requires a nonce proxy and
-            // dynamic rendering for every page; the MediaPipe worker itself only needs
-            // worker-src blob: and 'wasm-unsafe-eval'.
-            key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${process.env.NODE_ENV === 'development' ? "'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ${livekit} ${endpoint}${cloudSources}; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
-          },
         ],
+      },
+      {
+        source: '/(pose-worker\\.js|sw\\.js|offline\\.html)',
+        headers: [{ key: 'Content-Security-Policy', value: staticPolicy }],
+      },
+      {
+        source: '/api/:path*',
+        headers: [{ key: 'Content-Security-Policy', value: staticPolicy }],
       },
     ];
   },

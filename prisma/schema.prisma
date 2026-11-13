@@ -31,6 +31,7 @@ model User {
   coachAssignments PrimaryCoachAssignment[]
   nutritionProfile NutritionProfile?
   nutritionEntries NutritionEntry[]
+  studioRequests StudioRequest[]
 }
 
 model NutritionProfile {
@@ -131,6 +132,9 @@ model Studio {
   roleGrants StudioRoleGrant[]
   teamRequests StudioTeamRequest[]
   exercises CustomExercise[]
+  status String @default("active")
+  closedAt DateTime?
+  closedById String?
 }
 
 model StudioMember {
@@ -550,4 +554,21 @@ model StudioTeamRequest {
   studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
   @@unique([studioId, email, role])
   @@index([email, status])
+}
+
+model StudioRequest {
+  id String @id @default(cuid())
+  userId String
+  name String
+  contactPhone String @default("")
+  note String @default("")
+  status String @default("pending")
+  studioId String?
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([status, createdAt])
+  @@index([userId, status])
 }

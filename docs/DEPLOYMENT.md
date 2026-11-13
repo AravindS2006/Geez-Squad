@@ -73,7 +73,7 @@ When the domain is available, add it to Resend (a sending subdomain is suitable)
 | `RESEND_API_KEY`, `EMAIL_FROM` | Required only when delivery mode is `resend` |
 | `CRON_SECRET` | Protected scheduled cleanup |
 
-Optional billing requires all three of `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_PRICE_ID`. Keep separate Stripe test and live environments. Leave them empty until pricing and paid-access policies are confirmed. This implementation collects a coach subscription if explicitly enabled, but does not enforce paid entitlements for classes yet.
+Optional billing requires all three of `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_PRICE_ID`. Keep separate Stripe test and live environments. Leave them empty until pricing and paid-access policies are confirmed. When enabled, starting a live class requires the studio owner or an active admin to hold an active or trialing subscription (see `docs/OPERATIONS.md`, Known engineering limits). Test Stripe end to end before enabling it. Optional `PLATFORM_OPERATOR_EMAILS` lists the verified emails that may approve studio requests (`docs/OPERATIONS.md`, Studio lifecycle).
 
 ## 5. Vercel project
 

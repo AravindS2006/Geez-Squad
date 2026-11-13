@@ -41,6 +41,22 @@ describe('production deployment guard', () => {
     expect(result).toContain('SMTP_PORT');
     expect(result).toContain('SMTP_USER');
   });
+  it('treats the platform operator list as optional but well-formed', () => {
+    const message = 'PLATFORM_OPERATOR_EMAILS must be a comma-separated list of email addresses.';
+    expect(validateProductionConfig({ ...valid, PLATFORM_OPERATOR_EMAILS: '' })).toEqual([]);
+    expect(
+      validateProductionConfig({
+        ...valid,
+        PLATFORM_OPERATOR_EMAILS: 'ops@geez-squad.in, second@geez-squad.in',
+      }),
+    ).toEqual([]);
+    expect(
+      validateProductionConfig({ ...valid, PLATFORM_OPERATOR_EMAILS: 'ops@geez-squad.in, admin' }),
+    ).toContain(message);
+    expect(
+      validateProductionConfig({ ...valid, PLATFORM_OPERATOR_EMAILS: 'replace-with@your-domain' }),
+    ).toContain(message);
+  });
   it('accepts complete configuration with billing disabled', () => {
     expect(validateProductionConfig(valid)).toEqual([]);
   });

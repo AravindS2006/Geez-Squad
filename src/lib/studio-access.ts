@@ -11,6 +11,8 @@ export async function studioAccess(userId: string, studioId?: string, store: Acc
   const studio = await store.studio.findFirst({
     where: {
       ...(studioId ? { id: studioId } : {}),
+      // A closed studio grants nobody access, its former owner included.
+      status: 'active',
       OR: [
         { ownerId: userId },
         { roleGrants: { some: { userId, status: 'active', role: { in: ['admin', 'coach'] } } } },

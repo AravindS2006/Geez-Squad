@@ -79,6 +79,7 @@ import { MemberMembership } from './member-membership';
 import { NutritionManager } from './nutrition-manager';
 import { CameraPractice } from './camera-practice';
 import { AccountDeletion } from './account-deletion';
+import { StudioOwnership, StudioRequests } from './studio-lifecycle';
 const Studio = dynamic(() => import('./studio').then((m) => m.Studio), {
   ssr: false,
   loading: () => <div className="page-loading">Opening your studio…</div>,
@@ -1413,6 +1414,8 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   )}
                   <AccountDeletion demo={data.demo} notify={notify} />
                 </section>
+                {!data.demo && <StudioRequests hasStudio={!!data.studio} notify={notify} />}
+                {!data.demo && admin && <StudioOwnership notify={notify} />}
                 {admin && (
                   <section className="panel">
                     <SectionTitle
@@ -2183,7 +2186,7 @@ function Onboarding({
         <p>
           {invited
             ? 'Your coach invited you as a trainee. Set up your profile to join.'
-            : 'Create your personal training profile. Coaches receive an invitation from a studio admin.'}
+            : 'Create your personal training profile. Coaches receive an invitation from a studio admin. Running a studio? Request one in Settings after setup.'}
         </p>
         <form
           className="form-stack"

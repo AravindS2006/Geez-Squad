@@ -3,6 +3,7 @@ const OPEN_BILLING = new Set(['active', 'trialing', 'past_due', 'unpaid', 'incom
 
 export const ACCOUNT_DELETION_CONFIRMATION = 'DELETE';
 
+/** `ownsStudio` means the user owns a studio that is still open. */
 export function deletionBlocker({
   ownsStudio,
   billingStatus,
@@ -14,7 +15,7 @@ export function deletionBlocker({
     return {
       code: 'STUDIO_OWNER',
       message:
-        'Studio owners cannot delete their account here because it would erase the studio, its members and payment records. Export your data and contact the operator to close the studio.',
+        'Studio owners cannot delete their account while the studio is open. Transfer ownership to another studio admin or close the studio in Settings first.',
     };
   if (billingStatus && OPEN_BILLING.has(billingStatus))
     return {

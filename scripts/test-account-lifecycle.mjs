@@ -37,10 +37,10 @@ async function request(actor, path, body, expected = 200) {
   checks++;
   return data;
 }
-async function account(name) {
+async function account(name, fixedEmail) {
   const actor = { ip: `2001:db8:${randomBytes(2).toString('hex')}::1`, cookie: '' };
   ips.push(actor.ip);
-  const email = `${name}-${prefix}@example.test`;
+  const email = fixedEmail ?? `${name}-${prefix}@example.test`;
   actor.password = randomBytes(24).toString('base64url');
   await request(actor, '/api/auth/sign-up/email', {
     name: `Lifecycle ${name}`,
@@ -177,8 +177,139 @@ try {
   );
   checks += 5;
   await request(member, '/api/workspace', undefined, 401);
+
+  // Operator-approved studio creation (PLATFORM_OPERATOR_EMAILS from the runner).
+  const operatorEmail = 'platform-operator@example.test';
+  await db.user.deleteMany({ where: { email: operatorEmail } });
+  const operator = await account('operator', operatorEmail),
+    founder = await account('founder'),
+    outsider = await account('outsider'),
+    deputy = await account('deputy');
+  const requests = (actor, body, expected) =>
+    request(actor, '/api/studio-requests', body, expected);
+  const studioRequest = {
+    action: 'submit',
+    name: 'Founder studio',
+    contactPhone: '+91 90000 00000',
+  };
+  // An unverified address never requests or reviews, even when sign-in does not require it.
+  await requests(founder, studioRequest, 403);
+  await db.user.update({ where: { id: founder.id }, data: { emailVerified: true } });
+  const submitted = await requests(founder, studioRequest);
+  await requests(founder, studioRequest, 409);
+  assert.equal((await requests(founder)).operator, false);
+  const approve = { action: 'approve', requestId: submitted.id };
+  await requests(outsider, approve, 403);
+  await requests(operator, approve, 403);
+  await db.user.update({ where: { id: operator.id }, data: { emailVerified: true } });
+  assert.ok((await requests(operator)).pending.some((r) => r.id === submitted.id));
+  // Double-click: both calls succeed and exactly one studio exists.
+  const [approved, again] = await Promise.all([
+    requests(operator, approve),
+    requests(operator, approve),
+  ]);
+  const created = await db.studio.findMany({ where: { ownerId: founder.id } });
+  assert.equal(created.length, 1, 'double approval creates one studio');
+  assert.ok([approved.studioId, again.studioId].every((id) => id === created[0].id));
+  assert.equal(
+    await db.studioRoleGrant.count({
+      where: { studioId: created[0].id, userId: founder.id, role: 'admin', status: 'active' },
+    }),
+    1,
+  );
+  assert.equal(
+    await db.auditEvent.count({ where: { action: 'studio.created', targetId: created[0].id } }),
+    1,
+  );
+  await requests(operator, { action: 'reject', requestId: submitted.id }, 409);
+  checks += 4;
+  const founderStudio = created[0];
+  const founderBlocked = await del(
+    founder,
+    { action: 'delete', confirm: 'DELETE', password: founder.password },
+    409,
+  );
+  assert.equal(founderBlocked.code, 'STUDIO_OWNER');
+  checks++;
+
+  // Ownership transfer: same-studio people only, re-authenticated, audited.
+  await db.studioRoleGrant.create({
+    data: { studioId: founderStudio.id, userId: deputy.id, role: 'coach' },
+  });
+  const ownership = (actor, body, expected) =>
+    request(actor, '/api/studio-ownership', body, expected);
+  const transfer = { action: 'transfer', confirm: 'TRANSFER', password: founder.password };
+  const view = await ownership(founder);
+  assert.deepEqual(
+    view.candidates.map((c) => c.id),
+    [deputy.id],
+  );
+  assert.equal((await ownership(outsider)).owner, false);
+  await ownership(founder, { ...transfer, userId: admin.id }, 404); // another studio's owner
+  await ownership(founder, { ...transfer, userId: outsider.id }, 404); // no access here
+  await ownership(founder, { ...transfer, userId: deputy.id, password: 'wrong-password-x' }, 403);
+  await ownership(founder, { ...transfer, userId: deputy.id, confirm: 'transfer' }, 400);
+  await ownership(outsider, { ...transfer, userId: deputy.id, password: outsider.password }, 404);
+  await ownership(founder, { ...transfer, userId: deputy.id });
+  assert.equal(
+    (await db.studio.findUniqueOrThrow({ where: { id: founderStudio.id } })).ownerId,
+    deputy.id,
+  );
+  checks += 2;
+  // The former owner is now an admin and can erase their account.
+  await del(founder, { action: 'delete', confirm: 'DELETE', password: founder.password });
+  assert.ok(await db.studio.findUnique({ where: { id: founderStudio.id } }), 'studio survives');
+  checks++;
+
+  // Closure: ends live classes, cancels scheduled ones, revokes everyone.
+  const scheduledClass = await db.classSession.create({
+    data: {
+      studioId: founderStudio.id,
+      title: 'Closing soon',
+      startsAt: new Date(Date.now() + 86400000),
+    },
+  });
+  const liveClass = await db.classSession.create({
+    data: {
+      studioId: founderStudio.id,
+      title: 'Live at closure',
+      startsAt: new Date(),
+      status: 'live',
+      startedAt: new Date(),
+    },
+  });
+  const close = { action: 'close', confirm: 'CLOSE', password: deputy.password };
+  await ownership(outsider, { ...close, password: outsider.password }, 404);
+  await ownership(deputy, { ...close, confirm: 'close' }, 400);
+  const closed = await ownership(deputy, close);
+  assert.equal(closed.repeated, false);
+  const closedRow = await db.studio.findUniqueOrThrow({ where: { id: founderStudio.id } });
+  assert.equal(closedRow.status, 'closed');
+  assert.equal(
+    (await db.classSession.findUniqueOrThrow({ where: { id: scheduledClass.id } })).status,
+    'cancelled',
+  );
+  assert.equal(
+    (await db.classSession.findUniqueOrThrow({ where: { id: liveClass.id } })).status,
+    'completed',
+  );
+  assert.equal(
+    await db.studioRoleGrant.count({ where: { studioId: founderStudio.id, status: 'active' } }),
+    0,
+  );
+  assert.equal((await request(deputy, '/api/workspace')).studio, null, 'owner loses access');
+  assert.equal((await ownership(deputy, close)).repeated, true);
+  checks += 5;
+  // After closure the owner can erase their account; the studio's records stay.
+  await del(deputy, { action: 'delete', confirm: 'DELETE', password: deputy.password });
+  const retained = await db.studio.findUniqueOrThrow({ where: { id: founderStudio.id } });
+  ids.push(retained.ownerId);
+  assert.notEqual(retained.ownerId, deputy.id);
+  assert.equal(await db.account.count({ where: { userId: retained.ownerId } }), 0);
+  assert.equal(await db.classSession.count({ where: { studioId: founderStudio.id } }), 2);
+  checks += 2;
   console.log(
-    `PASS: ${checks} account lifecycle checks (weekly class series, deletion guards, coach and member erasure).`,
+    `PASS: ${checks} account lifecycle checks (weekly class series, deletion guards, coach and member erasure, studio request, transfer and closure).`,
   );
 } finally {
   for (const id of ids) {

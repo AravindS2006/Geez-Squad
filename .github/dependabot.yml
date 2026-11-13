@@ -6,10 +6,26 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # One PR for every minor/patch bump. Majors (and security fixes) stay separate PRs.
+      # The Prisma CLI and client must stay on the same version, so they move together.
+      prisma:
+        patterns: ['prisma', '@prisma/client']
+      # One PR for every other minor/patch bump. Majors (and security fixes) stay separate PRs.
       npm-minor-patch:
         patterns: ['*']
+        exclude-patterns: ['prisma', '@prisma/client']
         update-types: [minor, patch]
+    ignore:
+      # Major upgrades that need their own migration work, not an automatic bump:
+      # - Prisma 7 changes datasource configuration and client generation for both
+      #   SQLite and PostgreSQL (paired migrations, docs/DEPLOYMENT.md).
+      # - MediaPipe majors change the pose runtime; they need the pose asset version
+      #   bump (src/lib/pose-assets.ts) and physical-device validation before release.
+      - dependency-name: 'prisma'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@prisma/client'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@mediapipe/tasks-vision'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:

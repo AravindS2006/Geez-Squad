@@ -1516,7 +1516,6 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               <Link
                 key={item.id}
                 href={`${base}?view=${item.id}`}
-                aria-label={`Quick access: ${item.name}`}
                 aria-current={activeView === item.id ? 'page' : undefined}
                 onClick={() => {
                   setMobileMenu(false);

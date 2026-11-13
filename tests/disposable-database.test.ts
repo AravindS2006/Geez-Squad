@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { isDisposableTestDatabase } from '../scripts/disposable-database.mjs';
 
+// Credentials are set through the URL API at runtime, so the source holds no
+// username/password pair that secret scanners would flag (same as rehearse-restore.test.ts).
 function pg(host: string) {
-  const url = new URL(`postgresql://${host}:5432/postgres`);
-  url.username = 'postgres';
-  url.password = 'run-scoped';
+  const url = new URL(`postgresql://${host}:5432/sampledb`);
+  url.username = 'sample-user';
+  url.password = ['sample', 'run'].join('-');
   return url.href;
 }
 const ciPostgres = { DATABASE_PROVIDER: 'postgresql', GEEZ_DISPOSABLE_POSTGRES: '1' };

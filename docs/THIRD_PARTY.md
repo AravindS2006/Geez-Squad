@@ -2,7 +2,7 @@
 
 Framework: Next.js 16.3.8 and React 19.3.0. Authentication: Better Auth 1.7.7. ORM: Prisma 6.19.3. Video: LiveKit browser/server SDKs. Icons: Lucide. Billing: Stripe SDK. Full resolved dependency versions are in package-lock.json.
 
-MediaPipe Tasks Vision is pinned to 0.10.32 (Apache-2.0 package). The app uses Google's Pose Landmarker float16 model bundles, version 1. Full is the default, Heavy is selectable for faster devices, and Lite is selectable for performance. Official model details and license are documented in Google's [BlazePose GHUM model card](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf).
+MediaPipe Tasks Vision is pinned to 0.10.35 (Apache-2.0 package). The app uses Google's Pose Landmarker float16 model bundles, version 1. Full is the default, Heavy is selectable for faster devices, and Lite is selectable for performance. Official model details and license are documented in Google's [BlazePose GHUM model card](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf).
 
 | Variant | Versioned source | SHA-256 |
 | --- | --- | --- |

@@ -198,7 +198,7 @@ if (!flags['replay-only']) {
         JSON.stringify({
           version: 1,
           createdAt: new Date().toISOString(),
-          runtime: '@mediapipe/tasks-vision@0.10.32',
+          runtime: '@mediapipe/tasks-vision@0.10.35',
           contents: 'Joint coordinates from a local video clip; no images or audio.',
           clip: { id: clip.id, source: clip.source ?? null, license: clip.license ?? null },
           sampledFps: fps,

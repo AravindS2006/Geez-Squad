@@ -174,7 +174,7 @@ export function poseDiagnosticReport(
     createdAt: new Date().toISOString(),
     userAgent: metadata.userAgent,
     ruleVersion: metadata.ruleVersion,
-    runtime: '@mediapipe/tasks-vision@0.10.32',
+    runtime: '@mediapipe/tasks-vision@0.10.35',
     contents: 'Joint coordinates and counter states; no camera images, audio, or account data.',
     frameCount: buffer.frames.length,
     durationMs:

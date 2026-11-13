@@ -4,7 +4,7 @@
 const CACHE = 'geez-public-offline-v1';
 const PUBLIC_ASSETS = ['/offline.html', '/pwa/icon-192.png', '/pwa/icon-512.png'];
 // Must equal POSE_ASSET_BASE in src/lib/pose-assets.ts (build-checked by prepare-assets).
-const POSE_ASSET_BASE = '/pose-assets/mp0.10.32-27563efb7a';
+const POSE_ASSET_BASE = '/pose-assets/mp0.10.35-27563efb7a';
 // The URL prefix is content-addressed, so a cached response never goes stale. A new asset
 // version gets a new cache name and the old one is deleted on activate.
 const POSE_CACHE = `geez-pose-assets-${POSE_ASSET_BASE.split('/').pop()}`;

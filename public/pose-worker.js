@@ -1,5 +1,5 @@
 // Versioned asset prefix; must equal POSE_ASSET_BASE in src/lib/pose-assets.ts (build-checked).
-const POSE_ASSET_BASE = '/pose-assets/mp0.10.32-27563efb7a';
+const POSE_ASSET_BASE = '/pose-assets/mp0.10.35-27563efb7a';
 self.exports = {};
 importScripts(`${POSE_ASSET_BASE}/vision/vision_bundle.js`);
 const { FilesetResolver, PoseLandmarker } = self.exports;

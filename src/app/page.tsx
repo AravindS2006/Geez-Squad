@@ -336,6 +336,7 @@ export default async function Home() {
         <p>Move better. Live stronger. Together.</p>
         <div>
           <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <Link href="/login">
             Member login
             <ArrowUpRight size={14} />

@@ -47,6 +47,7 @@ for (const path of [
   '/demo?view=nutrition',
   '/login',
   '/privacy',
+  '/terms',
 ]) {
   await page.goto(`http://localhost:3000${path}`);
   await page.waitForLoadState('networkidle');

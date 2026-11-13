@@ -312,6 +312,12 @@ export function AuthForm({
               {notice}
             </p>
           )}
+          {mode === 'signup' && (
+            <p className="microcopy">
+              By creating an account you agree to the <Link href="/terms">Terms</Link> and{' '}
+              <Link href="/privacy">Privacy</Link> guide.
+            </p>
+          )}
           <button className="button dark full" disabled={busy}>
             {busy
               ? 'Please wait…'
@@ -362,7 +368,7 @@ export function AuthForm({
           )}
           <p className="microcopy">
             For adults 18+. Camera coaching supports general fitness; your coach remains in charge.{' '}
-            <Link href="/privacy">Privacy & camera use</Link>
+            <Link href="/privacy">Privacy & camera use</Link> · <Link href="/terms">Terms</Link>
           </p>
         </form>
       </section>

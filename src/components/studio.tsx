@@ -41,7 +41,12 @@ import { isHoldExercise } from '@/lib/exercise-profiles';
 import { exerciseDefinition, type ExerciseDefinition } from '@/lib/exercise-library';
 import { coachingFeatures, type CoachingFeatures } from '@/lib/coaching-features';
 import { reportCoachingHealth } from '@/lib/coaching-health';
-import { disconnectPolicy, rejoinDelayMs } from '@/lib/room-disconnect';
+import {
+  disconnectPolicy,
+  mayAutoRejoin,
+  rejoinAttemptAfterDrop,
+  rejoinDelayMs,
+} from '@/lib/room-disconnect';
 import { summaryChanged, summaryDue } from '@/lib/summary-sharing';
 import { cueHideDelay } from '@/lib/live-room-a11y';
 import { Avatar, EmptyState, Modal } from './ui';
@@ -98,6 +103,8 @@ const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
 const COACH_CONTROLS_MS = 4000;
 /** Polling interval while the tab is hidden (analysis is already stopped there). */
 const HIDDEN_POLL_MS = 15000;
+/** Wait before retrying the room camera after the analyzer releases its local camera. */
+const CAMERA_RETRY_MS = 400;
 export function Studio({
   initialClass,
   user,
@@ -199,6 +206,8 @@ export function Studio({
     automatic: boolean;
   } | null>(null);
   const rejoinAttempt = useRef(0);
+  /** When the current room reached connected; a drop soon after keeps the attempt count. */
+  const connectedAt = useRef<number | null>(null);
   const cancelRejoin = useRef<(() => void) | null>(null);
   const [cameraHeight, setCameraHeight] = useState(0);
   const [cameraTop, setCameraTop] = useState(0);
@@ -558,17 +567,19 @@ export function Studio({
     cancelRejoin.current = () => window.clearTimeout(timer);
   }
   function rejoin() {
-    rejoinAttempt.current = 0;
     void connect();
   }
   async function connect({ automatic = false }: { automatic?: boolean } = {}) {
     if (!item || demo) return;
     cancelRejoin.current?.();
     cancelRejoin.current = null;
+    // A tap gives a fresh automatic budget; automatic attempts keep counting.
+    if (!automatic) rejoinAttempt.current = 0;
     setShowConsent(false);
     setConnecting(true);
     setError('');
     const run = ++joinGeneration.current;
+    let reachedConnected = false;
     try {
       await apiCommand({ action: 'consent', id: item.id, consent: true });
       setConsent(true);
@@ -691,6 +702,11 @@ export function Studio({
           setPresenting(false);
           setConnectionState('Not connected');
           room.current = null;
+          // Only a network loss keeps this tab sharing summaries (local counting goes on);
+          // after leaving, a second tab or device, removal or the class ending it stops.
+          if (policy.kind !== 'network') setSharingSummaries(false);
+          // A join that never connected reports its own error from the catch below.
+          if (!reachedConnected) return;
           setDisconnectNotice(
             policy.message
               ? {
@@ -700,10 +716,14 @@ export function Studio({
                 }
               : null,
           );
-          // Only a network loss keeps this tab sharing summaries (local counting goes on);
-          // after leaving, a second tab or device, removal or the class ending it stops.
-          if (policy.kind !== 'network') setSharingSummaries(false);
-          if (policy.autoRejoin) scheduleRejoin(generation);
+          if (mayAutoRejoin(policy, reachedConnected)) {
+            rejoinAttempt.current = rejoinAttemptAfterDrop(
+              rejoinAttempt.current,
+              connectedAt.current,
+              Date.now(),
+            );
+            scheduleRejoin(generation);
+          }
         }
       });
       await instance.connect(credentials.url, credentials.token, { autoSubscribe: false });
@@ -712,7 +732,8 @@ export function Studio({
         return;
       }
       setConnected(true);
-      rejoinAttempt.current = 0;
+      reachedConnected = true;
+      connectedAt.current = Date.now();
       setDisconnectNotice(null);
       try {
         await instance.startAudio();
@@ -723,12 +744,27 @@ export function Studio({
         await instance.disconnect();
         return;
       }
-      const deviceErrors = await enableJoinDevices(
-        instance.localParticipant,
-        preferences,
-        () => mounted.current && joinGeneration.current === run,
-      );
-      if (!mounted.current || joinGeneration.current !== run) {
+      const isCurrent = () => mounted.current && joinGeneration.current === run;
+      let deviceErrors = await enableJoinDevices(instance.localParticipant, preferences, isCurrent);
+      // After a drop the analyzer may have held a local fallback camera. It releases it
+      // while the room is connecting, but a phone that cannot open two cameras can still
+      // refuse the first publish, so give the room camera one more try.
+      if (
+        isCurrent() &&
+        preferences.cameraOn &&
+        !instance.localParticipant.isCameraEnabled &&
+        deviceErrors.some((message) => message.startsWith('Camera'))
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, CAMERA_RETRY_MS));
+        if (isCurrent())
+          try {
+            await instance.localParticipant.setCameraEnabled(true);
+            deviceErrors = deviceErrors.filter((message) => !message.startsWith('Camera'));
+          } catch {
+            /* Keep the original camera message. */
+          }
+      }
+      if (!isCurrent()) {
         await instance.disconnect();
         return;
       }
@@ -1314,6 +1350,8 @@ export function Studio({
                     paused={item.paused || item.status !== 'live'}
                     revision={item.revision}
                     stream={stream}
+                    cameraId={preferences.cameraId}
+                    facingMode={facing}
                     mirror={mirror}
                     onCameraHeight={onCameraBounds}
                     saveForUser={!demo && consent ? user.id : undefined}

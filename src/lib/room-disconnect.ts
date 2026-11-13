@@ -91,6 +91,26 @@ export function disconnectPolicy(reason: number | undefined): DisconnectPolicy {
 /** Delays before automatic rejoin attempts; the list length is the attempt bound. */
 export const REJOIN_DELAYS_MS = [2000, 5000, 12000] as const;
 
+/** A room must stay connected this long before a later drop gets a fresh attempt budget. */
+export const REJOIN_STABLE_MS = 30000;
+
+/**
+ * The attempt counter to use after a drop. A connection that lasted at least
+ * `REJOIN_STABLE_MS` earns a fresh budget; a flapping link (connect, drop within
+ * seconds) keeps counting, so it stops rejoining after the bound instead of looping.
+ */
+export function rejoinAttemptAfterDrop(attempt: number, connectedAt: number | null, now: number) {
+  return connectedAt !== null && now - connectedAt >= REJOIN_STABLE_MS ? 0 : attempt;
+}
+
+/**
+ * Whether a disconnect may start automatic rejoins: only a room that actually reached
+ * the connected state. A join that fails before then reports its own error instead.
+ */
+export function mayAutoRejoin(policy: DisconnectPolicy, reachedConnected: boolean) {
+  return policy.autoRejoin && reachedConnected;
+}
+
 /** Delay before automatic attempt `attempt` (0-based), or null when the bound is reached. */
 export function rejoinDelayMs(attempt: number): number | null {
   return Number.isInteger(attempt) && attempt >= 0 && attempt < REJOIN_DELAYS_MS.length

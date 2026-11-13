@@ -117,6 +117,8 @@ export function CameraAnalyzer({
   initialHoldSeconds = 0,
   block,
   sessionCamera = false,
+  cameraId,
+  facingMode = 'user',
   onEnableCamera,
   saveForUser,
   historyUserId = saveForUser,
@@ -137,6 +139,9 @@ export function CameraAnalyzer({
   initialHoldSeconds?: number;
   block?: Block;
   sessionCamera?: boolean;
+  /** Preferred device for a local camera, so a fallback uses the room's camera. */
+  cameraId?: string;
+  facingMode?: 'user' | 'environment';
   onEnableCamera?: () => void;
   saveForUser?: string;
   historyUserId?: string;
@@ -907,6 +912,19 @@ export function CameraAnalyzer({
     return () => clearInterval(watchdog);
   }, [status]);
   useEffect(() => {
+    // The room camera is taking over (joining or rejoining video): release a local
+    // fallback camera (or cancel a pending request) first, because many phones cannot
+    // open the same camera twice.
+    if (sessionCamera && (ownStream.current || waitingForCamera)) {
+      stop();
+      setWaitingForCamera(false);
+      setStatus('off');
+      setAnalysis({
+        ...empty,
+        reps: tally.current.reps,
+        holdSeconds: Math.floor(tally.current.holdMs / 1000),
+      });
+    }
     if (stream && stream !== currentStream.current) void start(stream);
     if (!stream && currentStream.current && !ownStream.current) {
       stop();
@@ -917,7 +935,7 @@ export function CameraAnalyzer({
         holdSeconds: Math.floor(tally.current.holdMs / 1000),
       });
     }
-  }, [stream]);
+  }, [stream, sessionCamera]);
   async function start(external?: MediaStream) {
     stop();
     const run = generation.current;
@@ -942,7 +960,8 @@ export function CameraAnalyzer({
               width: { ideal: 1280 },
               height: { ideal: 720 },
               frameRate: { ideal: 30 },
-              facingMode: 'user',
+              // Same device the room publishes, so handing back on rejoin needs no switch.
+              ...(cameraId ? { deviceId: { ideal: cameraId } } : { facingMode }),
             },
             audio: false,
           },

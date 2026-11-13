@@ -3,7 +3,10 @@ import { DisconnectReason } from '@livekit/protocol';
 import {
   DISCONNECT_REASON,
   REJOIN_DELAYS_MS,
+  REJOIN_STABLE_MS,
   disconnectPolicy,
+  mayAutoRejoin,
+  rejoinAttemptAfterDrop,
   rejoinDelayMs,
 } from '../src/lib/room-disconnect';
 
@@ -76,6 +79,31 @@ describe('disconnect policy', () => {
       DisconnectReason.USER_REJECTED,
     ])
       expect(automatic).not.toContain(never);
+  });
+
+  it('keeps counting attempts on a flapping link and resets only after a stable connection', () => {
+    const now = 1_000_000;
+    // Reconnected 5 s ago, then dropped: the budget is not refilled.
+    expect(rejoinAttemptAfterDrop(2, now - 5_000, now)).toBe(2);
+    expect(rejoinAttemptAfterDrop(2, null, now)).toBe(2);
+    expect(rejoinAttemptAfterDrop(2, now - REJOIN_STABLE_MS, now)).toBe(0);
+    // A flap loop: every connect drops within seconds, so the bound is reached.
+    let attempt = 0;
+    let rejoins = 0;
+    for (let i = 0; i < 20; i++) {
+      attempt = rejoinAttemptAfterDrop(attempt, now - 3_000, now);
+      if (rejoinDelayMs(attempt) === null) break;
+      attempt++;
+      rejoins++;
+    }
+    expect(rejoins).toBe(REJOIN_DELAYS_MS.length);
+  });
+
+  it('never starts automatic rejoins for a join that did not reach connected', () => {
+    const network = disconnectPolicy(DisconnectReason.JOIN_FAILURE);
+    expect(mayAutoRejoin(network, false)).toBe(false);
+    expect(mayAutoRejoin(network, true)).toBe(true);
+    expect(mayAutoRejoin(disconnectPolicy(DisconnectReason.DUPLICATE_IDENTITY), true)).toBe(false);
   });
 
   it('bounds automatic rejoin attempts with growing delays', () => {

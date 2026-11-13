@@ -278,6 +278,17 @@ function ManualWorkout(props: Props & { definition: ExerciseDefinition }) {
     };
   }, []);
   useEffect(() => {
+    // The room camera is taking over: release the local preview this component owns,
+    // because many phones cannot open the same camera twice.
+    if (!props.sessionCamera || (!owned.current && !previewRequest.current)) return;
+    previewRequest.current?.abort();
+    previewRequest.current = null;
+    owned.current?.getTracks().forEach((t) => t.stop());
+    owned.current = null;
+    setPreview(null);
+    setPreviewPending(false);
+  }, [props.sessionCamera]);
+  useEffect(() => {
     let last = performance.now();
     const timer = setInterval(() => {
       const now = performance.now(),

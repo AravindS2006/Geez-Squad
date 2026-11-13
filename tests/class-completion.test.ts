@@ -7,6 +7,8 @@ const fx = vi.hoisted(() => ({
   audit: vi.fn(),
   deleteRoom: vi.fn(),
   removeParticipant: vi.fn(),
+  /** Status returned by the post-miss lookup in completeLiveClass. */
+  status: 'live',
 }));
 vi.mock('@/lib/db', () => {
   const classSession = {
@@ -33,6 +35,10 @@ import {
   completeLiveClass,
   recordClassPresence,
 } from '../src/lib/class-completion';
+import { ROOM_REVOCATION_CONCURRENCY, settleBounded } from '../src/lib/class-lifecycle';
+
+const trainees = Array.from({ length: 36 }, (_, i) => `trainee-${i}`);
+const identities = ['owner', 'host', ...trainees];
 
 const start = new Date('2026-11-12T10:00:00Z');
 const at = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
@@ -53,21 +59,35 @@ beforeEach(() => {
   vi.stubEnv('LIVEKIT_API_SECRET', 'test');
   fx.updateMany.mockResolvedValue({ count: 1 });
   fx.deleteRoom.mockResolvedValue(undefined);
+  fx.removeParticipant.mockResolvedValue(undefined);
+  fx.status = 'live';
+  fx.findUnique.mockImplementation(async (args: { select: Record<string, unknown> }) =>
+    args.select.enrollments
+      ? {
+          hostId: 'host',
+          studio: { ownerId: 'owner' },
+          // The host is also enrolled here: identities are de-duplicated.
+          enrollments: ['host', ...trainees].map((userId) => ({ userId })),
+        }
+      : { status: fx.status },
+  );
 });
 
 describe('completeLiveClass', () => {
-  it('commits completion and its audit, then closes the room with one deletion', async () => {
+  it('commits completion and its audit, revokes every identity, then deletes the room once', async () => {
     const order: string[] = [];
     fx.updateMany.mockImplementation(async () => (order.push('update'), { count: 1 }));
     fx.audit.mockImplementation(async () => order.push('audit'));
+    fx.removeParticipant.mockImplementation(async () => order.push('revoke'));
     fx.deleteRoom.mockImplementation(async () => order.push('deleteRoom'));
+    const before = BigInt(Math.floor(Date.now() / 1000));
     const result = await completeLiveClass(room, {
       actorId: 'coach',
       action: 'end',
       guard: { revision: 3, hostId: 'coach' },
     });
     expect(result).toEqual({ completed: true, alreadyCompleted: false, roomClosed: true });
-    expect(order).toEqual(['update', 'audit', 'deleteRoom']);
+    expect(order).toEqual(['update', 'audit', ...identities.map(() => 'revoke'), 'deleteRoom']);
     expect(fx.updateMany.mock.calls[0][0].where).toEqual({
       revision: 3,
       hostId: 'coach',
@@ -80,7 +100,38 @@ describe('completeLiveClass', () => {
     });
     expect(fx.deleteRoom).toHaveBeenCalledTimes(1);
     expect(fx.deleteRoom).toHaveBeenCalledWith('geez-squad-class');
-    expect(fx.removeParticipant).not.toHaveBeenCalled();
+    expect(fx.removeParticipant).toHaveBeenCalledTimes(identities.length);
+    for (const identity of identities)
+      expect(fx.removeParticipant).toHaveBeenCalledWith('geez-squad-class', identity, {
+        revokeTokenTs: expect.any(BigInt),
+      });
+    const cutoffs = new Set(fx.removeParticipant.mock.calls.map((call) => call[2].revokeTokenTs));
+    expect(cutoffs.size).toBe(1);
+    expect([...cutoffs][0]).toBeGreaterThan(before);
+  });
+  it('keeps at most the configured number of revocations in flight', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    fx.removeParticipant.mockImplementation(async () => {
+      peak = Math.max(peak, ++inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      inFlight--;
+    });
+    expect(await closeClassRoom(room)).toBe(true);
+    expect(peak).toBe(ROOM_REVOCATION_CONCURRENCY);
+    expect(fx.removeParticipant).toHaveBeenCalledTimes(identities.length);
+  });
+  it('treats participants who are not in the room as revoked', async () => {
+    fx.removeParticipant.mockRejectedValue(Object.assign(new Error('absent'), { status: 404 }));
+    expect(await closeClassRoom(room)).toBe(true);
+  });
+  it('still deletes the room but reports it for retry when a revocation fails', async () => {
+    fx.removeParticipant.mockImplementation(async (_room: string, identity: string) => {
+      if (identity === 'trainee-7') throw Object.assign(new Error('down'), { status: 503 });
+    });
+    const result = await completeLiveClass(room, { actorId: 'coach', action: 'end' });
+    expect(result).toEqual({ completed: true, alreadyCompleted: false, roomClosed: false });
+    expect(fx.deleteRoom).toHaveBeenCalledTimes(1);
   });
   it('reports the class as ended when room teardown fails', async () => {
     fx.deleteRoom.mockRejectedValue(Object.assign(new Error('down'), { status: 503 }));
@@ -93,17 +144,34 @@ describe('completeLiveClass', () => {
   });
   it('is idempotent: a concurrent completion is reported as already completed, without a second audit', async () => {
     fx.updateMany.mockResolvedValue({ count: 0 });
-    fx.findUnique.mockResolvedValue({ status: 'completed' });
+    fx.status = 'completed';
     const result = await completeLiveClass(room, { actorId: 'coach', action: 'end' });
     expect(result).toEqual({ completed: false, alreadyCompleted: true, roomClosed: true });
     expect(fx.audit).not.toHaveBeenCalled();
   });
   it('does not tear down a room when the class was not completed', async () => {
     fx.updateMany.mockResolvedValue({ count: 0 });
-    fx.findUnique.mockResolvedValue({ status: 'live' });
     const result = await completeLiveClass(room, { actorId: 'coach', action: 'end' });
     expect(result).toEqual({ completed: false, alreadyCompleted: false, roomClosed: null });
     expect(fx.deleteRoom).not.toHaveBeenCalled();
+    expect(fx.removeParticipant).not.toHaveBeenCalled();
+  });
+});
+
+describe('settleBounded', () => {
+  it('keeps input order and reports each failure without stopping the rest', async () => {
+    const results = await settleBounded([1, 2, 3, 4, 5], 2, async (n) => {
+      if (n === 3) throw new Error('three');
+      return n * 10;
+    });
+    expect(results.map((r) => (r.status === 'fulfilled' ? r.value : 'x'))).toEqual([
+      10,
+      20,
+      'x',
+      40,
+      50,
+    ]);
+    expect(await settleBounded([], 8, async () => 1)).toEqual([]);
   });
 });
 
@@ -135,6 +203,7 @@ describe('recordClassPresence', () => {
       },
     });
     expect(fx.deleteRoom).toHaveBeenCalledTimes(1);
+    expect(fx.removeParticipant).toHaveBeenCalledTimes(identities.length);
   });
   it('never completes a class from a trainee poll while the coach is present', async () => {
     await recordClassPresence(liveRow({ hostLastSeenAt: at(25) }), false, at(30));

@@ -718,7 +718,7 @@ async function handlePOST(request: Request) {
           throw new ApiError(400, 'Choose a current workout block.');
         if (data.exercise) await requireExercise(data.exercise, item.studioId);
         if (data.control === 'end') {
-          // Shared with automatic completion: commit first, then one room deletion.
+          // Shared with automatic completion: commit first, then revoke tokens and close the room.
           const ended = await completeLiveClass(item, {
             actorId: user.id,
             action: 'end',

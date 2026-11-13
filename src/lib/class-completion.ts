@@ -7,7 +7,9 @@ import { writeMetrics as writeTransaction } from './metrics-write';
 import { existingVideoRoomName } from './room-identity';
 import {
   HOST_ABSENCE_GRACE_MS,
+  ROOM_REVOCATION_CONCURRENCY,
   autoCompleteReason,
+  settleBounded,
   hostPresenceDue,
   type AutoCompleteReason,
   type LiveClassClock,
@@ -32,21 +34,65 @@ export function isRoomMissing(error: unknown) {
   return !!error && typeof error === 'object' && 'status' in error && error.status === 404;
 }
 
+/** Every identity that could hold a token for the class room: owner, host and enrolled trainees. */
+async function roomIdentities(classId: string) {
+  const row = await db.classSession.findUnique({
+    where: { id: classId },
+    select: {
+      hostId: true,
+      studio: { select: { ownerId: true } },
+      enrollments: { select: { userId: true } },
+    },
+  });
+  if (!row) return [];
+  return [
+    ...new Set([
+      row.studio.ownerId,
+      ...(row.hostId ? [row.hostId] : []),
+      ...row.enrollments.map((e) => e.userId),
+    ]),
+  ];
+}
+
 /**
- * Close a class's LiveKit room with one `deleteRoom` call. LiveKit disconnects
- * every participant when the room is deleted, and the token route only issues
- * (5-minute) tokens while the class is live, so no per-identity removal is
- * needed. A missing room counts as closed. Never throws: completion is already
- * committed, so a failure is logged and reported as `false` for a later retry.
+ * Close a class's LiveKit room. First revoke every owner, host and enrolled
+ * identity's tokens (`revokeTokenTs`), ROOM_REVOCATION_CONCURRENCY calls at a
+ * time, so a still-valid token cannot rejoin the same room name if LiveKit
+ * auto-creates it; then delete the room, which disconnects everyone. A missing
+ * room or participant counts as done. Never throws: completion is already
+ * committed, so a failure is logged and reported as `false` for a retry
+ * (End again on the completed class).
  */
 export async function closeClassRoom(item: RoomRef): Promise<boolean> {
   const service = videoRoomService();
   if (!service) return true;
+  const roomName = existingVideoRoomName(item);
+  let revoked = true;
   try {
-    await service.deleteRoom(existingVideoRoomName(item));
-    return true;
+    const cutoff = BigInt(Math.floor(Date.now() / 1000) + 1);
+    const results = await settleBounded(
+      await roomIdentities(item.id),
+      ROOM_REVOCATION_CONCURRENCY,
+      (identity) => service.removeParticipant(roomName, identity, { revokeTokenTs: cutoff }),
+    );
+    const failed = results.filter((r) => r.status === 'rejected' && !isRoomMissing(r.reason));
+    if (failed.length) {
+      revoked = false;
+      logEvent('warn', 'class_room_revocation_failed', {
+        targetId: item.id,
+        provider: 'livekit',
+        failed: failed.length,
+      });
+    }
   } catch (error) {
-    if (isRoomMissing(error)) return true;
+    revoked = false;
+    logEvent('warn', 'class_room_revocation_failed', { targetId: item.id, ...errorContext(error) });
+  }
+  try {
+    await service.deleteRoom(roomName);
+    return revoked;
+  } catch (error) {
+    if (isRoomMissing(error)) return revoked;
     logEvent('warn', 'class_room_close_failed', {
       targetId: item.id,
       provider: 'livekit',

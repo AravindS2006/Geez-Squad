@@ -19,6 +19,31 @@ export const LIVE_OVERRUN_MS = 60 * 60_000;
 /** Absolute ceiling, matching the LiveKit room's 3-hour idle timeout set at start. */
 export const MAX_LIVE_MS = 3 * 60 * 60_000;
 
+/** LiveKit token revocations in flight at once while closing a room. */
+export const ROOM_REVOCATION_CONCURRENCY = 8;
+
+/** `Promise.allSettled` over `items` with at most `limit` calls in flight; results keep input order. */
+export async function settleBounded<T, R>(
+  items: readonly T[],
+  limit: number,
+  run: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = { status: 'fulfilled', value: await run(items[index]) };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return results;
+}
+
 export type AutoCompleteReason = 'host_absent' | 'max_duration';
 
 export type LiveClassClock = {

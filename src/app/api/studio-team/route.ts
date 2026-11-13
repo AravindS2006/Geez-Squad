@@ -14,7 +14,7 @@ export const GET = loggedRoute('/api/studio-team', async () => {
 });
 export const POST = loggedRoute('/api/studio-team', async (request) => {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const command = teamCommand.parse(await readJson(request));
     await rateLimit(user.id, 'studio-team', 20);
     return NextResponse.json(await mutateTeam(user.id, command));

@@ -59,7 +59,7 @@ async function limitInClass(
 }
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const data = commandSchema.parse(await readJson(request));
     logEvent('info', 'command_received', {
       ...requestContext.getStore(),

@@ -10,37 +10,50 @@ type Store = Pick<
   Prisma.TransactionClient,
   'studioMember' | 'membership' | 'memberTerm' | 'studioRoleGrant'
 >;
+/**
+ * Whether a trainee may take part in a studio session today. `traineeGrant` may be
+ * passed when the caller already read the actor's grants for this studio (the live
+ * class poll does); `null` means "read, and there is none".
+ */
 export async function participation(
   studioId: string,
   userId: string,
   date = studioToday(),
   store: Store = db,
+  traineeGrant?: { status: string } | null,
 ) {
+  // One member read: the accepted Membership is a relation filter (both "no member"
+  // and "not accepted" give the same answer) and active terms are a filtered count.
   // Independent lookups; inside a transaction Prisma still runs them on its one connection.
-  const [member, accepted, grant] = await Promise.all([
-    store.studioMember.findUnique({ where: { studioId_userId: { studioId, userId } } }),
-    store.membership.findUnique({ where: { studioId_userId: { studioId, userId } } }),
-    store.studioRoleGrant.findUnique({
-      where: { studioId_userId_role: { studioId, userId, role: 'trainee' } },
+  const [member, grant] = await Promise.all([
+    store.studioMember.findFirst({
+      where: { studioId, userId, user: { memberships: { some: { studioId } } } },
+      select: {
+        status: true,
+        _count: {
+          select: {
+            terms: {
+              where: { studioId, status: 'active', startsOn: { lte: date }, endsOn: { gte: date } },
+            },
+          },
+        },
+      },
     }),
+    traineeGrant !== undefined
+      ? traineeGrant
+      : store.studioRoleGrant.findUnique({
+          where: { studioId_userId_role: { studioId, userId, role: 'trainee' } },
+          select: { status: true },
+        }),
   ]);
-  if (!member || !accepted || (grant && grant.status !== 'active'))
+  if (!member || (grant && grant.status !== 'active'))
     return { allowed: false, reason: 'Accept your studio request to participate.' };
   if (member.status !== 'active')
     return {
       allowed: false,
       reason: 'Your studio membership is paused or archived. Contact your coach.',
     };
-  const term = await store.memberTerm.findFirst({
-    where: {
-      studioId,
-      memberId: member.id,
-      status: 'active',
-      startsOn: { lte: date },
-      endsOn: { gte: date },
-    },
-  });
-  return term
+  return member._count.terms > 0
     ? { allowed: true, reason: '' }
     : {
         allowed: false,
@@ -115,10 +128,39 @@ export async function requestMemberAccess(
 }
 export const CLASS_REVOCATION_INTERVAL_MS = 30_000;
 const classRevocationRuns = new Map<string, number>();
+function liveKitConfigured() {
+  return !!(
+    process.env.LIVEKIT_URL &&
+    process.env.LIVEKIT_API_KEY &&
+    process.env.LIVEKIT_API_SECRET
+  );
+}
+/**
+ * Claims this sweep window for every server instance: the first instance to insert the
+ * window's row sweeps, the others see a unique-key conflict and skip. It reuses the
+ * RateLimit table (no schema change) and the retention job's one-day cleanup.
+ */
+async function claimSweepWindow(key: string, now: number) {
+  const bucket = Math.floor(now / CLASS_REVOCATION_INTERVAL_MS);
+  try {
+    await db.rateLimit.create({
+      data: { key: `sweep:${key}:${bucket}`, count: 1, lastRequest: BigInt(now) },
+    });
+    return true;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002')
+      return false;
+    // Fail toward revoking: an unavailable claim must not stop the sweep.
+    logEvent('warn', 'participant_sweep_claim_failed', errorContext(error));
+    return true;
+  }
+}
 /**
  * Class snapshots are polled every few seconds. HTTP authorization still runs on
  * every request; only the LiveKit participant sweep is limited per class and scope
- * (a coach's full sweep and each trainee's own check are tracked separately).
+ * (a coach's full sweep and each trainee's own check are tracked separately): once per
+ * instance per interval in memory, then once per interval window across instances
+ * through `claimSweepWindow`. Callers run it after the response (`after()`).
  */
 export async function reconcileClassParticipants(
   classId: string,
@@ -126,6 +168,7 @@ export async function reconcileClassParticipants(
   onlyUserId?: string,
   now = Date.now(),
 ) {
+  if (!liveKitConfigured()) return false;
   const key = `${classId}:${onlyUserId ?? '*'}`;
   const previous = classRevocationRuns.get(key);
   if (previous !== undefined && now - previous < CLASS_REVOCATION_INTERVAL_MS) return false;
@@ -133,6 +176,7 @@ export async function reconcileClassParticipants(
   if (classRevocationRuns.size > 5000)
     for (const [entry, at] of classRevocationRuns)
       if (now - at >= CLASS_REVOCATION_INTERVAL_MS) classRevocationRuns.delete(entry);
+  if (!(await claimSweepWindow(key, now))) return false;
   await revokeIneligibleParticipants(studioId, onlyUserId);
   return true;
 }

@@ -16,7 +16,7 @@ import { classVideoGrant } from '@/lib/video-grants';
 import { existingVideoRoomName } from '@/lib/room-identity';
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const { classId } = z.object({ classId: z.string().max(100) }).parse(await readJson(request));
     await rateLimit(user.id, 'token', 10);
     const item = await requireClass(classId, user.id);

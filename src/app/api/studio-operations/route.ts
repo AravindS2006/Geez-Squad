@@ -28,7 +28,7 @@ async function handleGET(request: Request) {
 }
 async function handlePOST(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUser({ freshSession: true });
     const { studio } = await requireStudio(user.id, 'admin');
     const command = operationsSchema.parse(await readJson(request));
     await rateLimit(user.id, 'studio-operations');

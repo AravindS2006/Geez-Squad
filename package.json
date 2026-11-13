@@ -54,7 +54,7 @@
     "test:restore": "node scripts/test-restore-rehearsal.mjs"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "0.10.32",
+    "@mediapipe/tasks-vision": "1.2.2",
     "@prisma/client": "6.19.3",
     "better-auth": "1.7.7",
     "livekit-client": "2.22.3",

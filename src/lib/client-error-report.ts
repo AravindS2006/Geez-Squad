@@ -29,12 +29,28 @@ export function clientErrorLogContext(input: ClientErrorInput) {
   };
 }
 
-/** Rate-limit key for an anonymous caller. The raw address never reaches the database. */
-export function clientAddressKey(headers: Headers) {
-  const address =
-    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+/** Reports a minute: per signed-in user, per caller address, and across all anonymous callers. */
+export const CLIENT_ERROR_LIMITS = { perUser: 20, perAddress: 20, anonymousTotal: 300 };
+/** Rate-limit id shared by every anonymous report. */
+export const ANONYMOUS_BUCKET = 'anonymous-all';
+
+/**
+ * Caller address for rate limiting. Prefer headers the platform sets and overwrites
+ * (Vercel: x-vercel-forwarded-for, x-real-ip). Otherwise use the last x-forwarded-for
+ * entry, which the nearest proxy appended, never the first, which the client controls.
+ */
+export function clientAddress(headers: Headers) {
+  return (
+    headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ||
     headers.get('x-real-ip')?.trim() ||
-    'unknown';
+    headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
+    'unknown'
+  );
+}
+
+/** Rate-limit key for a caller address. The raw address never reaches the database. */
+export function clientAddressKey(headers: Headers) {
+  const address = clientAddress(headers);
   // Keyed, so the short IPv4 space cannot be reversed from the stored key.
   const key = process.env.BETTER_AUTH_SECRET || 'geez-squad-client-errors';
   return `ip-${createHmac('sha256', key).update(address).digest('hex').slice(0, 32)}`;

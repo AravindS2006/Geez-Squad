@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { getEmailPolicy } from './email-policy.mjs';
@@ -99,6 +100,18 @@ export async function livekitStatus(
 /** Test hook. */
 export function resetHealthCache() {
   livekitCache = undefined;
+}
+
+/**
+ * True when the caller presents `Authorization: Bearer <HEALTH_CHECK_TOKEN>`. Only then
+ * does /api/health name each dependency; anonymous callers learn the overall status only.
+ * Both sides are hashed first, so the comparison is constant-time for any length.
+ */
+export function hasHealthToken(authorization: string | null, env: Env = process.env) {
+  const token = env.HEALTH_CHECK_TOKEN?.trim();
+  if (!token || !authorization) return false;
+  const digest = (value: string) => createHash('sha256').update(value).digest();
+  return timingSafeEqual(digest(authorization), digest(`Bearer ${token}`));
 }
 
 export type HealthChecks = {

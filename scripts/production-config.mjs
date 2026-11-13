@@ -128,6 +128,13 @@ export function validateProductionConfig(env) {
     if (!valid || placeholder(env.ALERT_WEBHOOK_URL))
       errors.push('ALERT_WEBHOOK_URL must be a public https webhook URL, or leave it unset.');
   }
+  // Optional bearer token that unlocks per-dependency detail on /api/health.
+  if (env.HEALTH_CHECK_TOKEN?.trim()) {
+    if (env.HEALTH_CHECK_TOKEN.trim().length < 32)
+      errors.push('HEALTH_CHECK_TOKEN must be at least 32 characters, or leave it unset.');
+    if ([env.BETTER_AUTH_SECRET, env.CRON_SECRET].includes(env.HEALTH_CHECK_TOKEN))
+      errors.push('Use an independent HEALTH_CHECK_TOKEN, not the auth or cleanup secret.');
+  }
   const billingKeys = ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'STRIPE_PRICE_ID'];
   const billingConfigured = billingKeys.filter((key) => !!env[key]?.trim());
   if (billingConfigured.length && billingConfigured.length !== billingKeys.length)

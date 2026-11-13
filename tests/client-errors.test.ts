@@ -19,7 +19,7 @@ import {
   buildClientErrorReport,
   createClientErrorReporter,
 } from '../src/lib/client-error-reporter';
-import { clientAddressKey, clientErrorSchema } from '../src/lib/client-error-report';
+import { clientAddress, clientAddressKey, clientErrorSchema } from '../src/lib/client-error-report';
 
 const report = {
   source: 'window',
@@ -93,6 +93,25 @@ describe('client error reporter', () => {
     expect(key).toMatch(/^ip-[0-9a-f]{32}$/);
     expect(key).not.toContain('203.0.113.9');
   });
+  it('prefers platform-set address headers and ignores a client-chosen forwarded entry', () => {
+    expect(
+      clientAddress(
+        new Headers({
+          'x-vercel-forwarded-for': '198.51.100.7',
+          'x-real-ip': '198.51.100.8',
+          'x-forwarded-for': '203.0.113.9',
+        }),
+      ),
+    ).toBe('198.51.100.7');
+    expect(
+      clientAddress(new Headers({ 'x-real-ip': '198.51.100.8', 'x-forwarded-for': '1.2.3.4' })),
+    ).toBe('198.51.100.8');
+    // Without platform headers, the first (client-supplied) entry never decides the bucket.
+    const rotated = ['1.1.1.1', '2.2.2.2'].map((spoofed) =>
+      clientAddressKey(new Headers({ 'x-forwarded-for': `${spoofed}, 10.0.0.1` })),
+    );
+    expect(rotated[0]).toBe(rotated[1]);
+  });
 });
 
 describe('client error route', () => {
@@ -101,11 +120,10 @@ describe('client error route', () => {
     const response = await post(JSON.stringify(report));
     expect(response.status).toBe(204);
     expect(fixture.checkOrigin).toHaveBeenCalled();
-    expect(fixture.rateLimit).toHaveBeenCalledWith(
-      expect.stringMatching(/^ip-/),
-      'client-error',
-      20,
-    );
+    expect(fixture.rateLimit.mock.calls).toEqual([
+      ['anonymous-all', 'client-error', 300],
+      [expect.stringMatching(/^ip-/), 'client-error', 20],
+    ]);
     const line = warn.mock.calls
       .map((call) => String(call[0]))
       .find((l) => l.includes('client_error'))!;
@@ -126,10 +144,33 @@ describe('client error route', () => {
     const response = await post(JSON.stringify(report), { 'content-type': 'application/json' });
     expect(response.status).toBe(204);
     expect(fixture.rateLimit).toHaveBeenCalledWith('user-1', 'client-error', 20);
+    expect(fixture.rateLimit).not.toHaveBeenCalledWith('anonymous-all', 'client-error', 300);
     const line = warn.mock.calls
       .map((call) => String(call[0]))
       .find((l) => l.includes('client_error'))!;
     expect(JSON.parse(line).actorId).toBe('user-1');
+  });
+  it('caps anonymous reports globally, so rotating the forwarded address cannot exceed it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let anonymous = 0;
+    fixture.rateLimit.mockImplementation(async (id: string, _action: string, max: number) => {
+      if (id === 'anonymous-all' && ++anonymous > max) throw new TestApiError(429, 'Wait.');
+    });
+    const statuses = [];
+    for (let i = 0; i < 305; i++)
+      statuses.push(
+        (await post(JSON.stringify(report), { 'x-forwarded-for': `10.0.${i}.1` })).status,
+      );
+    expect(statuses.filter((status) => status === 204)).toHaveLength(300);
+    expect(statuses.slice(300)).toEqual([429, 429, 429, 429, 429]);
+    // A spent shared bucket stops before a per-address row is created or anything is logged.
+    const addressCalls = fixture.rateLimit.mock.calls.filter(([id]) =>
+      String(id).startsWith('ip-'),
+    );
+    expect(addressCalls).toHaveLength(300);
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes('client_error'))).toHaveLength(
+      300,
+    );
   });
   it('refuses oversize, malformed, wrongly typed and rate-limited reports', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);

@@ -38,7 +38,7 @@ jobs:
             echo "Attempt $attempt: HTTP $status"
             [ "$attempt" -lt 3 ] && sleep 20
           done
-          # The body is the public, minimal status (component words only, no secrets).
+          # Anonymous callers get only {"status": ...}; no token is needed or sent here.
           echo "::error::/api/health is not ok after 3 attempts (last HTTP $status)."
           head -c 500 body.json 2>/dev/null || true
           exit 1

@@ -10,6 +10,16 @@ import {
 import { redactPath, redactText, stackFrames } from '../src/lib/redact';
 import { loggedRoute } from '../src/lib/request-log';
 
+// Load the real auth configuration with the library and its dependencies stubbed, so
+// the logger callback it passes to Better Auth can be exercised directly.
+vi.mock('server-only', () => ({}));
+vi.mock('better-auth', () => ({ betterAuth: (options: unknown) => options }));
+vi.mock('better-auth/adapters/prisma', () => ({ prismaAdapter: () => ({}) }));
+vi.mock('../src/lib/db', () => ({ db: {}, databaseProvider: () => 'sqlite' }));
+vi.mock('../src/lib/mail', () => ({ sendMail: vi.fn() }));
+import { auth } from '../src/lib/auth';
+type AuthLogger = { log: (level: 'error', message: string, ...args: unknown[]) => void };
+
 beforeEach(() => {
   resetAlertState();
   vi.stubEnv('LOG_LEVEL', 'info');
@@ -71,6 +81,26 @@ describe('redaction', () => {
 });
 
 describe('silent log paths', () => {
+  it('keeps the Better Auth message but never a passed error message', () => {
+    const output = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const mailError = Object.assign(
+      new Error('550 mailbox unavailable for Recipient Person at their workplace'),
+      { code: 'EENVELOPE' },
+    );
+    (auth as unknown as { logger: AuthLogger }).logger.log(
+      'error',
+      'Failed to send verification email',
+      mailError,
+    );
+    const line = String(output.mock.calls[0][0]);
+    expect(JSON.parse(line)).toMatchObject({
+      event: 'auth_event',
+      detail: 'Failed to send verification email',
+      type: 'Error',
+      code: 'EENVELOPE',
+    });
+    expect(line).not.toMatch(/550|mailbox|Recipient Person|workplace/);
+  });
   it('logs an unhandled route error with its type and message', async () => {
     const output = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const route = loggedRoute('/api/probe', async () => {

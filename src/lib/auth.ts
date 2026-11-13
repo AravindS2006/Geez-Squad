@@ -11,13 +11,15 @@ export const emailPolicy = getEmailPolicy(process.env);
 export const auth = betterAuth({
   logger: {
     level: 'debug',
-    // Keep Better Auth's message (redacted by the logger) and any error it passes.
+    // Keep Better Auth's own message (redacted by the logger) and the type, code and
+    // frames of any error it passes. The error's message is left out: mail-provider
+    // errors pass through here and can echo recipient details.
     log: (level, message, ...args) => {
       const error = args.find((arg) => arg instanceof Error);
       logEvent(level, 'auth_event', {
         ...requestContext.getStore(),
-        ...(error ? errorContext(error, { withDetail: true }) : {}),
-        detail: error ? `${message}: ${error.message}` : message,
+        ...(error ? errorContext(error) : {}),
+        detail: message,
       });
     },
   },

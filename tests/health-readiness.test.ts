@@ -12,6 +12,7 @@ import { GET } from '../src/app/api/health/route';
 import {
   expectedSchema,
   failingChecks,
+  hasHealthToken,
   livekitStatus,
   mailStatus,
   resetHealthCache,
@@ -116,30 +117,54 @@ describe('health dependencies', () => {
   });
 });
 
+const TOKEN = 'h'.repeat(40);
+const anonymous = () => GET(new Request('http://localhost/api/health'));
+const operator = (token = TOKEN) =>
+  GET(
+    new Request('http://localhost/api/health', { headers: { authorization: `Bearer ${token}` } }),
+  );
+
 describe('health readiness route', () => {
-  it('returns healthy for a compatible schema and never exposes query results', async () => {
+  beforeEach(() => vi.stubEnv('HEALTH_CHECK_TOKEN', TOKEN));
+  it('gives anonymous callers the overall status only', async () => {
     fixture.query.mockResolvedValue([{ secret: 'row' }]);
-    const response = await GET(new Request('http://localhost/api/health'));
+    const response = await anonymous();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'ok' });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(fixture.query).toHaveBeenCalledWith(schemaProbeSql());
+    expect(await (await operator('wrong-token')).json()).toEqual({ status: 'ok' });
+  });
+  it('names each dependency for a caller with the health token, never query results', async () => {
+    fixture.query.mockResolvedValue([{ secret: 'row' }]);
+    const response = await operator();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       status: 'ok',
       checks: { database: 'ok', livekit: 'disabled', mail: 'disabled' },
     });
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(fixture.query).toHaveBeenCalledWith(schemaProbeSql());
+  });
+  it('never gives detail when no health token is configured', async () => {
+    vi.stubEnv('HEALTH_CHECK_TOKEN', '');
+    fixture.query.mockResolvedValue([]);
+    expect(await (await operator('')).json()).toEqual({ status: 'ok' });
+    expect(hasHealthToken('Bearer ', { HEALTH_CHECK_TOKEN: '' })).toBe(false);
+    expect(hasHealthToken(null, { HEALTH_CHECK_TOKEN: TOKEN })).toBe(false);
+    expect(hasHealthToken(`Bearer ${TOKEN}`, { HEALTH_CHECK_TOKEN: TOKEN })).toBe(true);
   });
   it('reports unavailable instead of healthy when a column is missing', async () => {
     fixture.query.mockRejectedValue(
       new Error('Studio.address missing; private connection details'),
     );
-    const response = await GET(new Request('http://localhost/api/health'));
+    const response = await anonymous();
     expect(response.status).toBe(503);
-    const body = await response.json();
-    expect(body).toEqual({
+    expect(await response.json()).toEqual({ status: 'unavailable' });
+    const detailed = await (await operator()).json();
+    expect(detailed).toEqual({
       status: 'unavailable',
       checks: { database: 'down', livekit: 'disabled', mail: 'disabled' },
     });
-    expect(JSON.stringify(body)).not.toMatch(/private|Studio/);
+    expect(JSON.stringify(detailed)).not.toMatch(/private|Studio/);
   });
   it('returns 503 without hostnames when configured LiveKit is unreachable', async () => {
     vi.stubEnv('LIVEKIT_URL', 'wss://private-host.livekit.test');
@@ -147,10 +172,11 @@ describe('health readiness route', () => {
     vi.stubEnv('LIVEKIT_API_SECRET', 'secret');
     fixture.query.mockResolvedValue([]);
     fixture.listRooms.mockRejectedValue(new Error('connect ECONNREFUSED private-host'));
-    const response = await GET(new Request('http://localhost/api/health'));
-    expect(response.status).toBe(503);
-    const text = await response.text();
+    const anonymousResponse = await anonymous();
+    expect(anonymousResponse.status).toBe(503);
+    expect(await anonymousResponse.text()).toBe('{"status":"unavailable"}');
+    const text = await (await operator()).text();
     expect(JSON.parse(text).checks.livekit).toBe('down');
-    expect(text).not.toMatch(/private-host|livekit\.test|key|secret/);
+    expect(text).not.toMatch(/private-host|livekit.test|key|secret/);
   });
 });

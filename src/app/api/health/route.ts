@@ -5,6 +5,7 @@ import { errorContext, logEvent } from '@/lib/logger';
 import { requestContext } from '@/lib/request-log';
 import {
   failingChecks,
+  hasHealthToken,
   livekitStatus,
   mailStatus,
   schemaProbeSql,
@@ -28,7 +29,7 @@ async function databaseStatus(): Promise<HealthChecks['database']> {
   }
 }
 
-async function handleGET() {
+async function handleGET(request: Request) {
   const [database, livekit] = await Promise.all([databaseStatus(), livekitStatus()]);
   const checks: HealthChecks = { database, livekit, mail: mailStatus() };
   const failing = failingChecks(checks);
@@ -37,11 +38,15 @@ async function handleGET() {
       ...requestContext.getStore(),
       action: failing.join(','),
     });
-  // Status words only: no hostnames, versions, provider names or error text.
-  return NextResponse.json(
-    { status: failing.length ? 'unavailable' : 'ok', checks },
-    { status: failing.length ? 503 : 200, headers: { 'Cache-Control': 'no-store' } },
-  );
+  // Anonymous callers get the overall status only, so the response does not reveal which
+  // services are configured. With the health token, status words per dependency (still
+  // no hostnames, versions, provider names or error text).
+  const status = failing.length ? 'unavailable' : 'ok';
+  const detailed = hasHealthToken(request.headers.get('authorization'));
+  return NextResponse.json(detailed ? { status, checks } : { status }, {
+    status: failing.length ? 503 : 200,
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 
 export const GET = loggedRoute('/api/health', handleGET);

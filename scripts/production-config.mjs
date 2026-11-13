@@ -139,5 +139,14 @@ export function validateProductionConfig(env) {
   const billingConfigured = billingKeys.filter((key) => !!env[key]?.trim());
   if (billingConfigured.length && billingConfigured.length !== billingKeys.length)
     errors.push('Billing requires all three Stripe keys, or leave all three unset.');
+  // Optional: who may approve studio requests. Unset means no one can (requests wait).
+  if (env.PLATFORM_OPERATOR_EMAILS?.trim()) {
+    const entries = env.PLATFORM_OPERATOR_EMAILS.split(/[\s,]+/).filter(Boolean);
+    if (
+      placeholder(env.PLATFORM_OPERATOR_EMAILS) ||
+      entries.some((entry) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(entry))
+    )
+      errors.push('PLATFORM_OPERATOR_EMAILS must be a comma-separated list of email addresses.');
+  }
   return errors;
 }

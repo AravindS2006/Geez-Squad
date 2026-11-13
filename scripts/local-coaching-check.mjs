@@ -24,6 +24,8 @@ const env = {
   TEMP: resolve('test-results'),
   TMP: resolve('test-results'),
   LOG_LEVEL: 'error',
+  // Disposable operator for the studio-request checks in the account suite.
+  PLATFORM_OPERATOR_EMAILS: 'platform-operator@example.test',
 };
 function run(args) {
   const child = spawnSync(process.execPath, args, { env, stdio: 'inherit', windowsHide: true });

@@ -31,6 +31,7 @@ model User {
   coachAssignments PrimaryCoachAssignment[]
   nutritionProfile NutritionProfile?
   nutritionEntries NutritionEntry[]
+  studioRequests StudioRequest[]
 }
 
 model NutritionProfile {
@@ -131,6 +132,9 @@ model Studio {
   roleGrants StudioRoleGrant[]
   teamRequests StudioTeamRequest[]
   exercises CustomExercise[]
+  status String @default("active")
+  closedAt DateTime?
+  closedById String?
 }
 
 model StudioMember {
@@ -338,6 +342,12 @@ model ClassSession {
   messages Message[]
   workoutSets WorkoutSet[]
   @@index([studioId, startsAt])
+  // Workspace class lists (admin: studio + status, ordered by start), live-class checks.
+  @@index([studioId, status, startsAt])
+  // Coach-hosted lists, host reassignment on deletion/demotion, overlap checks.
+  @@index([hostId, status, startsAt])
+  // Retention sweep of abandoned live classes (status live, oldest startedAt first).
+  @@index([status, startedAt])
 }
 model Enrollment {
   id String @id @default(cuid())
@@ -491,6 +501,7 @@ model BillingSubscription {
 model WebhookEvent {
   id String @id
   createdAt DateTime @default(now())
+  @@index([createdAt])
 }
 model AuditEvent {
   detailsJson Json?
@@ -500,6 +511,10 @@ model AuditEvent {
   targetId String
   createdAt DateTime @default(now())
   @@index([actorId, createdAt])
+  // Booking history (My bookings, data export) looks events up by target.
+  @@index([targetId, createdAt])
+  // Retention pruning, oldest first.
+  @@index([createdAt])
 }
 
 model StudioRoleGrant {
@@ -550,4 +565,21 @@ model StudioTeamRequest {
   studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
   @@unique([studioId, email, role])
   @@index([email, status])
+}
+
+model StudioRequest {
+  id String @id @default(cuid())
+  userId String
+  name String
+  contactPhone String @default("")
+  note String @default("")
+  status String @default("pending")
+  studioId String?
+  reviewedById String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([status, createdAt])
+  @@index([userId, status])
 }

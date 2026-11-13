@@ -111,7 +111,7 @@ When the domain is available, add it to Resend (a sending subdomain is suitable)
 | `POSE_MODEL_MIRROR_URL` (optional, build only) | HTTPS base URL that serves byte-identical `pose_landmarker_{lite,full,heavy}.task`, tried before Google storage. Files are accepted only when they match the pinned SHA-256 |
 | `POSE_MODEL_CACHE_DIR` (optional, build only) | Where verified models are reused between builds. The default `node_modules/.cache/geez-pose-models` is kept when the Vercel build cache restores `node_modules` (not guaranteed; a cache miss downloads again). CI caches `.cache/pose-models` |
 
-Optional billing requires all three of `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_PRICE_ID`. Keep separate Stripe test and live environments. Leave them empty until pricing and paid-access policies are confirmed. This implementation collects a coach subscription if explicitly enabled, but does not enforce paid entitlements for classes yet.
+Optional billing requires all three of `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and `STRIPE_PRICE_ID`. Keep separate Stripe test and live environments. Leave them empty until pricing and paid-access policies are confirmed. When enabled, starting a live class requires the studio owner or an active admin to hold an active or trialing subscription (see `docs/OPERATIONS.md`, Known engineering limits). Test Stripe end to end before enabling it. Optional `PLATFORM_OPERATOR_EMAILS` lists the verified emails that may approve studio requests (`docs/OPERATIONS.md`, Studio lifecycle).
 
 ## 5. Vercel project
 

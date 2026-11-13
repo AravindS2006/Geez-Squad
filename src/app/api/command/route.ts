@@ -46,6 +46,7 @@ import {
   isRoomMissing,
   videoRoomService as videoService,
 } from '@/lib/class-completion';
+import { requireStudioEntitlement } from '@/lib/billing-entitlement';
 import { COMMAND_LIMITS, IN_CLASS_ACTIONS, classRateBuckets } from '@/lib/class-lifecycle';
 /** Per-class limits after authorization: the class coach is not throttled by trainee caps. */
 async function limitInClass(
@@ -730,7 +731,11 @@ async function handlePOST(request: Request) {
           result = { ok: true, roomClosed: ended.roomClosed };
           break;
         }
-        if (data.control === 'start') await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
+        if (data.control === 'start') {
+          // Paid feature: a no-op unless billing is configured.
+          await requireStudioEntitlement(item.studioId);
+          await createRoom(item.id, MAX_CLASS_CLIENTS + 2);
+        }
         const change =
           data.control === 'start'
             ? {

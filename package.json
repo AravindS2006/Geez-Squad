@@ -78,7 +78,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.2",
     "prettier": "^3.9.9",
-    "prisma": "6.19.3",
+    "prisma": "7.10.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12"
   }

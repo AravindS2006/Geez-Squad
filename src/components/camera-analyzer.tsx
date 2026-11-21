@@ -2,7 +2,7 @@
 import { useToast } from './primitives/toast';
 import { initialJointStability, stabilizePoseJoints } from '@/lib/pose-joints';
 import { setFeedback, workoutFeedback } from '@/lib/workout-feedback';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useCameraLayout } from './use-camera-layout';
 import { useScreenAwake } from './use-screen-awake';
 import { requestCamera } from '@/lib/camera-access';
@@ -58,12 +58,54 @@ import {
 } from '@/lib/pose-diagnostics';
 import { readBrowserPreference } from '@/lib/browser-preferences';
 import {
+  cuePriority,
+  initialVoiceGate,
+  pickVoice,
+  planSpeech,
+  resetHeardFaults,
+  speechLanguage,
+  VOICE_PITCH,
+  VOICE_PREFERENCE_KEY,
+  VOICE_RATE,
+  voiceEnabledFromPreference,
+  type CuePriority,
+} from '@/lib/voice-coach';
+import {
   defaultWorkoutConfig,
   migrateSavedThresholds,
   normalizeWorkoutConfig,
   stampWorkoutConfig,
   type WorkoutConfig,
 } from '@/lib/workout-config';
+
+// Voice coaching is on unless the trainee turned it off; the choice is kept per browser.
+const voiceListeners = new Set<() => void>();
+let voiceThisVisit: boolean | null = null;
+function subscribeVoice(listener: () => void) {
+  voiceListeners.add(listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    voiceListeners.delete(listener);
+    window.removeEventListener('storage', listener);
+  };
+}
+function readVoiceEnabled() {
+  if (voiceThisVisit !== null) return voiceThisVisit;
+  try {
+    return voiceEnabledFromPreference(readBrowserPreference(VOICE_PREFERENCE_KEY));
+  } catch {
+    return true;
+  }
+}
+function writeVoiceEnabled(next: boolean) {
+  voiceThisVisit = next;
+  try {
+    localStorage.setItem(VOICE_PREFERENCE_KEY, next ? 'on' : 'off');
+  } catch {
+    /* The choice still applies for this visit. */
+  }
+  voiceListeners.forEach((listener) => listener());
+}
 
 const RANGE_RESET_MESSAGE =
   'Your saved movement range was reset to the standard range because tracking now measures on-screen angles. Adjust it with your coach if needed.';
@@ -263,8 +305,10 @@ export function CameraAnalyzer({
     pausedRef = useRef(paused),
     analysisCallback = useRef(onAnalysis),
     streamCallback = useRef(onStream),
-    voiceRef = useRef(false),
-    lastSpoken = useRef({ text: '', at: 0 });
+    voiceRef = useRef(true),
+    voiceGate = useRef(initialVoiceGate()),
+    coachVoice = useRef<SpeechSynthesisVoice | null>(null),
+    speechPrimed = useRef(false);
   const tally = useRef<
     Pick<
       import('@/lib/pose-engine').PoseState,
@@ -283,7 +327,7 @@ export function CameraAnalyzer({
   const [analysis, setAnalysis] = useState(empty),
     [status, setStatus] = useState('off'),
     [error, setError] = useState(''),
-    [voice, setVoice] = useState(false);
+    voice = useSyncExternalStore(subscribeVoice, readVoiceEnabled, () => true);
   // A phone propped up for a set must not dim and lock while the camera is analysing.
   useScreenAwake(status !== 'off');
   const [waitingForCamera, setWaitingForCamera] = useState(false);
@@ -293,6 +337,17 @@ export function CameraAnalyzer({
   analysisCallback.current = onAnalysis;
   streamCallback.current = onStream;
   voiceRef.current = voice;
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    // Voices often load after the first call, so choose again when the list changes.
+    const choose = () => {
+      coachVoice.current = pickVoice(synth.getVoices(), speechLanguage(navigator.language));
+    };
+    choose();
+    synth.addEventListener?.('voiceschanged', choose);
+    return () => synth.removeEventListener?.('voiceschanged', choose);
+  }, []);
   function stop() {
     cameraRequest.current?.abort();
     cameraRequest.current = null;
@@ -325,17 +380,31 @@ export function CameraAnalyzer({
     streamCallback.current?.(null);
     window.speechSynthesis?.cancel();
   }
-  function announce(text: string, force = false, urgent = false) {
+  function announce(text: string, force = false, priority: CuePriority = 'info') {
     if (!voiceRef.current || !window.speechSynthesis) return;
-    if (
-      !force &&
-      (Date.now() - lastSpoken.current.at < (urgent ? 2000 : 7000) ||
-        lastSpoken.current.text === text)
-    )
-      return;
+    const plan = planSpeech(voiceGate.current, text, priority, Date.now(), force);
+    voiceGate.current = plan.gate;
+    if (plan.text === null) return;
+    const utterance = new SpeechSynthesisUtterance(plan.text);
+    utterance.lang = coachVoice.current?.lang ?? speechLanguage(navigator.language);
+    if (coachVoice.current) utterance.voice = coachVoice.current;
+    utterance.rate = VOICE_RATE;
+    utterance.pitch = VOICE_PITCH;
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-    lastSpoken.current = { text, at: Date.now() };
+    window.speechSynthesis.speak(utterance);
+  }
+  // Mobile Safari and Chrome only speak after speech has started inside a user
+  // gesture. Voice is on by default, so unlock it on the first camera or set tap.
+  function primeSpeech() {
+    if (speechPrimed.current || !voiceRef.current || !window.speechSynthesis) return;
+    speechPrimed.current = true;
+    const silent = new SpeechSynthesisUtterance(' ');
+    silent.volume = 0;
+    window.speechSynthesis.speak(silent);
+  }
+  function setVoiceEnabled(next: boolean) {
+    voiceRef.current = next;
+    writeVoiceEnabled(next);
   }
   function signalRep() {
     const context = soundContext.current;
@@ -533,6 +602,7 @@ export function CameraAnalyzer({
       soundContext.current ??= new AudioContext();
       void soundContext.current.resume();
     }
+    speechPrimed.current = true;
     announce(
       'Step back into view and hold your starting position. Your set will start after the countdown.',
       true,
@@ -602,6 +672,7 @@ export function CameraAnalyzer({
     setShowGo(true);
     setLocalPaused(false);
     signalRep();
+    voiceGate.current = resetHeardFaults(voiceGate.current);
     announce('Go. Your set has started. Move under control.', true);
   }
   function invalidateTracking(cue: string, preserveContinuity = false) {
@@ -1376,13 +1447,7 @@ export function CameraAnalyzer({
               data.bitmap,
             );
             if (modeRef.current === 'setup' || modeRef.current === 'active')
-              announce(
-                result.cue,
-                false,
-                !result.tracked ||
-                  result.cue.startsWith('Rep not counted') ||
-                  (result.score !== null && result.score < 75),
-              );
+              announce(result.cue, false, cuePriority(result.cue, result));
           }
         };
         initDeadline.current = setTimeout(
@@ -1580,9 +1645,13 @@ export function CameraAnalyzer({
             <button
               className="button lime"
               disabled={sessionCamera && !onEnableCamera}
-              onClick={() =>
-                sessionCamera ? (stream ? void start(stream) : onEnableCamera?.()) : void start()
-              }
+              onClick={() => {
+                primeSpeech();
+                if (sessionCamera) {
+                  if (stream) void start(stream);
+                  else onEnableCamera?.();
+                } else void start();
+              }}
             >
               <Camera size={17} /> {sessionCamera ? 'Turn on session camera' : 'Enable camera'}
             </button>
@@ -1920,10 +1989,10 @@ export function CameraAnalyzer({
                 aria-label={voice ? 'Mute voice & rep sound' : 'Enable voice & rep sound'}
                 aria-pressed={voice}
                 onClick={() => {
-                  setVoice(!voice);
-                  voiceRef.current = !voice;
+                  setVoiceEnabled(!voice);
                   if (voice) window.speechSynthesis?.cancel();
                   else {
+                    speechPrimed.current = true;
                     if (window.AudioContext) {
                       soundContext.current ??= new AudioContext();
                       void soundContext.current.resume();

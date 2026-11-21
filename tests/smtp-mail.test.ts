@@ -3,6 +3,11 @@ vi.mock('server-only', () => ({}));
 const smtp = vi.hoisted(() => ({ send: vi.fn(), create: vi.fn() }));
 vi.mock('nodemailer', () => ({ default: { createTransport: smtp.create } }));
 import { sendMail } from '../src/lib/mail';
+const mail = (text: string) => ({
+  subject: 'Verify your account',
+  text,
+  html: `<a href="${text}">Verify</a>`,
+});
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
@@ -21,7 +26,7 @@ it('uses encrypted SMTP with raw message logging disabled', async () => {
   setup();
   smtp.send.mockResolvedValue({});
   vi.spyOn(console, 'info').mockImplementation(() => {});
-  await sendMail('client@example.test', 'Verify your account', 'private-token-url');
+  await sendMail('client@example.test', mail('private-token-url'));
   expect(smtp.create).toHaveBeenCalledWith(
     expect.objectContaining({
       secure: true,
@@ -32,7 +37,13 @@ it('uses encrypted SMTP with raw message logging disabled', async () => {
       disableUrlAccess: true,
     }),
   );
-  expect(smtp.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'client@example.test' }));
+  expect(smtp.send).toHaveBeenCalledWith(
+    expect.objectContaining({
+      to: 'client@example.test',
+      text: 'private-token-url',
+      html: '<a href="private-token-url">Verify</a>',
+    }),
+  );
 });
 it('keeps credentials and email contents out of errors and logs', async () => {
   setup();
@@ -41,7 +52,7 @@ it('keeps credentials and email contents out of errors and logs', async () => {
   });
   smtp.send.mockRejectedValue(error);
   const output = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await expect(sendMail('client@example.test', 'Verify', 'private-token-url')).rejects.toThrow(
+  await expect(sendMail('client@example.test', mail('private-token-url'))).rejects.toThrow(
     'Email could not be delivered.',
   );
   expect(output.mock.calls.flat().join(' ')).not.toMatch(

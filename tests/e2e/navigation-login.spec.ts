@@ -60,6 +60,48 @@ test('existing sessions skip login, retain shared destinations, and expire back 
   }
 });
 
+test('Manage your profile closes the studio dialog when it opens settings', async ({ page }) => {
+  const db = new PrismaClient();
+  let userId = '';
+  await page
+    .context()
+    .setExtraHTTPHeaders({ 'x-forwarded-for': `2001:db8:${randomBytes(2).toString('hex')}::1` });
+  try {
+    const signup = await page.request.post('/api/auth/sign-up/email', {
+      headers: { Origin: 'http://localhost:3000' },
+      data: {
+        name: 'Profile member',
+        email: `profile-${randomUUID()}@example.test`,
+        password: randomBytes(24).toString('base64url'),
+      },
+    });
+    expect(signup.ok()).toBe(true);
+    userId = (await signup.json()).user.id;
+    expect(
+      (
+        await page.request.post('/api/command', {
+          headers: { Origin: 'http://localhost:3000' },
+          data: { action: 'onboard', role: 'trainee', adult: true, name: 'Profile member' },
+        })
+      ).ok(),
+    ).toBe(true);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/app');
+    await page.locator('.sidebar .studio-selector').click();
+    const dialog = page.getByRole('dialog', { name: 'Your studio' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('link', { name: 'Manage your profile' }).click();
+    await expect(page).toHaveURL(/view=settings/);
+    await expect(dialog).toHaveCount(0);
+  } finally {
+    if (userId) {
+      await db.auditEvent.deleteMany({ where: { actorId: userId } });
+      await db.user.delete({ where: { id: userId } });
+    }
+    await db.$disconnect();
+  }
+});
+
 test('role menus group daily work, keep account controls visible, and expose mobile shortcuts', async ({
   browser,
 }) => {

@@ -4,6 +4,7 @@ import { ApiError } from './security';
 import { requireStudio, studioAccess } from './studio-access';
 import { writeMetrics } from './metrics-write';
 import { sendMail } from './mail';
+import { coachInvitationEmail } from './email-templates';
 import { revokeStaffVideo } from './member-access';
 import { z } from 'zod';
 import { logEvent } from './logger';
@@ -230,8 +231,10 @@ export async function mutateTeam(actorId: string, command: z.infer<typeof teamCo
     try {
       await sendMail(
         command.email,
-        `${studio.name}: coach invitation`,
-        `You have been invited to coach at ${studio.name}. Sign up or sign in with this email, verify your mailbox, then accept the coach request inside the app. This request expires in 7 days.\n\n${process.env.BETTER_AUTH_URL}/app`,
+        coachInvitationEmail({
+          studioName: studio.name,
+          url: `${process.env.BETTER_AUTH_URL}/app`,
+        }),
       );
     } catch {
       throw new ApiError(

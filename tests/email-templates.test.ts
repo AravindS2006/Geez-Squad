@@ -22,16 +22,21 @@ const templates = [
 ] as const;
 
 describe.each(templates)('%s email', (_name, mail, label) => {
-  it('links the button and the fallback to the same URL', () => {
+  it('has exactly one link: the button', () => {
     expect(mail.html).toMatch(new RegExp(`<a href="[^"]+"[^>]*>${label}`));
-    expect(mail.html.split(`href="${escaped}"`)).toHaveLength(3);
+    expect(mail.html.match(/<a\s/g)).toHaveLength(1);
+    expect(mail.html.split(`href="${escaped}"`)).toHaveLength(2);
+    expect(mail.html).not.toContain('Button not working');
   });
   it('shares the branded light layout', () => {
     expect(mail.html).toContain('<meta name="color-scheme" content="light">');
     expect(mail.html).toContain('Stronger, together.');
-    expect(mail.html).toContain('#bef264');
+    // Lime .button.lime fill and text, inside the bordered action box.
+    expect(mail.html).toMatch(/<td align="center" bgcolor="#bef264"[^>]*border:1px solid #a3e635/);
+    expect(mail.html).toMatch(/<a href="[^"]+"[^>]*color:#1a2e05/);
+    expect(mail.html).toContain('class="gs-box"');
   });
-  it('keeps a plain-text part with the raw link', () => {
+  it('keeps the raw link in the plain-text part for text-only clients', () => {
     expect(mail.text).toContain(`${label}: ${url}`);
   });
 });

@@ -6,12 +6,16 @@ const color = {
   app: '#f7f7f5', // --surface-app
   card: '#ffffff', // --surface-1
   subtle: '#f4f4f2', // --surface-2
-  text1: '#111111', // --text-1 / --brand
+  text1: '#111111', // --text-1 / --brand / --surface-inverse
   text2: '#52524e', // --text-2
   text3: '#6b6b66', // --text-3
+  inverse: '#fafaf9', // --text-inverse
   border: '#e7e7e4', // --border-1
-  accent: '#bef264', // --accent
-  contrast: '#ffffff', // --brand-contrast
+  accent: '#bef264', // --accent (lime, the .button.lime background)
+  accentSoft: '#ecfccb', // --accent-soft
+  accentEdge: '#a3e635', // .button.lime hover shade, used as the button border
+  onAccent: '#1a2e05', // .button.lime text
+  success: '#3f6212', // --success
 };
 const sans = "'Inter','Segoe UI',Helvetica,Arial,sans-serif";
 const serif = "Georgia,'Times New Roman',serif";
@@ -33,6 +37,8 @@ type EmailLayout = {
   heading: string;
   greeting: string;
   paragraphs: string[];
+  /** Optional numbered steps shown after the paragraphs. */
+  steps?: string[];
   action: { label: string; url: string };
   /** Small print under the button: expiry and "ignore if this wasn't you". */
   note: string;
@@ -40,16 +46,22 @@ type EmailLayout = {
   reason: string;
 };
 
-/** Every outgoing email goes through this one layout. All copy is escaped here. */
+/**
+ * Every outgoing email goes through this one layout. All copy is escaped here. The HTML
+ * has exactly one link, the button; the plain-text part keeps the URL because text-only
+ * mail clients show that part instead of the HTML.
+ */
 export function renderEmail(layout: EmailLayout): RenderedEmail {
   const subject = layout.subject.replace(/[\r\n]+/g, ' ').trim();
   const url = escapeHtml(layout.action.url);
+  const steps = layout.steps ?? [];
   const p = (body: string, margin: string) =>
-    `<p style="margin:${margin};font:400 15px/1.6 ${sans};color:${color.text2};">${escapeHtml(body)}</p>`;
+    `<p style="margin:${margin};font:400 16px/1.65 ${sans};color:${color.text2};">${escapeHtml(body)}</p>`;
   const text = [
     layout.greeting,
     '',
     ...layout.paragraphs.flatMap((body) => [body, '']),
+    ...(steps.length ? [...steps.map((step, i) => `${i + 1}. ${step}`), ''] : []),
     `${layout.action.label}: ${layout.action.url}`,
     '',
     layout.note,
@@ -57,6 +69,17 @@ export function renderEmail(layout: EmailLayout): RenderedEmail {
     'Geez Squad — Stronger, together.',
     layout.reason,
   ].join('\n');
+  // Brand mark built from table cells (most email clients strip inline SVG).
+  const mark = (size: number, tile: string, letter: string, dot: string) =>
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="${size}" height="${size}" align="center" valign="middle" style="width:${size}px;height:${size}px;background:${tile};border-radius:${Math.round(size / 3.6)}px;font:800 ${Math.round(size * 0.52)}px/${size}px ${sans};color:${letter};">G<span style="color:${dot};">.</span></td></tr></table>`;
+  const stepRows = steps
+    .map(
+      (step, i) => `<tr>
+<td width="40" valign="top" style="padding:0 0 ${i === steps.length - 1 ? 0 : 14}px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" height="28" align="center" valign="middle" style="width:28px;height:28px;background:${color.text1};border-radius:999px;font:700 13px/28px ${sans};color:${color.accent};">${i + 1}</td></tr></table></td>
+<td valign="middle" style="padding:0 0 ${i === steps.length - 1 ? 0 : 14}px;font:500 15px/1.45 ${sans};color:${color.text1};">${escapeHtml(step)}</td>
+</tr>`,
+    )
+    .join('');
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -65,43 +88,63 @@ export function renderEmail(layout: EmailLayout): RenderedEmail {
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(subject)}</title>
+<style>
+@media (max-width: 520px) {
+  .gs-pad { padding-left: 24px !important; padding-right: 24px !important; }
+  .gs-hero { padding: 28px 24px 34px !important; }
+  .gs-h1 { font-size: 32px !important; }
+  .gs-box { padding: 22px 18px !important; }
+}
+</style>
 </head>
 <body style="margin:0;padding:0;background:${color.app};-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(layout.preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${color.app};">
-<tr><td align="center" style="padding:40px 16px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
-<tr><td style="padding:0 4px 20px;">
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td width="32" height="32" align="center" valign="middle" style="width:32px;height:32px;background:${color.text1};border-radius:8px;font:700 17px/32px ${sans};color:${color.contrast};">G</td>
-<td style="padding-left:10px;font:700 16px/1 ${sans};color:${color.text1};letter-spacing:-0.2px;">Geez Squad</td>
-</tr></table>
-</td></tr>
-<tr><td style="background:${color.card};border:1px solid ${color.border};border-radius:16px;overflow:hidden;">
+<tr><td align="center" style="padding:32px 12px 40px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+<tr><td style="background:${color.card};border:1px solid ${color.border};border-radius:24px;box-shadow:0 2px 6px rgba(17,17,17,0.06),0 18px 48px rgba(17,17,17,0.10);">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tr><td height="6" style="height:6px;line-height:6px;font-size:0;background:${color.accent};">&nbsp;</td></tr>
-<tr><td style="padding:36px 36px 8px;">
-<p style="margin:0 0 12px;font:700 11px/1.4 ${sans};letter-spacing:1.4px;text-transform:uppercase;color:${color.text3};">${escapeHtml(layout.eyebrow)}</p>
-<h1 style="margin:0 0 20px;font:400 30px/1.2 ${serif};color:${color.text1};">${escapeHtml(layout.heading)}</h1>
-${p(layout.greeting, '0 0 12px')}
-${layout.paragraphs.map((body, i) => p(body, i === layout.paragraphs.length - 1 ? '0 0 28px' : '0 0 12px')).join('\n')}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td align="center" bgcolor="${color.text1}" style="border-radius:999px;background:${color.text1};">
-<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:15px 30px;font:600 15px/1 ${sans};color:${color.contrast};text-decoration:none;border-radius:999px;">${escapeHtml(layout.action.label)}&nbsp;&rarr;</a>
-</td></tr></table>
-<p style="margin:24px 0 0;font:400 13px/1.6 ${sans};color:${color.text3};">${escapeHtml(layout.note)}</p>
-</td></tr>
-<tr><td style="padding:24px 36px 32px;">
+<tr><td class="gs-hero" bgcolor="${color.text1}" style="background:${color.text1};background-image:radial-gradient(circle at 100% 0%,rgba(190,242,100,0.28) 0%,rgba(190,242,100,0) 55%);border-radius:24px 24px 0 0;padding:32px 44px 40px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="padding:14px 16px;background:${color.subtle};border-radius:12px;font:400 12px/1.6 ${sans};color:${color.text3};">
-Button not working? Copy and paste this link into your browser:<br>
-<a href="${url}" target="_blank" rel="noopener" style="color:${color.text1};text-decoration:underline;word-break:break-all;">${url}</a>
+<td valign="middle" width="46">${mark(36, color.accent, color.text1, color.text1)}</td>
+<td valign="middle" style="font:700 17px/1 ${sans};color:${color.inverse};letter-spacing:-0.3px;">Geez Squad</td>
+<td valign="middle" align="right"><span style="display:inline-block;padding:7px 12px;border:1px solid rgba(190,242,100,0.45);border-radius:999px;font:700 10px/1 ${sans};letter-spacing:1.4px;text-transform:uppercase;color:${color.accent};">${escapeHtml(layout.eyebrow)}</span></td>
+</tr></table>
+<h1 class="gs-h1" style="margin:40px 0 0;font:400 40px/1.1 ${serif};color:${color.inverse};letter-spacing:-0.6px;">${escapeHtml(layout.heading)}</h1>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;"><tr><td width="56" height="4" style="width:56px;height:4px;line-height:4px;font-size:0;background:${color.accent};border-radius:999px;">&nbsp;</td></tr></table>
+</td></tr>
+<tr><td class="gs-pad" style="padding:36px 44px 0;">
+${p(layout.greeting, '0 0 14px')}
+${layout.paragraphs.map((body, i) => p(body, i === layout.paragraphs.length - 1 ? '0' : '0 0 14px')).join('\n')}
+</td></tr>
+${
+  steps.length
+    ? `<tr><td class="gs-pad" style="padding:26px 44px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:20px 22px;background:${color.subtle};border-radius:16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${stepRows}</table>
 </td></tr></table>
+</td></tr>`
+    : ''
+}
+<tr><td class="gs-pad" style="padding:30px 44px 40px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td class="gs-box" style="padding:26px;background:${color.accentSoft};border:1px solid ${color.accentEdge};border-radius:20px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td align="center" bgcolor="${color.accent}" style="background:${color.accent};border:1px solid ${color.accentEdge};border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.65),0 8px 20px rgba(63,98,18,0.25);">
+<a href="${url}" target="_blank" rel="noopener" style="display:block;padding:19px 24px;font:800 17px/1.2 ${sans};color:${color.onAccent};text-decoration:none;letter-spacing:-0.2px;border-radius:14px;">${escapeHtml(layout.action.label)}&nbsp;&rarr;</a>
+</td></tr></table>
+<p style="margin:16px 0 0;text-align:center;font:500 13px/1.55 ${sans};color:${color.success};">${escapeHtml(layout.note)}</p>
+</td></tr></table>
+</td></tr>
+<tr><td style="border-top:1px solid ${color.border};padding:18px 44px;border-radius:0 0 24px 24px;" class="gs-pad">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+<td valign="middle" width="32">${mark(22, color.text1, color.inverse, color.accent)}</td>
+<td valign="middle" style="font:700 11px/1 ${sans};letter-spacing:1.4px;text-transform:uppercase;color:${color.text2};">Stronger, together.</td>
+</tr></table>
 </td></tr>
 </table>
 </td></tr>
-<tr><td align="center" style="padding:24px 16px 0;font:700 11px/1.6 ${sans};letter-spacing:1.4px;text-transform:uppercase;color:${color.text3};">Stronger, together.</td></tr>
-<tr><td align="center" style="padding:4px 16px 0;font:400 12px/1.6 ${sans};color:${color.text3};">${escapeHtml(layout.reason)}</td></tr>
+<tr><td align="center" style="padding:22px 28px 0;font:400 12px/1.6 ${sans};color:${color.text3};">${escapeHtml(layout.reason)}</td></tr>
 </table>
 </td></tr>
 </table>
@@ -186,8 +229,12 @@ export function membershipSetupEmail({
     heading: 'Your spot is saved.',
     greeting: 'Hi there,',
     paragraphs: [
-      `${studioName} has set up your studio membership on Geez Squad.`,
-      'Sign up or sign in using this email, verify your mailbox, and accept the studio request inside the app. Your membership and history remain saved if you connect later.',
+      `${studioName} has set up your studio membership on Geez Squad. Your membership and history stay saved, even if you connect later.`,
+    ],
+    steps: [
+      'Sign up or sign in with this email',
+      'Verify your mailbox',
+      'Accept the studio request in the app',
     ],
     action: { label: 'Open Geez Squad', url },
     note: 'If you weren’t expecting this, you can ignore this email. Nothing is shared until you accept the request.',
@@ -210,9 +257,11 @@ export function coachInvitationEmail({
     eyebrow: 'Coach invitation',
     heading: 'Join the coaching team.',
     greeting: 'Hi there,',
-    paragraphs: [
-      `You’ve been invited to coach at ${studioName} on Geez Squad.`,
-      'Sign up or sign in with this email, verify your mailbox, then accept the coach request inside the app.',
+    paragraphs: [`You’ve been invited to coach at ${studioName} on Geez Squad.`],
+    steps: [
+      'Sign up or sign in with this email',
+      'Verify your mailbox',
+      'Accept the coach request in the app',
     ],
     action: { label: 'Accept in Geez Squad', url },
     note: `This request expires in ${duration(expiresInDays * 1440)}. If you weren’t expecting it, you can ignore this email.`,

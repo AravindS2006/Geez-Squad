@@ -7,7 +7,8 @@
     "node": "^22.22.0"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.0"
+    "deepmerge-ts": "^8.0.0",
+    "effect": "^3.22.5"
   },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
@@ -80,6 +81,7 @@
     "prettier": "^3.10.1",
     "prisma": "6.19.3",
     "typescript": "~5.9.3",
+    "vite": "^7.3.8",
     "vitest": "^5.1.1"
   }
 }

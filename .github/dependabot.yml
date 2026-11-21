@@ -26,6 +26,12 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: '@mediapipe/tasks-vision'
         update-types: ['version-update:semver-major']
+      # - TypeScript 7 (native compiler) breaks lint: typescript-eslint supports only
+      #   TypeScript >=4.8.4 <6.1.0 and refuses to load on 7.x
+      #   (https://github.com/typescript-eslint/typescript-eslint/issues/10940).
+      #   Upgrade by hand once typescript-eslint supports it.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:

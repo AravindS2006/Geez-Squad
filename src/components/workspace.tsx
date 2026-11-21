@@ -1746,7 +1746,11 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   ? 'This sample shows the coaching experience. All people and history are illustrative. Use camera practice for actual local pose analysis.'
                   : `You’re signed in as ${data.user.name}, with the ${admin ? 'admin' : coach ? 'coach' : 'trainee'} role.`}
               </p>
-              <Link className="button lime" href={data.demo ? '/login' : '/app?view=settings'}>
+              <Link
+                className="button lime"
+                href={data.demo ? '/login' : '/app?view=settings'}
+                onClick={() => setModal(null)}
+              >
                 {data.demo ? 'Create your own studio' : 'Manage your profile'}
                 <ArrowRight size={16} />
               </Link>

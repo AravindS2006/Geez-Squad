@@ -3,13 +3,10 @@ import { getEmailPolicy } from './email-policy.mjs';
 import nodemailer from 'nodemailer';
 import { errorContext, logEvent } from './logger';
 import { requestContext } from './request-log';
-export function escapeHtml(value: string) {
-  return value.replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
-  );
-}
-export async function sendMail(to: string, subject: string, text: string) {
+import type { RenderedEmail } from './email-templates';
+export { escapeHtml } from './email-templates';
+/** Takes a template from email-templates.ts so every email shares the branded layout. */
+export async function sendMail(to: string, { subject, text, html }: RenderedEmail) {
   const policy = getEmailPolicy(process.env);
   const from = process.env.EMAIL_FROM?.includes('<')
     ? process.env.EMAIL_FROM
@@ -45,7 +42,7 @@ export async function sendMail(to: string, subject: string, text: string) {
         logger: false,
         debug: false,
       });
-      await transport.sendMail({ from, to, subject, text });
+      await transport.sendMail({ from, to, subject, text, html });
       logEvent('info', 'mail_sent', {
         ...requestContext.getStore(),
         provider: 'smtp',
@@ -65,7 +62,7 @@ export async function sendMail(to: string, subject: string, text: string) {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to: [to], subject, text }),
+      body: JSON.stringify({ from, to: [to], subject, text, html }),
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error('Email delivery failed. Please retry.');

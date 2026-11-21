@@ -7,6 +7,8 @@ import { getEmailPolicy } from './email-policy.mjs';
 import { logEvent } from './logger';
 import { requestContext } from './request-log';
 import { allowedOrigins } from './origins';
+import { passwordResetEmail, verificationEmail } from './email-templates';
+import { claimVerificationEmail, releaseVerificationEmail } from './verification-throttle';
 export const emailPolicy = getEmailPolicy(process.env);
 export const auth = betterAuth({
   logger: {
@@ -28,11 +30,7 @@ export const auth = betterAuth({
     requireEmailVerification: emailPolicy.requireVerification,
     sendResetPassword: emailPolicy.passwordResetEnabled
       ? async ({ user, url }) => {
-          await sendMail(
-            user.email,
-            'Reset your Geez Squad password',
-            `Reset your password: ${url}\nIf you did not request this, ignore this email.`,
-          );
+          await sendMail(user.email, passwordResetEmail({ name: user.name, url }));
         }
       : undefined,
   },
@@ -42,11 +40,18 @@ export const auth = betterAuth({
         sendOnSignUp: true,
         sendOnSignIn: true,
         sendVerificationEmail: async ({ user, url }) => {
-          await sendMail(
-            user.email,
-            'Verify your Geez Squad email',
-            `Welcome to Geez Squad. Verify your email: ${url}`,
-          );
+          // Sign-up, sign-in and Resend can all fire within seconds; send once per window.
+          const claimedAt = Date.now();
+          if (!(await claimVerificationEmail(db.rateLimit, user.id, claimedAt))) {
+            logEvent('info', 'mail_verification_deduplicated', requestContext.getStore());
+            return;
+          }
+          try {
+            await sendMail(user.email, verificationEmail({ name: user.name, url }));
+          } catch (error) {
+            await releaseVerificationEmail(db.rateLimit, user.id, claimedAt);
+            throw error;
+          }
         },
       }
     : undefined,

@@ -1,5 +1,6 @@
 import { changeBooking } from './studio-bookings';
 import { sendMail } from './mail';
+import { membershipSetupEmail } from './email-templates';
 import { requireStudio } from './studio-access';
 import 'server-only';
 import type { Prisma } from '@prisma/client';
@@ -637,8 +638,10 @@ export async function mutateOperations(studioId: string, actorId: string, c: Ope
     try {
       await sendMail(
         request.email,
-        `${request.member.studio.name}: connect your membership`,
-        `Your studio membership is ready. Sign up or sign in using this email, verify your mailbox, and accept the studio request inside the app. Your membership and history remain saved if you connect later.\n\n${process.env.BETTER_AUTH_URL}/app`,
+        membershipSetupEmail({
+          studioName: request.member.studio.name,
+          url: `${process.env.BETTER_AUTH_URL}/app`,
+        }),
       );
     } catch {
       throw new ApiError(

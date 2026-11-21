@@ -224,6 +224,53 @@ test('guided calibration saves a personal range on mobile without starting or co
   }
 });
 
+test('voice coaching is on by default and a mute survives a reload', async () => {
+  test.setTimeout(30000);
+  const browser = await chromium.launch({
+    channel: 'msedge',
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+  });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await addPoseFixture(page);
+  // Record utterances instead of playing audio, so the test asserts what would be said.
+  await page.addInitScript(() => {
+    const spoken: string[] = [];
+    Object.assign(window, { __spoken: spoken });
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.speak = (utterance: SpeechSynthesisUtterance) => {
+      if (utterance.text.trim()) spoken.push(utterance.text);
+    };
+  });
+  const spoken = () => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken);
+  try {
+    await page.goto('/demo?view=practice');
+    await changePose(page, { poseAngle: 170 });
+    await expect(page.getByRole('button', { name: 'Mute voice & rep sound' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.getByRole('button', { name: 'Enable camera' }).click();
+    await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
+    await expect.poll(async () => (await spoken()).length, { timeout: 10000 }).toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Mute voice & rep sound' }).click();
+    await expect(page.getByRole('button', { name: 'Enable voice & rep sound' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(await page.evaluate(() => localStorage.getItem('geez-squad-voice'))).toBe('off');
+    await page.reload();
+    await changePose(page, { poseAngle: 170 });
+    await expect(page.getByRole('button', { name: 'Enable voice & rep sound' })).toBeVisible();
+    await page.getByRole('button', { name: 'Enable camera' }).click();
+    await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Start set', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Cancel start', exact: true })).toBeVisible();
+    expect(await spoken()).toEqual([]);
+  } finally {
+    await browser.close();
+  }
+});
+
 test('guided sets count only after the hands-free countdown, recover between sets, and retain cumulative reps', async () => {
   test.setTimeout(60000);
   const browser = await chromium.launch({
@@ -282,7 +329,7 @@ test('guided sets count only after the hands-free countdown, recover between set
       await page.getByRole('button', { name: 'Close dialog' }).click();
     }
     await expect(page.getByText('Workout complete', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Enable voice & rep sound' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mute voice & rep sound' })).toBeVisible();
     await page.getByRole('button', { name: 'New workout', exact: true }).click();
     await expect(page.locator('.set-completion')).toHaveCount(0);
     await page.getByRole('button', { name: 'Workout settings', exact: true }).click();

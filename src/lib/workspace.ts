@@ -11,6 +11,7 @@ import { measurementData } from './measurement-contract';
 import { historyInclude, workoutView } from './workout-history';
 import { planBlocks } from './workout-run';
 import { coachingFeatures } from './coaching-features';
+import { parseJournal } from './daily-check-in';
 export async function workspaceData(userId: string, classId?: string): Promise<WorkspaceData> {
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) throw new ApiError(401, 'Please sign in.');
@@ -154,6 +155,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
         ? {
             ...checkIns.find((e) => e.userId === m.userId)!,
             userName: m.user.name,
+            journal: parseJournal(checkIns.find((e) => e.userId === m.userId)!.journal),
             createdAt: checkIns.find((e) => e.userId === m.userId)!.createdAt.toISOString(),
           }
         : null,
@@ -178,6 +180,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
     checkIns: checkIns.map(({ user: person, ...entry }) => ({
       ...entry,
       userName: person.name,
+      journal: parseJournal(entry.journal),
       createdAt: entry.createdAt.toISOString(),
     })),
     assignments: assignments.map((entry) => ({

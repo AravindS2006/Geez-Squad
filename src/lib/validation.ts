@@ -8,6 +8,7 @@ import {
 } from './exercise-library';
 import { measurementSchema } from './measurement-contract';
 import { MAX_CLASS_CLIENTS } from './class-policy';
+import { checkInJournalSchema } from './daily-check-in';
 /** Fastest plausible cadence: one counted repetition per 350 ms of observed activity. */
 export function maxPlausibleReps(activeMs: number) {
   return Math.max(1, Math.ceil(activeMs / 350));
@@ -65,6 +66,7 @@ export const commandSchema = z.discriminatedUnion('action', [
     sleepHours: z.number().finite().min(0).max(24).nullable(),
     bodyweightKg: z.number().finite().min(20).max(500).nullable(),
     note: z.string().trim().max(600),
+    journal: checkInJournalSchema.nullable().default(null),
   }),
   z.object({
     action: z.literal('createClass'),

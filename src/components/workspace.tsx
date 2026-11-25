@@ -56,7 +56,14 @@ import type { WorkspaceData, ClassView, Block, ClientView, Plan } from '@/lib/ty
 import { apiCommand, fetchJson } from '@/lib/client';
 import { authClient } from '@/lib/auth-client';
 import { useTimeFormat } from './time-provider';
-import { TrainingProgress, CheckInForm, ClientCoaching } from './training-progress';
+import { TrainingProgress, ClientCoaching } from './training-progress';
+import { CheckInForm } from './check-in-journal';
+import {
+  dailyCheckInPromptKey,
+  shouldOpenDailyCheckIn,
+  type CheckInJournal,
+} from '@/lib/daily-check-in';
+import { studioToday } from '@/lib/studio-operations';
 import { ScheduleForm } from './session-form';
 import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
@@ -323,6 +330,34 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     setInviteResult('');
     setModal(name);
   }
+  // Once per studio day, a trainee's first visit to Home opens the daily check-in.
+  const dailyPromptChecked = useRef(false);
+  useEffect(() => {
+    if (dailyPromptChecked.current) return;
+    // Same audience as the Home "Share a check-in" card: everyone who is not coaching.
+    if (data.demo || coach || data.user.role === 'unset') return;
+    if (activeView !== 'dashboard') return;
+    // Opens after the first paint so Home is visible behind the dialog.
+    const frame = requestAnimationFrame(() => {
+      dailyPromptChecked.current = true;
+      const key = dailyCheckInPromptKey(data.user.id);
+      let lastPromptedDay: string | null = null;
+      try {
+        lastPromptedDay = localStorage.getItem(key);
+      } catch {}
+      if (
+        !shouldOpenDailyCheckIn({ userId: data.user.id, checkIns: data.checkIns, lastPromptedDay })
+      )
+        return;
+      try {
+        localStorage.setItem(key, studioToday());
+      } catch {}
+      setModal((current) => current ?? 'checkIn');
+    });
+    return () => cancelAnimationFrame(frame);
+    // Runs for the first render of the workspace only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   function editSession(session: ClassView) {
     show('schedule');
     setSelectedSession(session);
@@ -466,6 +501,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                 sleepHours: payload.sleepHours as number | null,
                 bodyweightKg: payload.bodyweightKg as number | null,
                 note: payload.note as string,
+                journal: (payload.journal as CheckInJournal | null) ?? null,
                 createdAt: new Date().toISOString(),
               },
               ...current.checkIns,
@@ -1575,7 +1611,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
                   : modal === 'client'
                     ? currentClient?.name || 'Client profile'
                     : modal === 'checkIn'
-                      ? 'How are you feeling today?'
+                      ? 'Daily check-in'
                       : modal === 'notifications'
                         ? 'Coming up in your studio'
                         : modal === 'studioInfo'

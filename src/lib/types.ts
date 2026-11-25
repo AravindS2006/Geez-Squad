@@ -1,5 +1,6 @@
 import type { ArmMode, ExerciseDefinition, LibraryExerciseId } from './exercise-library';
 import type { Arms } from './rep-events';
+import type { CheckInJournal } from './daily-check-in';
 export type ExerciseId = LibraryExerciseId;
 export type Person = { id: string; name: string; email: string; role: string; goal: string };
 export type Block = {
@@ -106,6 +107,8 @@ export type CheckInView = {
   sleepHours: number | null;
   bodyweightKg: number | null;
   note: string;
+  /** Lifestyle answers about the previous day; absent on older check-ins. */
+  journal?: CheckInJournal | null;
   createdAt: string;
 };
 export type AssignmentView = { userId: string; planId: string; assignedAt: string };

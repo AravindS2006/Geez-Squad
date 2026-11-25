@@ -13,6 +13,7 @@ import {
 import { fetchJson } from '@/lib/client';
 import { limbModeLabel } from '@/lib/exercise-library';
 import { traineeInsight } from '@/lib/coaching-insights';
+import { journalSummary } from '@/lib/daily-check-in';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { pendingWorkoutSets, retryWorkoutSets } from '@/lib/workout-save';
 import { useTimeFormat } from './time-provider';
@@ -500,6 +501,7 @@ export function TrainingProgress({
                       {entry.sleepHours === null ? '' : `Sleep ${entry.sleepHours}h`}
                       {entry.bodyweightKg === null ? '' : ` · Bodyweight ${entry.bodyweightKg}kg`}
                     </span>
+                    {journalSummary(entry.journal) && <span>{journalSummary(entry.journal)}</span>}
                     {entry.note && <p>{entry.note}</p>}
                   </article>
                 ))}
@@ -892,90 +894,6 @@ function WorkoutRecord({
     </article>
   );
 }
-export function CheckInForm({
-  onSave,
-  busy,
-}: {
-  onSave: (data: Record<string, unknown>) => Promise<unknown>;
-  busy: boolean;
-}) {
-  const [saved, setSaved] = useState(false);
-  const [attendance, setAttendance] = useState(0);
-  return (
-    <form
-      className="form-stack"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        const form = new FormData(event.currentTarget);
-        const optional = (name: string) => (form.get(name) === '' ? null : Number(form.get(name)));
-        try {
-          const result = await onSave({
-            action: 'checkIn',
-            energy: Number(form.get('energy')),
-            soreness: Number(form.get('soreness')),
-            effort: optional('effort'),
-            sleepHours: optional('sleepHours'),
-            bodyweightKg: optional('bodyweightKg'),
-            note: form.get('note'),
-          });
-          const recorded = (result as { attendanceRecorded?: unknown } | null)?.attendanceRecorded;
-          setAttendance(typeof recorded === 'number' ? recorded : 0);
-          setSaved(true);
-        } catch {
-          /* The workspace displays the server error beside this form. */
-        }
-      }}
-    >
-      <p>
-        Share how you feel with your coach. These are your reports, separate from camera scores.
-      </p>
-      <div className="form-two">
-        <label>
-          Energy (1–5)
-          <select name="energy" defaultValue="3">
-            {[1, 2, 3, 4, 5].map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Soreness (0–5)
-          <select name="soreness" defaultValue="0">
-            {[0, 1, 2, 3, 4, 5].map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Workout effort (1–10, optional)
-          <input type="number" name="effort" min={1} max={10} />
-        </label>
-        <label>
-          Sleep (hours, optional)
-          <input type="number" name="sleepHours" min={0} max={24} step={0.5} />
-        </label>
-        <label>
-          Bodyweight (kg, optional)
-          <input type="number" name="bodyweightKg" min={20} max={500} step={0.1} />
-        </label>
-      </div>
-      <label>
-        Anything your coach should know?
-        <textarea name="note" maxLength={600} rows={3} />
-      </label>
-      <button className="button dark" disabled={busy || saved}>
-        {saved ? 'Check-in saved' : 'Share check-in with my coach'}
-      </button>
-      {saved && (
-        <p role="status">
-          {attendance
-            ? "Your check-in is saved. Today's studio visit is recorded."
-            : 'Your check-in is saved. Studio attendance needs an active membership.'}
-        </p>
-      )}
-    </form>
-  );
-}
 export function ClientCoaching({
   client,
   data,
@@ -1091,6 +1009,7 @@ export function ClientCoaching({
               {entry.sleepHours !== null ? `${entry.sleepHours}h sleep` : ''}
               {entry.bodyweightKg !== null ? ` · ${entry.bodyweightKg}kg` : ''}
             </span>
+            {journalSummary(entry.journal) && <span>{journalSummary(entry.journal)}</span>}
             {entry.note && <p>{entry.note}</p>}
           </article>
         ))

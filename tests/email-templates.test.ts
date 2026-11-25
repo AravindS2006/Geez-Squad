@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   coachInvitationEmail,
+  existingAccountEmail,
   membershipSetupEmail,
   passwordResetEmail,
   verificationEmail,
@@ -13,6 +14,7 @@ const hostile = '<img src=x onerror=alert(1)>';
 const templates = [
   ['verification', verificationEmail({ name: 'Riya Sharma', url }), 'Verify my email'],
   ['password reset', passwordResetEmail({ name: 'Riya Sharma', url }), 'Reset my password'],
+  ['existing account', existingAccountEmail({ name: 'Riya Sharma', url }), 'Sign in to Geez Squad'],
   ['membership setup', membershipSetupEmail({ studioName: 'Core Lab', url }), 'Open Geez Squad'],
   [
     'coach invitation',
@@ -55,6 +57,7 @@ it('states the real expiry of each link', () => {
 it('escapes user and studio names in the HTML and keeps the subject on one line', () => {
   for (const mail of [
     verificationEmail({ name: hostile, url }),
+    existingAccountEmail({ name: hostile, url }),
     membershipSetupEmail({ studioName: hostile, url }),
     coachInvitationEmail({ studioName: `Core\r\nBcc: x@example.test ${hostile}`, url }),
   ]) {

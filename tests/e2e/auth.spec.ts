@@ -1,5 +1,6 @@
 import { provisionTestAdmin } from './support/admin';
 import { grantStudioTerm } from './support/membership';
+import { skipDailyCheckIn } from './support/daily-check-in';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
@@ -148,6 +149,7 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
       data: { name: 'Journey Coach', email: coachEmail, password: 'Local-Integration-Only-12345' },
     });
     expect(signup.ok()).toBe(true);
+    await skipDailyCheckIn(coachContext, (await signup.json()).user.id);
     await provisionTestAdmin(db, coachEmail);
     const setup = await coachContext.request.post('http://localhost:3000/api/command', {
       headers,
@@ -189,6 +191,11 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     await trainee.getByRole('button', { name: 'Create my workspace' }).click();
     await trainee.getByRole('button', { name: 'Join studio' }).click();
     await expect(trainee.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible();
+    // A new trainee's first Home visit of the day opens the check-in by itself.
+    const checkIn = trainee.getByRole('dialog', { name: 'Daily check-in' });
+    await expect(checkIn).toBeVisible();
+    await checkIn.getByRole('button', { name: 'Close dialog' }).click();
+    await expect(checkIn).toHaveCount(0);
     await coach.reload();
     await expect(coach.getByRole('heading', { name: 'Journey Trainee' })).toBeVisible();
     await grantStudioTerm(db, traineeEmail);

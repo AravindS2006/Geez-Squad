@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { provisionTestAdmin } from './support/admin';
+import { skipDailyCheckIn } from './support/daily-check-in';
 process.loadEnvFile('.env');
 
 test('existing sessions skip login, retain shared destinations, and expire back to sign-in', async ({
@@ -77,6 +78,7 @@ test('Manage your profile closes the studio dialog when it opens settings', asyn
     });
     expect(signup.ok()).toBe(true);
     userId = (await signup.json()).user.id;
+    await skipDailyCheckIn(page.context(), userId);
     expect(
       (
         await page.request.post('/api/command', {
@@ -126,6 +128,7 @@ test('role menus group daily work, keep account controls visible, and expose mob
       });
       expect(response.ok()).toBe(true);
       ids.push((await response.json()).user.id);
+      await skipDailyCheckIn(ctx, ids.at(-1)!);
       expect(
         (
           await ctx.request.post('http://localhost:3000/api/command', {

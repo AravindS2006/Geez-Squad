@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { provisionTestAdmin } from './support/admin';
+import { skipDailyCheckIn } from './support/daily-check-in';
 process.loadEnvFile('.env');
 test('admin invites a coach, assigns a walk-in, and trainee books a studio class on mobile', async ({
   browser,
@@ -34,6 +35,7 @@ test('admin invites a coach, assigns a walk-in, and trainee books a studio class
       });
       expect(signup.ok()).toBe(true);
       ids.push((await signup.json()).user.id);
+      await skipDailyCheckIn(contexts[i], ids[i]);
       expect(
         (
           await page.request.post('/api/command', {

@@ -88,16 +88,27 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
       coach.getByRole('status').filter({ hasText: 'Private coach note saved.' }),
     ).toBeVisible();
     await trainee.goto('/app');
+    // The first Home visit of the day opens the check-in by itself.
+    const checkIn = trainee.getByRole('dialog', { name: 'Daily check-in' });
+    await expect(checkIn).toBeVisible();
     await expect(trainee.getByText(/Your coach assigned Assigned foundations/)).toBeVisible();
-    await trainee.getByRole('button', { name: 'Share a check-in', exact: true }).click();
-    await trainee.getByLabel('Workout effort (1–10, optional)').fill('7');
-    await trainee.getByLabel('Sleep (hours, optional)').fill('8');
-    await trainee.getByLabel('Anything your coach should know?').fill('Recovered well');
-    await trainee.getByRole('button', { name: 'Share check-in with my coach' }).click();
-    await expect(
-      trainee.getByRole('status').filter({ hasText: 'Your check-in is saved.' }),
-    ).toBeVisible();
-    await trainee.getByRole('button', { name: 'Close dialog' }).click();
+    const effort = checkIn.getByRole('group', { name: 'Workout effort (1–10)' });
+    for (let i = 0; i < 2; i++) await effort.getByRole('button', { name: 'Increase' }).click();
+    await expect(effort).toContainText('7');
+    const sleepHours = checkIn.getByRole('group', { name: 'How long did you sleep?' });
+    for (let i = 0; i < 3; i++) await sleepHours.getByRole('button', { name: 'Increase' }).click();
+    await expect(sleepHours).toContainText('8h');
+    const caffeine = checkIn.getByRole('group', { name: 'Have any caffeine?' });
+    await caffeine.getByRole('button', { name: 'Yes' }).click();
+    await expect(checkIn.getByLabel('When was your last serving?')).toBeVisible();
+    await checkIn.getByLabel('Anything your coach should know?').fill('Recovered well');
+    await checkIn.getByRole('button', { name: 'Share check-in with my coach' }).click();
+    await expect(checkIn.getByText(/Your check-in is saved\./)).toBeVisible();
+    await checkIn.getByRole('button', { name: 'Close dialog' }).click();
+    // Already checked in today: Home stays clear after a reload.
+    await trainee.reload();
+    await expect(trainee.getByText(/Your coach assigned Assigned foundations/)).toBeVisible();
+    await expect(checkIn).toHaveCount(0);
     await coach.reload();
     await coach
       .getByRole('button', { name: /Progress Trainee/ })

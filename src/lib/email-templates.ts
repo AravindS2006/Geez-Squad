@@ -190,6 +190,31 @@ export function verificationEmail({
   });
 }
 
+/** Sent to the owner when someone signs up with an email that already has an account. */
+export function existingAccountEmail({
+  name,
+  url,
+}: {
+  name?: string | null;
+  url: string;
+}): RenderedEmail {
+  return renderEmail({
+    subject: 'You already have a Geez Squad account',
+    preheader: 'Someone tried to create a new account with this email.',
+    eyebrow: 'Account exists',
+    heading: 'You’re already one of us.',
+    greeting: greet(name),
+    paragraphs: [
+      'Someone just tried to create a new Geez Squad account with this email address. You already have an account, so no new one was made.',
+      'If that was you, sign in with your existing password. Forgot it? Choose “Forgot password” on the sign-in page.',
+    ],
+    action: { label: 'Sign in to Geez Squad', url },
+    note: 'If this wasn’t you, you can safely ignore this email. Nothing on your account has changed.',
+    reason:
+      'You’re receiving this because this address was used to sign up for Geez Squad and already has an account.',
+  });
+}
+
 export function passwordResetEmail({
   name,
   url,

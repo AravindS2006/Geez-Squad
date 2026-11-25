@@ -135,8 +135,10 @@ export function AuthForm({
           throw new Error('Your account could not be loaded. Please retry shortly.');
         if (!session.data) {
           if (mode === 'signup' && passwordResetEnabled) {
-            setNotice('Check your email to verify your account, then sign in.');
-            setMode('verify');
+            setNotice(
+              'Check your inbox to continue. If you already have an account, you can sign in instead.',
+            );
+            setMode('login');
           } else {
             throw new Error(
               'Your session could not be established. Allow cookies for this site, then sign in again.',

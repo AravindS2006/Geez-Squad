@@ -6,8 +6,13 @@
  * nothing. The claim is atomic: a unique insert, or a conditional update of a stale row.
  */
 export const VERIFICATION_EMAIL_WINDOW_MS = 60_000;
+/**
+ * One "you already have an account" email per user per window. Anyone can trigger it by
+ * signing up with the address, so the window is long enough that it cannot flood an inbox.
+ */
+export const EXISTING_ACCOUNT_EMAIL_WINDOW_MS = 15 * 60_000;
 
-type RateLimitStore = {
+export type RateLimitStore = {
   create(args: { data: { key: string; count: number; lastRequest: bigint } }): Promise<unknown>;
   updateMany(args: {
     where: { key: string; lastRequest: { lt: bigint } | bigint };
@@ -21,13 +26,7 @@ function isUniqueViolation(error: unknown) {
   );
 }
 
-export async function claimVerificationEmail(
-  store: RateLimitStore,
-  userId: string,
-  now = Date.now(),
-  windowMs = VERIFICATION_EMAIL_WINDOW_MS,
-) {
-  const key = `mail:verify:${userId}`;
+async function claimMailWindow(store: RateLimitStore, key: string, now: number, windowMs: number) {
   try {
     await store.create({ data: { key, count: 1, lastRequest: BigInt(now) } });
     return true;
@@ -41,14 +40,40 @@ export async function claimVerificationEmail(
   return claimed.count === 1;
 }
 
+async function releaseMailWindow(store: RateLimitStore, key: string, claimedAt: number) {
+  await store.updateMany({
+    where: { key, lastRequest: BigInt(claimedAt) },
+    data: { lastRequest: BigInt(0) },
+  });
+}
+
+export function claimVerificationEmail(
+  store: RateLimitStore,
+  userId: string,
+  now = Date.now(),
+  windowMs = VERIFICATION_EMAIL_WINDOW_MS,
+) {
+  return claimMailWindow(store, `mail:verify:${userId}`, now, windowMs);
+}
+
 /** Gives the window back when delivery failed, so the user can retry at once. */
-export async function releaseVerificationEmail(
+export function releaseVerificationEmail(store: RateLimitStore, userId: string, claimedAt: number) {
+  return releaseMailWindow(store, `mail:verify:${userId}`, claimedAt);
+}
+
+export function claimExistingAccountEmail(
+  store: RateLimitStore,
+  userId: string,
+  now = Date.now(),
+  windowMs = EXISTING_ACCOUNT_EMAIL_WINDOW_MS,
+) {
+  return claimMailWindow(store, `mail:existing:${userId}`, now, windowMs);
+}
+
+export function releaseExistingAccountEmail(
   store: RateLimitStore,
   userId: string,
   claimedAt: number,
 ) {
-  await store.updateMany({
-    where: { key: `mail:verify:${userId}`, lastRequest: BigInt(claimedAt) },
-    data: { lastRequest: BigInt(0) },
-  });
+  return releaseMailWindow(store, `mail:existing:${userId}`, claimedAt);
 }

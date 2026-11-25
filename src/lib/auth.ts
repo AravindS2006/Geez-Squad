@@ -10,6 +10,8 @@ import { requestContext } from './request-log';
 import { allowedOrigins } from './origins';
 import { passwordResetEmail, verificationEmail } from './email-templates';
 import { claimVerificationEmail, releaseVerificationEmail } from './verification-throttle';
+import { notifyExistingAccountSignUp } from './existing-account-notice';
+import { siteOrigin } from './site';
 export const emailPolicy = getEmailPolicy(process.env);
 /**
  * Seconds a signed session cookie may stand in for the Session table lookup. A session
@@ -46,6 +48,21 @@ export const auth = betterAuth({
     minPasswordLength: 12,
     maxPasswordLength: 128,
     requireEmailVerification: emailPolicy.requireVerification,
+    // A sign-up with a registered email gets the same response as a new one; tell the
+    // owner by email instead. The link uses the configured origin, never the request host.
+    onExistingUserSignUp: emailPolicy.deliveryEnabled
+      ? async ({ user }) => {
+          const result = await notifyExistingAccountSignUp({
+            store: db.rateLimit,
+            user,
+            loginUrl: `${siteOrigin()}/login`,
+            send: sendMail,
+          });
+          // sendMail already logs failed deliveries as mail_delivery_failed.
+          if (result === 'throttled')
+            logEvent('info', 'mail_existing_account_deduplicated', requestContext.getStore());
+        }
+      : undefined,
     sendResetPassword: emailPolicy.passwordResetEnabled
       ? async ({ user, url }) => {
           await sendMail(user.email, passwordResetEmail({ name: user.name, url }));

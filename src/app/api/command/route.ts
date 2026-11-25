@@ -11,6 +11,7 @@ import { errorContext, logEvent } from '@/lib/logger';
 import { releaseUnclaimedRoom } from '@/lib/class-room-cleanup';
 import { requestContext } from '@/lib/request-log';
 import { studioToday } from '@/lib/studio-operations';
+import { isEmptyJournal, normalizeJournal } from '@/lib/daily-check-in';
 import { createHash, randomBytes } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
 import { db, isSqliteDatabase } from '@/lib/db';
@@ -309,7 +310,8 @@ async function handlePOST(request: Request) {
       case 'checkIn': {
         if (user.role === 'unset') throw new ApiError(403, 'Complete your personal profile first.');
         await rateLimit(user.id, 'check-in', 5);
-        const { action: _action, ...values } = data;
+        const { action: _action, journal, ...values } = data;
+        const answers = journal ? normalizeJournal(journal) : null;
         const date = studioToday();
         // A member's own check-in also marks today's in-studio visit, using the same
         // rule as the staff register: an accepted, active member with a term covering today.
@@ -317,7 +319,13 @@ async function handlePOST(request: Request) {
           () =>
             db.$transaction(
               async (tx) => {
-                await tx.checkIn.create({ data: { ...values, userId: user.id } });
+                await tx.checkIn.create({
+                  data: {
+                    ...values,
+                    ...(answers && !isEmptyJournal(answers) ? { journal: answers } : {}),
+                    userId: user.id,
+                  },
+                });
                 const members = await tx.studioMember.findMany({
                   where: {
                     userId: user.id,

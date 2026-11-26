@@ -108,6 +108,28 @@ export async function requireTraineeAccess(
     throw new ApiError(404, 'This trainee is not assigned to you.');
   return { access, member, since: access.admin ? null : member.primaryCoach!.assignedAt };
 }
+/**
+ * The linked studio members a coach may follow over time: every connected trainee whose trainee
+ * grant is not revoked, limited to the actor's primary-coach assignments unless they are an admin.
+ * The workspace and the check-in register both read through it, so they share one scope.
+ */
+export function coachTraineeWhere(
+  studioId: string,
+  actorId: string,
+  admin: boolean,
+): Prisma.StudioMemberWhereInput {
+  return {
+    studioId,
+    userId: { not: null },
+    user: {
+      memberships: { some: { studioId } },
+      NOT: {
+        studioRoles: { some: { studioId, role: 'trainee', status: { not: 'active' } } },
+      },
+    },
+    ...(!admin ? { primaryCoach: { coachId: actorId } } : {}),
+  };
+}
 export type ClassAccessGrant = { userId: string; role: string; status: string };
 /**
  * One read for everything class permissions need: the actor's own grants in the

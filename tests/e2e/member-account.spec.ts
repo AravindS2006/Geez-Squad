@@ -1,4 +1,5 @@
 import { provisionTestAdmin } from './support/admin';
+import { skipDailyCheckIn } from './support/daily-check-in';
 import { test, expect } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -68,6 +69,8 @@ test('personal email signup connects through Members and active membership contr
     await expect(page.getByRole('heading', { name: /^Welcome back,/ })).toBeVisible();
     const account = await db.user.findUniqueOrThrow({ where: { email } });
     ids.push(account.id);
+    // The reload below lands on Home, where the daily check-in would cover the membership card.
+    await skipDailyCheckIn(client, account.id);
     // Local fixtures prove mailbox ownership explicitly; production must use the actual verification link.
     await db.user.update({ where: { id: account.id }, data: { emailVerified: true } });
     const ownerPage = await coach.newPage();

@@ -121,6 +121,30 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await expect(coach.getByLabel('Private coach notes')).toHaveValue(
       'Coach-only technique observation',
     );
+    // The coach's attendance-style register shows each answer in its own column.
+    await coach.goto('/app?view=check-ins');
+    await expect(coach.getByRole('heading', { name: 'Daily check-ins' })).toBeVisible();
+    await expect(
+      coach.getByRole('status').filter({ hasText: /\d+ of \d+ checked in/ }),
+    ).toBeVisible();
+    const registerRow = coach
+      .getByRole('region', { name: 'Check-in register' })
+      .locator('tr', { hasText: 'Progress Trainee' });
+    await expect(registerRow.locator('td[data-label="Status"]')).toContainText('Checked in');
+    await expect(registerRow.locator('td[data-label="Sleep"]')).toHaveText('8h');
+    await expect(registerRow.locator('td[data-label="Caffeine"]')).toHaveText(/^Yes/);
+    await expect(registerRow.locator('td[data-label="Sunlight"]')).toHaveText('—');
+    await expect(registerRow.locator('td[data-label="Note"]')).toHaveText('Recovered well');
+    expect(
+      (
+        await new AxeBuilder({ page: coach })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    expect(await coach.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
     await addPoseFixture(trainee);
     await trainee.goto('/app?view=practice');
     await expect(

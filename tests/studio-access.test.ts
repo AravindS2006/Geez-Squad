@@ -22,6 +22,7 @@ import {
   requireStudio,
   requireTraineeAccess,
   classPermissions,
+  coachTraineeWhere,
 } from '../src/lib/studio-access';
 beforeEach(() => {
   vi.resetAllMocks();
@@ -121,5 +122,24 @@ describe('studio-scoped permissions', () => {
     const closed = { ...item, studio: { ...item.studio, status: 'closed' } };
     expect((await classPermissions(closed, 'admin')).canManage).toBe(false);
     expect((await classPermissions(closed, 'owner')).canManage).toBe(false);
+  });
+});
+describe('coachTraineeWhere', () => {
+  it('limits a coach to their primary-coach assignments in the studio', () => {
+    expect(coachTraineeWhere('s1', 'coach', false)).toMatchObject({
+      studioId: 's1',
+      userId: { not: null },
+      user: { memberships: { some: { studioId: 's1' } } },
+      primaryCoach: { coachId: 'coach' },
+    });
+  });
+  it('gives an admin every connected trainee without a revoked grant', () => {
+    const where = coachTraineeWhere('s1', 'admin', true);
+    expect(where).not.toHaveProperty('primaryCoach');
+    expect(where.user).toMatchObject({
+      NOT: {
+        studioRoles: { some: { studioId: 's1', role: 'trainee', status: { not: 'active' } } },
+      },
+    });
   });
 });

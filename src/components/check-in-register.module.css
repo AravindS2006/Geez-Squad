@@ -1,0 +1,141 @@
+.register {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.date {
+  min-height: 44px;
+}
+.summary {
+  border: 1px solid var(--border-1);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+}
+.summary strong {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  color: var(--text-1);
+}
+.summary p {
+  margin: 4px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+}
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+}
+.scroll:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--fs-xs);
+}
+.table th,
+.table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-1);
+  vertical-align: top;
+}
+.table thead th {
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+.table tbody th {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.table td {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.note {
+  min-width: 18ch;
+  max-width: 36ch;
+  white-space: normal !important;
+}
+.person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-1);
+}
+.present {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+}
+.missing {
+  color: var(--text-3);
+}
+.absent td:not(:first-of-type) {
+  color: var(--text-3);
+}
+
+/* Phones: each trainee becomes a card of labelled answers. */
+@media (max-width: 760px) {
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+  }
+  .table tr {
+    border: 1px solid var(--border-1);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .table tbody th,
+  .table td,
+  .table tbody tr:last-child > * {
+    border: 0;
+    padding: 6px 0;
+  }
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    text-align: right;
+    white-space: normal;
+  }
+  .table td::before {
+    content: attr(data-label);
+    color: var(--text-3);
+    text-align: left;
+    flex: none;
+  }
+  .note {
+    max-width: none;
+  }
+  .absent td:not(:first-of-type) {
+    display: none;
+  }
+}

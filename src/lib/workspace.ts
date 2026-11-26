@@ -4,7 +4,7 @@ import { ApiError } from './security';
 import type { WorkspaceData, Block, ClassView, ExerciseId } from './types';
 import { sessionEditVersion } from './session-management';
 import { compareSessions } from './session-timing';
-import { studioAccess, classPermissionView } from './studio-access';
+import { studioAccess, classPermissionView, coachTraineeWhere } from './studio-access';
 import type { Prisma } from '@prisma/client';
 import { customDefinition } from './exercise-access';
 import { measurementData } from './measurement-contract';
@@ -20,19 +20,7 @@ export async function workspaceData(userId: string, classId?: string): Promise<W
   const coach = !!access?.coach;
   const memberProfiles = studio
     ? await db.studioMember.findMany({
-        where: {
-          studioId: studio.id,
-          userId: { not: null },
-          user: {
-            memberships: { some: { studioId: studio.id } },
-            NOT: {
-              studioRoles: {
-                some: { studioId: studio.id, role: 'trainee', status: { not: 'active' } },
-              },
-            },
-          },
-          ...(!access?.admin ? { primaryCoach: { coachId: userId } } : {}),
-        },
+        where: coachTraineeWhere(studio.id, userId, !!access?.admin),
         include: { primaryCoach: true },
       })
     : [];

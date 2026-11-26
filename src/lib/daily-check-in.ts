@@ -107,26 +107,30 @@ export function journalSummary(journal: CheckInJournal | null | undefined) {
 }
 
 /**
- * Whether the daily check-in should open by itself: once per studio day (India time), for a
- * trainee who has not checked in yet today and has not already been shown it today.
+ * Whether the daily check-in should open by itself: on Home, for a trainee who has not checked
+ * in yet this studio day (India time). `skippedDay` is a per-device opt-out the app never
+ * writes itself (e2e specs that are not about the check-in seed it).
  */
 export function shouldOpenDailyCheckIn({
   userId,
   checkIns,
-  lastPromptedDay,
+  skippedDay,
   now = new Date(),
 }: {
   userId: string;
   checkIns: { userId: string; createdAt: string }[];
-  lastPromptedDay: string | null;
+  skippedDay: string | null;
   now?: Date;
 }) {
   const today = studioToday(now);
-  if (lastPromptedDay === today) return false;
+  if (skippedDay === today) return false;
   return !checkIns.some(
     (entry) => entry.userId === userId && studioToday(new Date(entry.createdAt)) === today,
   );
 }
 
-/** localStorage key remembering the studio day the check-in last opened by itself. */
-export const dailyCheckInPromptKey = (userId: string) => `geez-squad:daily-check-in:${userId}`;
+/**
+ * localStorage key for the per-device opt-out above. A new name, so the old "shown today"
+ * marker (written whenever the dialog opened) no longer hides it from people who never saved.
+ */
+export const dailyCheckInSkipKey = (userId: string) => `geez-squad:daily-check-in-skip:${userId}`;

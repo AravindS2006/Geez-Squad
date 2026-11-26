@@ -103,8 +103,11 @@ test('coach assignments, check-ins, private notes and a retried camera set persi
     await expect(checkIn.getByLabel('When was your last serving?')).toBeVisible();
     await checkIn.getByLabel('Anything your coach should know?').fill('Recovered well');
     await checkIn.getByRole('button', { name: 'Share check-in with my coach' }).click();
-    await expect(checkIn.getByText(/Your check-in is saved\./)).toBeVisible();
-    await checkIn.getByRole('button', { name: 'Close dialog' }).click();
+    // Saving closes the dialog and confirms with a toast.
+    await expect(checkIn).toHaveCount(0);
+    await expect(
+      trainee.getByRole('status').filter({ hasText: /Your check-in is saved\./ }),
+    ).toBeVisible();
     // Already checked in today: Home stays clear after a reload.
     await trainee.reload();
     await expect(trainee.getByText(/Your coach assigned Assigned foundations/)).toBeVisible();

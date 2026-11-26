@@ -191,9 +191,12 @@ function Scale({
 export function CheckInForm({
   onSave,
   busy,
+  onSaved,
 }: {
   onSave: (data: Record<string, unknown>) => Promise<unknown>;
   busy: boolean;
+  /** Called once the check-in is stored, with the confirmation to show; closes the dialog. */
+  onSaved: (message: string) => void;
 }) {
   const [energy, setEnergy] = useState(3);
   const [soreness, setSoreness] = useState(0);
@@ -202,8 +205,6 @@ export function CheckInForm({
   const [bodyweightKg, setBodyweightKg] = useState('');
   const [note, setNote] = useState('');
   const [journal, setJournal] = useState<CheckInJournal>(emptyJournal);
-  const [saved, setSaved] = useState(false);
-  const [attendance, setAttendance] = useState(0);
   const set = (patch: Partial<CheckInJournal>) =>
     setJournal((current) => ({ ...current, ...patch }));
   return (
@@ -224,8 +225,11 @@ export function CheckInForm({
             journal: isEmptyJournal(answers) ? null : answers,
           });
           const recorded = (result as { attendanceRecorded?: unknown } | null)?.attendanceRecorded;
-          setAttendance(typeof recorded === 'number' ? recorded : 0);
-          setSaved(true);
+          onSaved(
+            typeof recorded === 'number' && recorded > 0
+              ? "Your check-in is saved. Today's studio visit is recorded."
+              : 'Your check-in is saved. Studio attendance needs an active membership.',
+          );
         } catch {
           /* The workspace displays the server error beside this form. */
         }
@@ -411,16 +415,9 @@ export function CheckInForm({
           />
         </label>
       </Section>
-      <button className="button dark" disabled={busy || saved}>
-        {saved ? 'Check-in saved' : 'Share check-in with my coach'}
+      <button className="button dark" disabled={busy}>
+        Share check-in with my coach
       </button>
-      {saved && (
-        <p role="status">
-          {attendance
-            ? "Your check-in is saved. Today's studio visit is recorded."
-            : 'Your check-in is saved. Studio attendance needs an active membership.'}
-        </p>
-      )}
     </form>
   );
 }

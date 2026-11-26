@@ -59,11 +59,10 @@ import { useTimeFormat } from './time-provider';
 import { TrainingProgress, ClientCoaching } from './training-progress';
 import { CheckInForm } from './check-in-journal';
 import {
-  dailyCheckInPromptKey,
+  dailyCheckInSkipKey,
   shouldOpenDailyCheckIn,
   type CheckInJournal,
 } from '@/lib/daily-check-in';
-import { studioToday } from '@/lib/studio-operations';
 import { ScheduleForm } from './session-form';
 import { ClientManagement } from './client-management';
 import { CoachingFollowUps } from './coaching-follow-ups';
@@ -330,34 +329,29 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     setInviteResult('');
     setModal(name);
   }
-  // Once per studio day, a trainee's first visit to Home opens the daily check-in.
-  const dailyPromptChecked = useRef(false);
+  // A trainee who has not checked in yet today gets the daily check-in on arriving at Home:
+  // on load and on navigating to Home. Closing it keeps it closed until the next page load.
+  const dailyPromptShown = useRef(false);
   useEffect(() => {
-    if (dailyPromptChecked.current) return;
+    if (dailyPromptShown.current) return;
     // Same audience as the Home "Share a check-in" card: everyone who is not coaching.
     if (data.demo || coach || data.user.role === 'unset') return;
     if (activeView !== 'dashboard') return;
     // Opens after the first paint so Home is visible behind the dialog.
     const frame = requestAnimationFrame(() => {
-      dailyPromptChecked.current = true;
-      const key = dailyCheckInPromptKey(data.user.id);
-      let lastPromptedDay: string | null = null;
+      let skippedDay: string | null = null;
       try {
-        lastPromptedDay = localStorage.getItem(key);
+        skippedDay = localStorage.getItem(dailyCheckInSkipKey(data.user.id));
       } catch {}
-      if (
-        !shouldOpenDailyCheckIn({ userId: data.user.id, checkIns: data.checkIns, lastPromptedDay })
-      )
+      if (!shouldOpenDailyCheckIn({ userId: data.user.id, checkIns: data.checkIns, skippedDay }))
         return;
-      try {
-        localStorage.setItem(key, studioToday());
-      } catch {}
+      dailyPromptShown.current = true;
       setModal((current) => current ?? 'checkIn');
     });
     return () => cancelAnimationFrame(frame);
-    // Runs for the first render of the workspace only.
+    // Re-checks on each arrival at Home, using the check-ins loaded at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeView]);
   function editSession(session: ClassView) {
     show('schedule');
     setSelectedSession(session);
@@ -1764,7 +1758,16 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
               />
             </div>
           )}
-          {modal === 'checkIn' && <CheckInForm onSave={command} busy={busy} />}
+          {modal === 'checkIn' && (
+            <CheckInForm
+              onSave={command}
+              busy={busy}
+              onSaved={(message) => {
+                setModal(null);
+                notify(message);
+              }}
+            />
+          )}
           {modal === 'notifications' && (
             <SessionRows
               classes={upcoming.slice(0, 5)}

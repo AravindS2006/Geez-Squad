@@ -17,33 +17,29 @@ const now = new Date('2026-11-26T03:30:00.000Z');
 
 describe('shouldOpenDailyCheckIn', () => {
   it('opens on the first visit of the studio day', () => {
-    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], lastPromptedDay: null, now })).toBe(
+    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], skippedDay: null, now })).toBe(
       true,
     );
   });
   it('opens at most once per studio day, even when dismissed', () => {
     expect(
-      shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], lastPromptedDay: '2026-11-26', now }),
+      shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], skippedDay: '2026-11-26', now }),
     ).toBe(false);
     expect(
-      shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], lastPromptedDay: '2026-11-25', now }),
+      shouldOpenDailyCheckIn({ userId: 'u1', checkIns: [], skippedDay: '2026-11-25', now }),
     ).toBe(true);
   });
   it('stays closed after a check-in earlier in the same India day', () => {
     // 2026-11-25T19:00Z is 00:30 on the 26th in India.
     const checkIns = [{ userId: 'u1', createdAt: '2026-11-25T19:00:00.000Z' }];
-    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns, lastPromptedDay: null, now })).toBe(
-      false,
-    );
+    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns, skippedDay: null, now })).toBe(false);
   });
   it('ignores yesterday and other people', () => {
     const checkIns = [
       { userId: 'u1', createdAt: '2026-11-25T18:00:00.000Z' },
       { userId: 'u2', createdAt: '2026-11-26T03:00:00.000Z' },
     ];
-    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns, lastPromptedDay: null, now })).toBe(
-      true,
-    );
+    expect(shouldOpenDailyCheckIn({ userId: 'u1', checkIns, skippedDay: null, now })).toBe(true);
   });
 });
 

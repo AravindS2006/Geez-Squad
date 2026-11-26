@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
+import { skipDailyCheckIn } from './support/daily-check-in';
 process.loadEnvFile('.env');
 test('returning member resumes the workspace and can manage a private nutrition journal', async ({
   browser,
@@ -20,13 +21,15 @@ test('returning member resumes the workspace and can manage a private nutrition 
       data: { name: 'Returning Member', email, password: randomBytes(24).toString('base64url') },
     });
     expect(signup.ok()).toBe(true);
-    await db.user.update({
+    const member = await db.user.update({
       where: { email },
       data: { emailVerified: true, consentVersion: 'v1', role: 'trainee' },
     });
     const storageState = await context.storageState();
     await context.close();
     context = await browser.newContext({ storageState });
+    // This spec is about resuming the workspace, not the daily check-in that opens on Home.
+    await skipDailyCheckIn(context, member.id);
     const page = await context.newPage();
     await page.goto('http://localhost:3000/');
     await expect(page).toHaveURL(/\/app/);

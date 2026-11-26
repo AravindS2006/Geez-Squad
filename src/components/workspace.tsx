@@ -40,6 +40,7 @@ import {
   ContactRound,
   Building2,
   UserRoundCog,
+  ClipboardCheck,
 } from 'lucide-react';
 import {
   Brand,
@@ -58,6 +59,7 @@ import { authClient } from '@/lib/auth-client';
 import { useTimeFormat } from './time-provider';
 import { TrainingProgress, ClientCoaching } from './training-progress';
 import { CheckInForm } from './check-in-journal';
+import { CheckInRegister } from './check-in-register';
 import {
   dailyCheckInSkipKey,
   shouldOpenDailyCheckIn,
@@ -103,6 +105,7 @@ const nav = [
   { id: 'sessions', name: 'Live sessions', icon: Video },
   { id: 'coaching', name: 'Coaching overview', icon: Activity },
   { id: 'clients', name: 'Coaching clients', icon: Users },
+  { id: 'check-ins', name: 'Check-ins', icon: ClipboardCheck },
   { id: 'plans', name: 'Workout plans', icon: Dumbbell },
   { id: 'analytics', name: 'Insights', icon: ChartNoAxesCombined },
   { id: 'studio-details', name: 'Studio details', icon: Building2 },
@@ -234,13 +237,24 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
         { name: 'Memberships & payments', items: ['memberships', 'payments'] },
         {
           name: 'Coaching',
-          items: ['coaching', 'clients', 'plans', 'analytics', 'nutrition', 'practice'],
+          items: [
+            'coaching',
+            'clients',
+            'check-ins',
+            'plans',
+            'analytics',
+            'nutrition',
+            'practice',
+          ],
         },
         { name: 'Administration', items: ['enquiries', 'staff', 'studio-details'] },
       ]
     : coach
       ? [
-          { name: 'Daily coaching', items: ['coaching', 'clients', 'sessions', 'classes'] },
+          {
+            name: 'Daily coaching',
+            items: ['coaching', 'clients', 'check-ins', 'sessions', 'classes'],
+          },
           { name: 'Training & progress', items: ['plans', 'analytics', 'nutrition', 'practice'] },
         ]
       : [
@@ -278,6 +292,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
     [
       'dashboard',
       'clients',
+      'check-ins',
       'sessions',
       'plans',
       'analytics',
@@ -1089,6 +1104,7 @@ export function Workspace({ initial, view }: { initial: WorkspaceData; view: str
             </>
           )}
           {coach && !data.demo && activeView === 'clients' && <InPersonTrainees />}
+          {coach && activeView === 'check-ins' && <CheckInRegister data={data} />}
           {activeView === 'clients' && (
             <>
               <PageHeading

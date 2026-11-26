@@ -248,6 +248,28 @@ try {
     view.workoutSets.length === 1 && view.clients[0].completedSetsThisWeek === 1,
     'Assignment boundary applies to workout history and derived weekly totals',
   );
+  const register = await call(coach, '/api/check-ins');
+  check(
+    register.date === today &&
+      register.rows.length === 1 &&
+      register.rows[0].userId === trainee.id &&
+      register.rows[0].checkIns.map((c) => c.note).join() === 'after',
+    'Check-in register lists only assigned trainees and applies the assignment boundary',
+  );
+  check(
+    (await call(admin, '/api/check-ins')).rows.some(
+      (r) => r.userId === otherTrainee.id && !r.checkIns.length,
+    ),
+    'Admin register lists every studio trainee, including those without a check-in',
+  );
+  check(
+    !(await call(otherAdmin, '/api/check-ins')).rows.some((r) =>
+      [trainee.id, otherTrainee.id].includes(r.userId),
+    ),
+    'Another studio admin cannot read this studio check-in register',
+  );
+  await call(trainee, '/api/check-ins', undefined, 403);
+  await call(coach, '/api/check-ins?date=2020-01-01', undefined, 400);
   await call(coach, '/api/command', {
     action: 'coachNote',
     userId: trainee.id,
@@ -281,6 +303,10 @@ try {
   check(
     !(await call(coach, '/api/workspace')).clients.length,
     'Previous coach immediately loses profile access',
+  );
+  check(
+    !(await call(coach, '/api/check-ins')).rows.length,
+    'Previous coach immediately loses the trainee from the check-in register',
   );
   check(
     (await db.coachAssignmentHistory.count({

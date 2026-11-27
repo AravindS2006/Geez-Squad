@@ -9,6 +9,7 @@ node_modules/
 *.db-wal
 *.db-shm
 tsconfig.tsbuildinfo
+next-env.d.ts
 test-results/
 playwright-report/
 public/models/

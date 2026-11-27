@@ -23,8 +23,6 @@ import {
   Settings2,
   SwitchCamera,
   Maximize,
-  Maximize2,
-  Minimize2,
   Dumbbell,
   PhoneOff,
   CircleStop,
@@ -49,6 +47,7 @@ import {
 } from '@/lib/room-disconnect';
 import { summaryChanged, summaryDue } from '@/lib/summary-sharing';
 import { cueHideDelay } from '@/lib/live-room-a11y';
+import { DEFAULT_TILE_ASPECT, tileAspect } from '@/lib/room-layout';
 import { Avatar, EmptyState, Modal } from './ui';
 import { Presentation, ScreenShareButton } from './meeting-presentation';
 import { VideoDevices, type DevicePreferences } from './video-devices';
@@ -97,10 +96,16 @@ type LiveState = Pick<
   participationReason: string;
 };
 type CoachVideoLayout = {
+  /** small: floating coach (picture in picture); medium: coach beside the trainee's camera;
+   * large: the coach fills the stage and the trainee's own camera floats. */
   size: 'small' | 'medium' | 'large';
-  minimized: boolean;
   position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 };
+const COACH_VIEWS: { value: CoachVideoLayout['size']; label: string }[] = [
+  { value: 'small', label: 'Picture in picture' },
+  { value: 'medium', label: 'Coach and me' },
+  { value: 'large', label: 'Full coach view' },
+];
 const coachVideoPreferenceKey = 'geez-squad:coach-video-layout:v1';
 /** Phones keep the coach floating so the trainee's own camera stays the main view. */
 const compactRoomQuery = '(max-width: 760px), (max-height: 550px)';
@@ -164,7 +169,6 @@ export function Studio({
   const [presenting, setPresenting] = useState(false);
   const [coachVideoLayout, setCoachVideoLayout] = useState<CoachVideoLayout>({
     size: roomFeatures.meeting ? 'medium' : 'small',
-    minimized: false,
     position: 'top-right',
   });
   const [dismissedCueId, setDismissedCueId] = useState<string | null>(null);
@@ -194,8 +198,6 @@ export function Studio({
   }, []);
   const [mirror, setMirror] = useState(true);
   const [coachVolume, setCoachVolume] = useState(1);
-  const coachVideoSizeRef = useRef<HTMLSelectElement>(null);
-  const enlargeCoachVideoRef = useRef<HTMLButtonElement>(null);
   const meetingRef = useRef<HTMLDivElement>(null);
   const [preferences, setPreferences] = useState<DevicePreferences>({
     cameraId: '',
@@ -272,14 +274,11 @@ export function Studio({
     mounted.current = true;
     try {
       const saved = JSON.parse(readBrowserPreference(coachVideoPreferenceKey) || 'null');
-      if (
-        saved &&
-        ['small', 'medium', 'large'].includes(saved.size) &&
-        typeof saved.minimized === 'boolean'
-      )
+      // Layouts saved before the three coach views keep their size; the old minimized flag
+      // is ignored.
+      if (saved && ['small', 'medium', 'large'].includes(saved.size))
         setCoachVideoLayout({
           size: saved.size,
-          minimized: saved.minimized,
           position: ['top-right', 'top-left', 'bottom-right', 'bottom-left'].includes(
             saved.position,
           )
@@ -950,10 +949,15 @@ export function Studio({
     const timer = window.setTimeout(() => setDismissedCueId(latestCueId), cueDelay);
     return () => window.clearTimeout(timer);
   }, [latestCueId, cueDelay]);
-  // The floating coach tile (Picture in picture or minimized) can be dragged to any
-  // corner of the trainee's camera; the Options panel keeps the keyboard path.
+  // The floating tile can be dragged to any corner: the coach in Picture in picture, or the
+  // trainee's own camera in Full coach view. The Options panel keeps the keyboard path.
   const coachDrag = useCornerDrag({
-    enabled: coachVideoLayout.size === 'small' || coachVideoLayout.minimized,
+    enabled: coachVideoLayout.size === 'small',
+    bounds: (tile) => tile.closest('.trainee-video-layout'),
+    onDrop: (position) => updateCoachVideoLayout({ ...coachVideoLayout, position }),
+  });
+  const selfDrag = useCornerDrag({
+    enabled: coachVideoLayout.size === 'large',
     bounds: (tile) => tile.closest('.trainee-video-layout'),
     onDrop: (position) => updateCoachVideoLayout({ ...coachVideoLayout, position }),
   });
@@ -1341,9 +1345,9 @@ export function Studio({
         {!coach && (
           <>
             <label>
-              Floating coach position
+              Floating video position
               <select
-                aria-label="Floating coach position"
+                aria-label="Floating video position"
                 value={coachVideoLayout.position}
                 onChange={(event) =>
                   updateCoachVideoLayout({
@@ -1371,8 +1375,8 @@ export function Studio({
               />
             </label>
             <p className="microcopy">
-              Position applies to the small or minimized coach view. Volume changes only what you
-              hear.
+              Position applies to the floating video in Picture in picture and Full coach view.
+              Volume changes only what you hear.
             </p>
           </>
         )}
@@ -1700,7 +1704,9 @@ export function Studio({
                   focus={focus}
                   onFocus={setFocus}
                   onVisible={onVisibleCameras}
-                  renderVideo={(person) => <ParticipantVideo participant={person} />}
+                  renderVideo={(person, onAspect) => (
+                    <ParticipantVideo participant={person} onAspect={onAspect} />
+                  )}
                   renderConnection={(person) => <ConnectionBadge participant={person} />}
                   onCue={(text, recipient) => send(text, 'cue', recipient)}
                   onHelp={(id) => void help(false, id)}
@@ -1723,7 +1729,7 @@ export function Studio({
                 />
               ) : (
                 <div
-                  className={`trainee-video-layout coach-video-${coachVideoLayout.size}${coachVideoLayout.minimized ? ' coach-video-minimized' : ''}`}
+                  className={`trainee-video-layout coach-video-${coachVideoLayout.size}`}
                   data-coach-position={coachVideoLayout.position}
                   style={
                     {
@@ -1732,7 +1738,11 @@ export function Studio({
                     } as React.CSSProperties
                   }
                 >
-                  <div className="trainee-self-stage">
+                  <div
+                    className="trainee-self-stage"
+                    data-dragging={selfDrag.dragging || undefined}
+                    {...selfDrag.handlers}
+                  >
                     <CameraAnalyzer
                       customExercises={customExercises}
                       features={roomFeatures}
@@ -1790,69 +1800,25 @@ export function Studio({
                         {item.coachName} <small>Coach</small>
                       </strong>
                       <select
-                        ref={coachVideoSizeRef}
-                        aria-label="Coach video size"
+                        aria-label="Coach view"
                         value={coachVideoLayout.size}
-                        hidden={coachVideoLayout.minimized || coachVideoLayout.size === 'small'}
-                        onChange={(event) => {
-                          const size = event.target.value as CoachVideoLayout['size'];
+                        onChange={(event) =>
                           updateCoachVideoLayout({
                             ...coachVideoLayout,
-                            size,
-                          });
-                          if (size === 'small')
-                            requestAnimationFrame(() => enlargeCoachVideoRef.current?.focus());
-                        }}
-                      >
-                        <option value="small">Picture in picture</option>
-                        <option value="medium">Balanced</option>
-                        <option value="large">Coach focus</option>
-                      </select>
-                      <button
-                        ref={enlargeCoachVideoRef}
-                        className="coach-video-toggle coach-video-enlarge"
-                        aria-label="Enlarge coach video"
-                        title="Enlarge coach video"
-                        hidden={coachVideoLayout.minimized || coachVideoLayout.size !== 'small'}
-                        onClick={() => {
-                          updateCoachVideoLayout({ ...coachVideoLayout, size: 'medium' });
-                          requestAnimationFrame(() => coachVideoSizeRef.current?.focus());
-                        }}
-                      >
-                        <Maximize2 size={17} />
-                      </button>
-                      <button
-                        className="coach-video-toggle"
-                        aria-label={
-                          coachVideoLayout.minimized
-                            ? 'Restore coach video'
-                            : 'Minimize coach video'
-                        }
-                        title={
-                          coachVideoLayout.minimized
-                            ? 'Restore coach video'
-                            : 'Minimize coach video'
-                        }
-                        aria-expanded={!coachVideoLayout.minimized}
-                        aria-controls="coach-video-feed"
-                        onClick={() =>
-                          updateCoachVideoLayout({
-                            ...coachVideoLayout,
-                            minimized: !coachVideoLayout.minimized,
+                            size: event.target.value as CoachVideoLayout['size'],
                           })
                         }
                       >
-                        {coachVideoLayout.minimized ? (
-                          <Maximize2 size={17} />
-                        ) : (
-                          <Minimize2 size={17} />
-                        )}
-                      </button>
+                        {COACH_VIEWS.map((view) => (
+                          <option key={view.value} value={view.value}>
+                            {view.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div
                       id="coach-video-feed"
                       className="coach-primary-feed"
-                      hidden={coachVideoLayout.minimized}
                       // Pointer shortcut only: the buttons stay keyboard reachable and
                       // show themselves on focus.
                       onClick={() => setCoachControls((open) => !open)}
@@ -2147,19 +2113,46 @@ function ConnectionBadge({ participant }: { participant: Participant }) {
 function ParticipantVideo({
   participant,
   mirror = false,
+  onAspect,
 }: {
   participant: Participant;
   mirror?: boolean;
+  /** Reports the decoded video's width / height, again whenever it changes (a phone rotating). */
+  onAspect?: (aspect: number) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
+  const aspectListener = useRef(onAspect);
+  useEffect(() => {
+    aspectListener.current = onAspect;
+  });
+  // Separate from the attach effect, so a new callback never re-attaches the track.
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const report = () => {
+      const aspect = tileAspect(element.videoWidth, element.videoHeight);
+      if (aspect) aspectListener.current?.(aspect);
+    };
+    report();
+    element.addEventListener('loadedmetadata', report);
+    element.addEventListener('resize', report);
+    return () => {
+      element.removeEventListener('loadedmetadata', report);
+      element.removeEventListener('resize', report);
+    };
+  }, []);
   useEffect(() => {
     const tracks = Array.from(participant.videoTrackPublications.values());
     const track = tracks.find((p) => p.source === 'camera' && !p.isMuted)?.track;
     if (track && ref.current) {
       track.attach(ref.current);
       setReady(true);
-    } else setReady(false);
+    } else {
+      setReady(false);
+      // With no camera the tile shows "Camera off"; it should not keep a phone's narrow shape.
+      aspectListener.current?.(DEFAULT_TILE_ASPECT);
+    }
     const element = ref.current;
     return () => {
       if (track && element) track.detach(element);

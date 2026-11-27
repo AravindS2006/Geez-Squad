@@ -340,7 +340,7 @@ test('a trainee drags the floating coach video between corners without remountin
       (node, value) => node.setAttribute('data-layout-fixture', value),
       fixture,
     );
-    await page.getByLabel('Coach video size').selectOption('small');
+    await page.getByLabel('Coach view').selectOption('small');
     const layout = page.locator('.trainee-video-layout');
     await expect(layout).toHaveAttribute('data-coach-position', 'top-right');
 

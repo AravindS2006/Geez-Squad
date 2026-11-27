@@ -10,6 +10,9 @@ import {
   movedPastThreshold,
   moveRect,
   nearestCorner,
+  packGallery,
+  DEFAULT_TILE_ASPECT,
+  tileAspect,
   PANEL_DEFAULT_WIDTH,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
@@ -140,5 +143,97 @@ describe('saved panel preference', () => {
     expect(
       parsePanelPreference(JSON.stringify({ dock: 'floating', rect: { x: 1, y: 'a' } })).rect,
     ).toBeNull();
+  });
+});
+
+describe('coach gallery packing keeps each video shape', () => {
+  const PORTRAIT = 9 / 16;
+  const LANDSCAPE = 16 / 9;
+  const box = { width: 1200, height: 700 };
+  type R = { x: number; y: number; width: number; height: number };
+  const inside = (r: R) =>
+    r.x >= 0 && r.y >= 0 && r.x + r.width <= box.width && r.y + r.height <= box.height;
+  const overlaps = (a: R, b: R) =>
+    Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x) &&
+    Math.min(a.y + a.height, b.y + b.height) > Math.max(a.y, b.y);
+  /** Video actually shown when the same videos sit in equal grid cells with contain. */
+  function gridVideoArea(aspects: number[], columns: number, gap: number) {
+    const rows = Math.ceil(aspects.length / columns);
+    const cw = (box.width - gap * (columns - 1)) / columns;
+    const ch = (box.height - gap * (rows - 1)) / rows;
+    return aspects.reduce((sum, a) => {
+      const h = Math.min(ch, cw / a);
+      return sum + h * h * a;
+    }, 0);
+  }
+  const area = (rects: R[]) => rects.reduce((sum, r) => sum + r.width * r.height, 0);
+
+  it('returns nothing for no tiles or an unmeasured box', () => {
+    expect(packGallery([], box, 10)).toEqual([]);
+    expect(packGallery([LANDSCAPE], { width: 0, height: 700 }, 10)).toEqual([]);
+  });
+
+  it('gives a portrait phone a tall tile in its own shape, centred', () => {
+    const [tile] = packGallery([PORTRAIT], box, 10);
+    expect(tile.height).toBe(700);
+    expect(Math.abs(tile.width / tile.height - PORTRAIT)).toBeLessThan(0.01);
+    expect(Math.abs(tile.x + tile.width / 2 - box.width / 2)).toBeLessThanOrEqual(1);
+  });
+
+  for (const aspects of [
+    [LANDSCAPE, PORTRAIT],
+    [PORTRAIT, PORTRAIT, PORTRAIT, PORTRAIT],
+    [LANDSCAPE, PORTRAIT, LANDSCAPE, PORTRAIT],
+    Array.from({ length: 12 }, (_, i) => (i % 3 ? PORTRAIT : LANDSCAPE)),
+    Array.from({ length: 36 }, (_, i) => (i % 2 ? PORTRAIT : 4 / 3)),
+  ]) {
+    it(`fits ${aspects.length} mixed tiles inside the box, in order, without overlap`, () => {
+      const rects = packGallery(aspects, box, 10);
+      expect(rects).toHaveLength(aspects.length);
+      rects.forEach((r, i) => {
+        expect(inside(r), JSON.stringify(r)).toBe(true);
+        // Each tile keeps its video's shape (within rounding).
+        expect(Math.abs(r.width - r.height * aspects[i])).toBeLessThanOrEqual(1);
+        for (let j = i + 1; j < rects.length; j++) expect(overlaps(r, rects[j])).toBe(false);
+        // Reading order: later tiles are on a lower row or further right on the same row.
+        if (i > 0) {
+          const prev = rects[i - 1];
+          expect(r.y > prev.y || (r.y === prev.y && r.x > prev.x)).toBe(true);
+        }
+      });
+    });
+  }
+
+  // Column counts match the gallery's equal-cell grid in coach-monitor.tsx.
+  it('shows more video than equal grid cells when phones are portrait', () => {
+    const cases: [number[], number][] = [
+      [[LANDSCAPE, PORTRAIT], 2],
+      [[PORTRAIT, PORTRAIT, PORTRAIT, PORTRAIT], 2],
+      [[LANDSCAPE, PORTRAIT, LANDSCAPE, PORTRAIT, PORTRAIT, PORTRAIT], 3],
+      [Array.from({ length: 12 }, (_, i) => (i % 3 ? PORTRAIT : LANDSCAPE)), 4],
+    ];
+    for (const [aspects, columns] of cases)
+      expect(area(packGallery(aspects, box, 10))).toBeGreaterThan(
+        gridVideoArea(aspects, columns, 10) * 1.1,
+      );
+  });
+
+  it('is never meaningfully worse than the grid, even when the grid already fits', () => {
+    const cases: [number[], number][] = [
+      [[PORTRAIT, PORTRAIT, PORTRAIT], 3],
+      [[LANDSCAPE, LANDSCAPE, LANDSCAPE, LANDSCAPE], 2],
+      [[LANDSCAPE], 1],
+    ];
+    for (const [aspects, columns] of cases)
+      expect(area(packGallery(aspects, box, 10))).toBeGreaterThanOrEqual(
+        gridVideoArea(aspects, columns, 10) * 0.99,
+      );
+  });
+
+  it('treats a missing or invalid shape as a landscape camera', () => {
+    const [tile] = packGallery([Number.NaN], box, 10);
+    expect(Math.abs(tile.width / tile.height - DEFAULT_TILE_ASPECT)).toBeLessThan(0.01);
+    expect(tileAspect(0, 720)).toBeNull();
+    expect(tileAspect(720, 1280)).toBeCloseTo(PORTRAIT);
   });
 });

@@ -39,7 +39,10 @@ export function useCornerDrag({
     suppressClick.current = false;
     if (!enabled || !event.isPrimary || event.button !== 0) return;
     // Controls inside the tile keep working normally.
-    if ((event.target as Element).closest('button, select, input, a, textarea')) return;
+    // Controls and dialogs inside the tile (the workout settings dialog lives in the
+    // floating self card) keep working normally.
+    if ((event.target as Element).closest('button, select, input, a, textarea, label, dialog'))
+      return;
     // No text selection while dragging with a mouse; touch uses `touch-action: none`.
     if (event.pointerType === 'mouse') event.preventDefault();
     cleanup.current?.();

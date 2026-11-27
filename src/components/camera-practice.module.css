@@ -151,6 +151,14 @@
   color: #dcdbd8;
   font-size: 12px;
 }
+/* Retry tracking shares the cue row with the paused-camera message. */
+.session :global(.analyzer-cue .cue-retry) {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 4px 12px;
+  gap: 6px;
+  white-space: nowrap;
+}
 .session :global(.analyzer-progress) {
   padding: 8px 4px 0;
 }

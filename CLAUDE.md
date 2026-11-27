@@ -15,6 +15,7 @@ it with checks you ran, and list anything you noticed but left alone as out of s
 | New or changed API handler | `/api-route`, then `authz-auditor` |
 | Prisma schema | `/schema-change` (paired, additive) |
 | Visual or layout work | `/ui-change` (390x844, desktop, landscape proof) |
+| Live room (video call) layout, panel, dock, floating tiles | `/live-room-ui`, then `/ui-change` |
 | Before saying "works" | `/verify` (runs the `verifier` subagent) |
 | Before a PR | `/domain-review`, then `/deliver` |
 

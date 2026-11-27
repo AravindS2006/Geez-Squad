@@ -135,7 +135,7 @@ test('iPhone practice and meeting controls remain usable with manual fallback', 
   await expect(page.getByRole('group', { name: 'Class video gallery' })).toBeVisible();
   await page.getByRole('button', { name: 'Workout queue', exact: true }).click();
   await expect(page.getByRole('navigation', { name: 'Class workout sequence' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close workout queue' }).click();
+  await page.getByRole('button', { name: 'Close panel' }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(
     (

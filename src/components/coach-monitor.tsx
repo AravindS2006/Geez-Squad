@@ -1,13 +1,17 @@
 'use client';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { Hand, Search, X, ChevronLeft, ChevronRight, Send, MicOff } from 'lucide-react';
+import { Hand, Search, X, ChevronLeft, ChevronRight, Send, MicOff, Move } from 'lucide-react';
 import type { Participant } from 'livekit-client';
 import type { ClassView } from '@/lib/types';
 import { COACH_PAGE_SIZE } from '@/lib/meeting-policy';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { limbModeLabel } from '@/lib/exercise-library';
 import { galleryTileDescription, galleryTileName } from '@/lib/live-room-a11y';
+import { CORNERS, isCorner, type Corner } from '@/lib/room-layout';
 import { Avatar } from './ui';
+import { useCornerDrag } from './use-corner-drag';
+
+const selfPreviewKey = 'geez-squad:coach-preview-corner:v1';
 
 export function freshMetric(person: ClassView['participants'][number], item: ClassView) {
   return person.metric &&
@@ -59,6 +63,20 @@ export function CoachMonitor({
   const [showSelf, setShowSelf] = useState(false);
   const [compact, setCompact] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [selfCorner, setSelfCorner] = useState<Corner>('top-right');
+  const moveSelf = (corner: Corner) => {
+    setSelfCorner(corner);
+    try {
+      localStorage.setItem(selfPreviewKey, corner);
+    } catch {
+      // Moving still works for this visit.
+    }
+  };
+  const selfDrag = useCornerDrag({
+    enabled: showSelf,
+    bounds: (tile) => tile.closest('.coach-monitor'),
+    onDrop: moveSelf,
+  });
   useEffect(() => {
     const media = matchMedia('(max-width: 760px), (max-width: 950px) and (max-height: 550px)');
     const update = () => setCompact(media.matches);
@@ -139,6 +157,34 @@ export function CoachMonitor({
             <Hand size={14} /> {helpCount} hands · Attention
           </button>
         </div>
+        <div className="monitor-pagination" aria-label="Gallery pages" role="group">
+          <span>
+            {filtered.length
+              ? `${safePage * pageSize + 1}–${Math.min((safePage + 1) * pageSize, filtered.length)} of ${filtered.length}`
+              : '0 trainees'}
+          </span>
+          {lastPage > 0 && (
+            <div>
+              <button
+                aria-label="Previous trainees"
+                disabled={safePage === 0}
+                onClick={() => setPage(safePage - 1)}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span>
+                {safePage + 1}/{lastPage + 1}
+              </span>
+              <button
+                aria-label="Next trainees"
+                disabled={safePage === lastPage}
+                onClick={() => setPage(safePage + 1)}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </div>
         <button
           className="monitor-tools-toggle"
           type="button"
@@ -173,7 +219,21 @@ export function CoachMonitor({
             <option value="overview">Overview · 36</option>
             <option value="comfortable">Larger · {compact ? 4 : 12}</option>
           </select>
-          <button type="button" aria-pressed={showSelf} onClick={() => setShowSelf(!showSelf)}>
+          <button
+            type="button"
+            aria-pressed={showSelf}
+            onClick={() => {
+              if (!showSelf)
+                try {
+                  // Read the saved corner when the preview opens (an event, not an effect).
+                  const saved = localStorage.getItem(selfPreviewKey);
+                  if (isCorner(saved)) setSelfCorner(saved);
+                } catch {
+                  // The preview still opens in its default corner.
+                }
+              setShowSelf(!showSelf);
+            }}
+          >
             My preview
           </button>
         </div>
@@ -323,35 +383,6 @@ export function CoachMonitor({
               </div>
             )}
           </div>
-          <div className="monitor-pagination">
-            <span>
-              {filtered.length
-                ? `${safePage * pageSize + 1}–${Math.min((safePage + 1) * pageSize, filtered.length)} of ${filtered.length}`
-                : '0 trainees'}{' '}
-              · Select a trainee for a closer look
-            </span>
-            {lastPage > 0 && (
-              <div>
-                <button
-                  aria-label="Previous trainees"
-                  disabled={safePage === 0}
-                  onClick={() => setPage(safePage - 1)}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span>
-                  {safePage + 1}/{lastPage + 1}
-                </span>
-                <button
-                  aria-label="Next trainees"
-                  disabled={safePage === lastPage}
-                  onClick={() => setPage(safePage + 1)}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
-          </div>
         </div>
         {selected && (
           <aside className="monitor-inspector" aria-label="Selected trainee details">
@@ -453,10 +484,27 @@ export function CoachMonitor({
         )}
       </div>
       {showSelf && (
-        <div className="monitor-self-preview">
-          <button aria-label="Close my preview" onClick={() => setShowSelf(false)}>
-            <X size={16} />
-          </button>
+        <div
+          className="monitor-self-preview"
+          role="group"
+          aria-label="My preview"
+          data-corner={selfCorner}
+          data-dragging={selfDrag.dragging || undefined}
+          {...selfDrag.handlers}
+        >
+          <div className="monitor-self-actions">
+            <button
+              type="button"
+              aria-label={`Move my preview (now ${selfCorner.replace('-', ' ')})`}
+              title="Drag the preview, or press to move it to the next corner"
+              onClick={() => moveSelf(CORNERS[(CORNERS.indexOf(selfCorner) + 1) % CORNERS.length])}
+            >
+              <Move size={16} />
+            </button>
+            <button aria-label="Close my preview" onClick={() => setShowSelf(false)}>
+              <X size={16} />
+            </button>
+          </div>
           {selfVideo}
           <span>You · Coach</span>
         </div>

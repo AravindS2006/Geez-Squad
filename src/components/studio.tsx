@@ -55,6 +55,10 @@ import { VideoDevices, type DevicePreferences } from './video-devices';
 import { CoachMonitor } from './coach-monitor';
 import { useScreenAwake } from './use-screen-awake';
 import roomStyles from './meeting-workspace.module.css';
+import panelStyles from './room-panel.module.css';
+import { RoomPanel, type RoomPanelTab } from './room-panel';
+import { useRoomPanel } from './use-room-panel';
+import { useCornerDrag } from './use-corner-drag';
 import { sessionElapsedSeconds } from '@/lib/session-timing';
 import { useTimeFormat } from './time-provider';
 import {
@@ -153,38 +157,11 @@ export function Studio({
   const [participationReason, setParticipationReason] = useState('');
   const [diagnostics, setDiagnostics] = useState(false);
   const [diagnosticsNotice, setDiagnosticsNotice] = useState('');
-  const [devicesOpen, setDevicesOpen] = useState(false);
   const { dateLabel, timeLabel, timeZone } = useTimeFormat();
   const [linkMessage, setLinkMessage] = useState('');
   const controlVersion = useRef(0);
   const controlPending = useRef(false);
-  const [coachToolsOpen, setCoachToolsOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [presenting, setPresenting] = useState(false);
-  const [workoutOpen, setWorkoutOpen] = useState(false);
-  const workoutToggle = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!workoutOpen) return;
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setWorkoutOpen(false);
-        workoutToggle.current?.focus();
-      }
-    };
-    const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Element &&
-        !event.target.closest('#meeting-workout-queue, .meeting-workout-toggle')
-      )
-        setWorkoutOpen(false);
-    };
-    document.addEventListener('keydown', key);
-    document.addEventListener('pointerdown', outside);
-    return () => {
-      document.removeEventListener('keydown', key);
-      document.removeEventListener('pointerdown', outside);
-    };
-  }, [workoutOpen]);
   const [coachVideoLayout, setCoachVideoLayout] = useState<CoachVideoLayout>({
     size: roomFeatures.meeting ? 'medium' : 'small',
     minimized: false,
@@ -228,7 +205,10 @@ export function Studio({
   });
   const [deviceBusy, setDeviceBusy] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const [showClassmates, setShowClassmates] = useState(false);
+  // Secondary tools live in one side panel; classmates' cameras are subscribed only
+  // while their tab is showing.
+  const panel = useRoomPanel();
+  const showClassmates = panel.open && panel.tab === 'people';
   const [classmatePage, setClassmatePage] = useState(0);
   const [visibleCameraIds, setVisibleCameraIds] = useState<string[]>([]);
   const onVisibleCameras = useCallback(
@@ -970,6 +950,13 @@ export function Studio({
     const timer = window.setTimeout(() => setDismissedCueId(latestCueId), cueDelay);
     return () => window.clearTimeout(timer);
   }, [latestCueId, cueDelay]);
+  // The floating coach tile (Picture in picture or minimized) can be dragged to any
+  // corner of the trainee's camera; the Options panel keeps the keyboard path.
+  const coachDrag = useCornerDrag({
+    enabled: coachVideoLayout.size === 'small' || coachVideoLayout.minimized,
+    bounds: (tile) => tile.closest('.trainee-video-layout'),
+    onDrop: (position) => updateCoachVideoLayout({ ...coachVideoLayout, position }),
+  });
   // On a phone the floating coach tile hides its controls until it is tapped.
   const [coachControls, setCoachControls] = useState(false);
   useEffect(() => {
@@ -1060,6 +1047,437 @@ export function Studio({
       )}
     </>
   );
+  const hasWorkoutPanel = (roomFeatures.meeting && coach) || !!item.workout?.length;
+  const closeIfOverlay = () => {
+    if (panel.presentation === 'sheet' || panel.presentation === 'side-sheet') panel.close();
+  };
+  const workoutContent = (
+    <nav className="room-workout-list" aria-label="Class workout sequence">
+      {roomFeatures.meeting && coach && (
+        <label>
+          Movement
+          <select
+            aria-label="Workout exercise"
+            value={item.exercise}
+            disabled={busy || item.status !== 'live'}
+            onChange={(e) => {
+              void control('exercise', e.target.value);
+              closeIfOverlay();
+            }}
+          >
+            {[...exercises, ...customExercises]
+              .filter((e) => roomFeatures.library || e.profileId)
+              .map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
+      {!item.workout?.length && (
+        <p>Choose a movement for this class. Trainees control their own sets.</p>
+      )}
+      {item.workout?.map((block, index) => (
+        <button
+          type="button"
+          key={block.id ?? index}
+          aria-current={item.activeBlockId === block.id ? 'step' : undefined}
+          disabled={!coach || busy || item.status !== 'live'}
+          onClick={() => {
+            void control('exercise', block.exercise, block.id);
+            closeIfOverlay();
+          }}
+        >
+          <small>{String(index + 1).padStart(2, '0')}</small>
+          <span>
+            {exerciseDefinition(block.exercise, customExercises).name}
+            <small>
+              {block.sets} × {block.reps}
+              {block.targetUnit === 'seconds' || isHoldExercise(block.exercise) ? 's' : ' reps'}
+            </small>
+          </span>
+        </button>
+      ))}
+    </nav>
+  );
+  const coachToolsContent = coach ? (
+    <div className="form-stack">
+      <div className="coach-roster" aria-label="Trainee monitoring roster">
+        {item.participants.map((person) => {
+          const fresh =
+            person.metric &&
+            person.metric.revision === item.revision &&
+            person.metric.exercise === item.exercise &&
+            !item.paused &&
+            Date.now() - Date.parse(person.metric.updatedAt) < 12000;
+          return (
+            <button
+              type="button"
+              key={person.id}
+              className={`coach-roster-row ${focus === person.id ? 'selected' : ''}`}
+              onClick={() => setFocus(person.id)}
+              aria-pressed={focus === person.id}
+            >
+              <strong>
+                {person.name}
+                {person.helpRequested ? ' · Help requested' : ''}
+              </strong>
+              <span>
+                {fresh
+                  ? `${Math.round(person.metric!.confidence * 100)}% tracking · ${person.metric!.quality == null ? 'No completed rep' : `${Math.round(person.metric!.quality)} /100 last rep`}`
+                  : 'No recent tracking'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <label>
+        Send guidance to
+        <select
+          aria-label="Cue recipient"
+          value={focus || ''}
+          onChange={(e) => setFocus(e.target.value || null)}
+        >
+          <option value="">Everyone in class</option>
+          {item.participants.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {p.helpRequested ? ' · Help requested' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      {focused?.metric && (
+        <div className="coach-observation">
+          <strong>{focused.name}</strong>
+          <p>{focused.metric.cue}</p>
+          <small>
+            {new Date(focused.metric.updatedAt).toLocaleTimeString()} · last reported feedback
+          </small>
+          <p className="microcopy">
+            {focused.metric.rangeDegrees == null
+              ? 'Range unavailable'
+              : `${Math.round(focused.metric.rangeDegrees)}° last range`}{' '}
+            ·{' '}
+            {focused.metric.repSeconds == null
+              ? 'Tempo unavailable'
+              : `${focused.metric.repSeconds.toFixed(1)}s last rep`}{' '}
+            ·{' '}
+            {focused.metric.trackingCoverage == null
+              ? 'Coverage unavailable'
+              : `${Math.round(focused.metric.trackingCoverage)}% set tracking`}
+          </p>
+        </div>
+      )}
+      <form
+        className="form-stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send(cue, 'cue', focus || undefined);
+        }}
+      >
+        <label htmlFor="coaching-cue">Coaching cue</label>
+        <textarea
+          id="coaching-cue"
+          value={cue}
+          onChange={(e) => setCue(e.target.value)}
+          placeholder="Give one clear correction…"
+          maxLength={600}
+          rows={3}
+        />
+        <button className="button lime full" disabled={!cue.trim() || item.status !== 'live'}>
+          <Send size={17} />
+          Send {focus ? 'personal' : 'class'} cue
+        </button>
+      </form>
+      {focused?.helpRequested && (
+        <button className="button outline full" onClick={() => void help(false, focused.id)}>
+          <Check size={17} />
+          Mark help request addressed
+        </button>
+      )}
+      {focused && connected && (
+        <button
+          className="button outline full"
+          disabled={deviceBusy}
+          onClick={() => void muteParticipants(focused.id)}
+        >
+          <MicOff size={17} />
+          Mute {focused.name.split(' ')[0]}’s microphone
+        </button>
+      )}
+      <button
+        className="button outline full"
+        disabled={!connected || deviceBusy}
+        onClick={() => void muteParticipants()}
+      >
+        <MicOff size={17} />
+        Mute trainee microphones
+      </button>
+      <p className="microcopy">
+        Speak through your microphone to coach the whole class. Select a trainee to send a private
+        text cue. Microphones can be muted; each trainee decides when to unmute.
+      </p>
+    </div>
+  ) : null;
+  const chatContent = (
+    <section className="chat-panel meeting-chat">
+      <div className="chat-messages" aria-live="polite">
+        {!messages.length ? (
+          <p className="microcopy">Send a message to the class.</p>
+        ) : (
+          messages.map((m) => (
+            <div
+              className={`message ${m.senderId === user.id ? 'mine' : ''} ${m.kind === 'cue' ? 'cue-message' : ''}`}
+              key={m.id}
+            >
+              <span>
+                {m.senderName}
+                {m.recipientId ? ' · Private' : ''}
+                {m.kind === 'cue' ? ' · Coach cue' : ''}
+              </span>
+              <p>{m.text}</p>
+              <time>
+                {new Date(m.createdAt).toLocaleTimeString(undefined, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
+            </div>
+          ))
+        )}
+      </div>
+      <form
+        className="chat-input"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send(draft);
+        }}
+      >
+        <input
+          aria-label="Session message"
+          placeholder="Message your class…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={600}
+        />
+        <button
+          aria-label="Send session message"
+          className="icon-button"
+          disabled={!draft.trim() || item.status !== 'live'}
+        >
+          <Send size={18} />
+        </button>
+      </form>
+    </section>
+  );
+  const optionsContent = (
+    <>
+      {item.status === 'live' && sessionDetails}
+      <div className="form-stack">
+        <details
+          className="meeting-diagnostics"
+          onToggle={(event) => setDiagnostics(event.currentTarget.open)}
+        >
+          <summary>Connection diagnostics</summary>
+          {diagnostics && (
+            <div>
+              <p>
+                Connection: {connectionState} · Camera: {camera ? 'on' : 'off'} · Microphone:{' '}
+                {mic ? 'on' : 'off'}
+              </p>
+              <button
+                className="text-link"
+                onClick={async () => {
+                  const report = JSON.stringify(
+                    {
+                      connection: connectionState,
+                      camera,
+                      microphone: mic,
+                      audioBlocked,
+                      sessionSync: Boolean(syncWarning),
+                      summarySharing: Boolean(analysisWarning),
+                      timestamp: new Date().toISOString(),
+                    },
+                    null,
+                    2,
+                  );
+                  try {
+                    await navigator.clipboard.writeText(report);
+                    setDiagnosticsNotice('Diagnostics copied.');
+                  } catch {
+                    setDiagnosticsNotice('Copy is unavailable in this browser.');
+                  }
+                }}
+              >
+                Copy diagnostics
+              </button>
+              <p role="status">{diagnosticsNotice}</p>
+            </div>
+          )}
+        </details>
+        {connected && (
+          <fieldset disabled={deviceBusy}>
+            <VideoDevices preferences={preferences} onChange={(next) => void changeDevices(next)} />
+          </fieldset>
+        )}
+        <button
+          className="button outline full"
+          disabled={!connected || !camera || deviceBusy}
+          onClick={() => void flipCamera()}
+        >
+          <SwitchCamera size={17} />
+          Flip camera
+        </button>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={mirror}
+            onChange={(event) => setMirror(event.target.checked)}
+          />
+          Mirror my camera preview
+        </label>
+        {!coach && (
+          <>
+            <label>
+              Floating coach position
+              <select
+                aria-label="Floating coach position"
+                value={coachVideoLayout.position}
+                onChange={(event) =>
+                  updateCoachVideoLayout({
+                    ...coachVideoLayout,
+                    position: event.target.value as CoachVideoLayout['position'],
+                  })
+                }
+              >
+                <option value="top-right">Top right</option>
+                <option value="top-left">Top left</option>
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom-left">Bottom left</option>
+              </select>
+            </label>
+            <label>
+              Coach audio volume: {Math.round(coachVolume * 100)}%
+              <input
+                aria-label="Coach audio volume"
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={coachVolume}
+                onChange={(event) => setCoachVolume(Number(event.target.value))}
+              />
+            </label>
+            <p className="microcopy">
+              Position applies to the small or minimized coach view. Volume changes only what you
+              hear.
+            </p>
+          </>
+        )}
+        <button
+          className="button outline full"
+          disabled={!connected}
+          onClick={async () => {
+            try {
+              await room.current?.startAudio();
+              setAudioBlocked(false);
+            } catch {
+              setAudioBlocked(true);
+            }
+          }}
+        >
+          <Volume2 size={17} />
+          Enable room audio
+        </button>
+        {coach && (
+          <ScreenShareButton
+            room={connected ? room.current : null}
+            connected={connected}
+            onError={setError}
+          />
+        )}
+        <button
+          className="button outline full"
+          onClick={async () => {
+            try {
+              if (!document.fullscreenElement) await meetingRef.current?.requestFullscreen();
+              else await document.exitFullscreen();
+            } catch {
+              setError('Fullscreen is unavailable in this browser.');
+            }
+          }}
+        >
+          <Maximize size={17} />
+          Fullscreen
+        </button>
+        {!coach && (
+          <button className="button outline full" onClick={() => panel.setTab('people')}>
+            <Users size={17} />
+            Show classmates
+          </button>
+        )}
+        <p className="microcopy">
+          {demo
+            ? 'Sample mode has no live participants. Try Camera practice to analyze your own movement.'
+            : !services.video
+              ? 'Live video is unavailable. Your coach can enable it in studio configuration.'
+              : `Video connection: ${connectionState}. Camera analysis stays on your device. No class recording.`}
+        </p>
+      </div>
+    </>
+  );
+  const classmatesContent = (
+    <>
+      <div className="monitor-pagination">
+        <span>
+          {classmates.length} classmates · Page {safeClassmatePage + 1}/{lastClassmatePage + 1}
+        </span>
+        <button
+          disabled={safeClassmatePage === 0}
+          onClick={() => setClassmatePage(safeClassmatePage - 1)}
+        >
+          Previous
+        </button>
+        <button
+          disabled={safeClassmatePage === lastClassmatePage}
+          onClick={() => setClassmatePage(safeClassmatePage + 1)}
+        >
+          Next
+        </button>
+      </div>
+      <div className="classmate-gallery">
+        {visibleClassmates.map((p) => (
+          <div key={p.identity} className="classmate-feed">
+            <ParticipantVideo participant={p} />
+            <span>
+              {p.name || 'Classmate'} · {p.isMicrophoneEnabled ? 'Mic on' : 'Muted'}
+            </span>
+          </div>
+        ))}
+        {!remote.some((p) => p.identity !== item.coachId) && (
+          <p>No classmates have joined video yet.</p>
+        )}
+      </div>
+    </>
+  );
+  const panelTabs: RoomPanelTab[] = [
+    ...(coachToolsContent
+      ? [{ id: 'coach' as const, label: 'Coach tools', content: coachToolsContent }]
+      : []),
+    {
+      id: 'chat',
+      label: 'Chat',
+      badge: messages.length,
+      content: chatContent,
+    },
+    ...(hasWorkoutPanel
+      ? [{ id: 'workout' as const, label: 'Workout', content: workoutContent }]
+      : []),
+    ...(!coach ? [{ id: 'people' as const, label: 'Classmates', content: classmatesContent }] : []),
+    { id: 'options', label: 'Options', content: optionsContent },
+  ];
   return (
     <div
       ref={meetingRef}
@@ -1118,14 +1536,13 @@ export function Studio({
             <strong>{exerciseDefinition(item.exercise, customExercises).name}</strong>
           )}
         </div>
-        {roomFeatures.meeting && (coach || !!item.workout?.length) && (
+        {hasWorkoutPanel && (
           <button
-            ref={workoutToggle}
             className="meeting-workout-toggle icon-button"
             aria-label="Workout queue"
-            aria-expanded={workoutOpen}
-            aria-controls="meeting-workout-queue"
-            onClick={() => setWorkoutOpen(!workoutOpen)}
+            aria-expanded={panel.open && panel.tab === 'workout'}
+            aria-controls={panel.open && panel.tab === 'workout' ? 'room-panel' : undefined}
+            onClick={() => panel.toggle('workout')}
           >
             <Dumbbell size={20} />
             <span>
@@ -1134,402 +1551,356 @@ export function Studio({
           </button>
         )}
       </header>
-      {((roomFeatures.meeting && coach) || !!item.workout?.length) && (
-        <nav
-          id="meeting-workout-queue"
-          className="meeting-workout-queue"
-          aria-label="Class workout sequence"
-          hidden={roomFeatures.meeting && !workoutOpen}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              setWorkoutOpen(false);
-              workoutToggle.current?.focus();
-            }
-          }}
-        >
-          {roomFeatures.meeting ? (
-            <div className="meeting-workout-panel-heading">
-              <strong>Class workout</strong>
-              <button
-                onClick={() => {
-                  setWorkoutOpen(false);
-                  workoutToggle.current?.focus();
-                }}
-                aria-label="Close workout queue"
-              >
-                <X size={18} />
-              </button>
-            </div>
-          ) : (
-            <span>Workout</span>
-          )}
-          {roomFeatures.meeting && coach && (
-            <label className="meeting-workout-picker">
-              Movement
-              <select
-                aria-label="Workout exercise"
-                value={item.exercise}
-                disabled={busy || item.status !== 'live'}
-                onChange={(e) => {
-                  void control('exercise', e.target.value);
-                  setWorkoutOpen(false);
-                  workoutToggle.current?.focus();
-                }}
-              >
-                {[...exercises, ...customExercises]
-                  .filter((e) => roomFeatures.library || e.profileId)
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          )}
-          {!item.workout?.length && (
-            <p>Choose a movement for this class. Trainees control their own sets.</p>
-          )}
-          {item.workout?.map((block, index) => (
-            <button
-              type="button"
-              key={block.id ?? index}
-              aria-current={item.activeBlockId === block.id ? 'step' : undefined}
-              disabled={!coach || busy || item.status !== 'live'}
-              onClick={() => {
-                void control('exercise', block.exercise, block.id);
-                setWorkoutOpen(false);
-                workoutToggle.current?.focus();
-              }}
-            >
-              <small>{String(index + 1).padStart(2, '0')}</small>
-              <span>
-                {exerciseDefinition(block.exercise, customExercises).name}
-                <small>
-                  {block.sets} × {block.reps}
-                  {block.targetUnit === 'seconds' || isHoldExercise(block.exercise) ? 's' : ' reps'}
-                </small>
-              </span>
-            </button>
-          ))}
-        </nav>
-      )}
-      {item.status !== 'live' && sessionDetails}
-      {error && (
-        <p className="inline-error meeting-notice" role="alert">
-          {error}
-          <button aria-label="Dismiss error" onClick={() => setError('')}>
-            <X size={16} />
-          </button>
-        </p>
-      )}
-      {analysisWarning && (
-        <p className="inline-notice meeting-notice" role="status">
-          {analysisWarning}
-        </p>
-      )}
-      {syncWarning && (
-        <p className="inline-notice meeting-notice" role="status">
-          {syncWarning}
-        </p>
-      )}
-      {participationReason && !coach && (
-        <p className="inline-notice meeting-notice" role="status">
-          {participationReason}
-        </p>
-      )}
+      <div
+        ref={panel.bodyRef}
+        className={`meeting-shell ${panelStyles.shell}`}
+        data-panel={panel.open ? panel.presentation : 'closed'}
+        style={{ '--room-panel-width': `${panel.width}px` } as React.CSSProperties}
+      >
+        <div className={`meeting-main ${panelStyles.main}`}>
+          <div className={`meeting-overlay ${panelStyles.overlay}`}>
+            {error && (
+              <p className="inline-error meeting-notice" role="alert">
+                {error}
+                <button aria-label="Dismiss error" onClick={() => setError('')}>
+                  <X size={16} />
+                </button>
+              </p>
+            )}
+            {analysisWarning && (
+              <p className="inline-notice meeting-notice" role="status">
+                {analysisWarning}
+              </p>
+            )}
+            {syncWarning && (
+              <p className="inline-notice meeting-notice" role="status">
+                {syncWarning}
+              </p>
+            )}
+            {participationReason && !coach && (
+              <p className="inline-notice meeting-notice" role="status">
+                {participationReason}
+              </p>
+            )}
 
-      {audioBlocked && connected && (
-        <p className="inline-notice meeting-notice" role="status">
-          Class audio is paused by your browser.
-          <button
-            onClick={async () => {
-              try {
-                await room.current?.startAudio();
-                setAudioBlocked(false);
-              } catch {
-                setAudioBlocked(true);
-              }
-            }}
-          >
-            Enable room audio
-          </button>
-        </p>
-      )}
-      {!connected && !ended && disconnectNotice && (
-        <p className="inline-notice meeting-notice meeting-disconnect-notice" role="status">
-          <span>
-            {disconnectNotice.message}
-            {disconnectNotice.automatic && !connecting ? ' Reconnecting automatically…' : ''}
-          </span>
-          {disconnectNotice.offerRejoin && (
-            <button
-              className="meeting-rejoin"
-              disabled={connecting || Boolean(participationReason) || item.status !== 'live'}
-              onClick={rejoin}
-            >
-              <RefreshCw size={15} aria-hidden="true" />
-              {connecting ? 'Rejoining…' : 'Rejoin video'}
-            </button>
-          )}
-        </p>
-      )}
-      {connected && connectionState !== 'connected' && (
-        <p className="inline-notice meeting-notice" role="status">
-          Reconnecting… wait for video and tracking to recover.
-        </p>
-      )}
-      {ended ? (
-        <div className="session-finished meeting-finished">
-          <CheckCircle2 size={42} />
-          <h2>{item.status === 'completed' ? 'Session complete' : 'Session cancelled'}</h2>
-          <p>
-            {item.status === 'completed'
-              ? 'Review saved exercise records in Insights. Any pending saves can be retried there.'
-              : 'This session was cancelled.'}
-          </p>
-          {!demo && item.status === 'completed' && (
-            <a className="button outline" href="/app?view=analytics">
-              View exercise records
-            </a>
-          )}
-          {coach && item.status === 'completed' && !demo && (
-            <button className="button outline" disabled={busy} onClick={() => void control('end')}>
-              Retry video room cleanup
-            </button>
-          )}
-          <button className="button lime" onClick={onExit}>
-            Back to my studio <ArrowUpRight size={17} />
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className={`meeting-stage ${presenting ? 'with-presentation' : ''}`}>
-            <Presentation room={connected ? room.current : null} onActive={setPresenting} />
-            {coach ? (
-              <CoachMonitor
-                item={item}
-                remote={remote}
-                demo={demo}
-                focus={focus}
-                onFocus={setFocus}
-                onVisible={onVisibleCameras}
-                renderVideo={(person) => <ParticipantVideo participant={person} />}
-                renderConnection={(person) => <ConnectionBadge participant={person} />}
-                onCue={(text, recipient) => send(text, 'cue', recipient)}
-                onHelp={(id) => void help(false, id)}
-                onMute={(id) => void muteParticipants(id)}
-                connected={connected}
-                busy={deviceBusy}
-                selfVideo={
-                  connected && camera && room.current ? (
-                    <ParticipantVideo participant={room.current.localParticipant} mirror={mirror} />
-                  ) : (
-                    <div className="meeting-empty-video">
-                      <Avatar name={user.name} />
-                      <span>{demo ? 'Preview · no live devices' : 'Camera off'}</span>
-                    </div>
-                  )
-                }
-              />
-            ) : (
-              <div
-                className={`trainee-video-layout coach-video-${coachVideoLayout.size}${coachVideoLayout.minimized ? ' coach-video-minimized' : ''}`}
-                data-coach-position={coachVideoLayout.position}
-                style={
-                  {
-                    '--trainee-camera-height': `${cameraHeight}px`,
-                    '--trainee-camera-top': `${cameraTop}px`,
-                  } as React.CSSProperties
-                }
-              >
-                <div className="trainee-self-stage">
-                  <CameraAnalyzer
-                    customExercises={customExercises}
-                    features={roomFeatures}
-                    exercise={item.exercise}
-                    paused={item.paused || item.status !== 'live'}
-                    revision={item.revision}
-                    stream={stream}
-                    cameraId={preferences.cameraId}
-                    facingMode={facing}
-                    mirror={mirror}
-                    onCameraHeight={onCameraBounds}
-                    saveForUser={!demo && consent ? user.id : undefined}
-                    historyUserId={!demo ? user.id : undefined}
-                    classId={item.id}
-                    block={
-                      item.activeBlockId
-                        ? item.workout?.find((b) => b.id === item.activeBlockId)
-                        : item.activeBlockId === undefined
-                          ? item.workout?.find((b) => b.exercise === item.exercise)
-                          : undefined
+            {audioBlocked && connected && (
+              <p className="inline-notice meeting-notice" role="status">
+                Class audio is paused by your browser.
+                <button
+                  onClick={async () => {
+                    try {
+                      await room.current?.startAudio();
+                      setAudioBlocked(false);
+                    } catch {
+                      setAudioBlocked(true);
                     }
-                    // After consent, a dropped or failed room lets the trainee track with a
-                    // local camera; the room's camera replaces it once video rejoins.
-                    sessionCamera={
-                      !demo && services.video && (connected || connecting || !sharingSummaries)
-                    }
-                    onEnableCamera={
-                      item.status === 'live'
-                        ? connected
-                          ? () => void toggleCamera()
-                          : () => setShowConsent(true)
-                        : undefined
-                    }
-                    onAnalysis={sharingSummaries ? onAnalysis : undefined}
-                    initialReps={me?.metric?.revision === item.revision ? me.metric.reps : 0}
-                    initialHoldSeconds={
-                      me?.metric?.revision === item.revision ? me.metric.holdSeconds : 0
-                    }
-                    initialArms={
-                      me?.metric?.revision === item.revision
-                        ? (me.metric.arms ?? undefined)
-                        : undefined
-                    }
-                  />
-                </div>
-                <div
-                  className={`coach-stage meeting-tile${coachControls ? ' coach-controls-open' : ''}`}
-                  role="group"
-                  aria-label="Coach video"
+                  }}
                 >
-                  <div className="coach-video-toolbar">
-                    <strong title={item.coachName}>
-                      {item.coachName} <small>Coach</small>
-                    </strong>
-                    <select
-                      ref={coachVideoSizeRef}
-                      aria-label="Coach video size"
-                      value={coachVideoLayout.size}
-                      hidden={coachVideoLayout.minimized || coachVideoLayout.size === 'small'}
-                      onChange={(event) => {
-                        const size = event.target.value as CoachVideoLayout['size'];
-                        updateCoachVideoLayout({
-                          ...coachVideoLayout,
-                          size,
-                        });
-                        if (size === 'small')
-                          requestAnimationFrame(() => enlargeCoachVideoRef.current?.focus());
-                      }}
-                    >
-                      <option value="small">Picture in picture</option>
-                      <option value="medium">Balanced</option>
-                      <option value="large">Coach focus</option>
-                    </select>
-                    <button
-                      ref={enlargeCoachVideoRef}
-                      className="coach-video-toggle coach-video-enlarge"
-                      aria-label="Enlarge coach video"
-                      title="Enlarge coach video"
-                      hidden={coachVideoLayout.minimized || coachVideoLayout.size !== 'small'}
-                      onClick={() => {
-                        updateCoachVideoLayout({ ...coachVideoLayout, size: 'medium' });
-                        requestAnimationFrame(() => coachVideoSizeRef.current?.focus());
-                      }}
-                    >
-                      <Maximize2 size={17} />
-                    </button>
-                    <button
-                      className="coach-video-toggle"
-                      aria-label={
-                        coachVideoLayout.minimized ? 'Restore coach video' : 'Minimize coach video'
-                      }
-                      title={
-                        coachVideoLayout.minimized ? 'Restore coach video' : 'Minimize coach video'
-                      }
-                      aria-expanded={!coachVideoLayout.minimized}
-                      aria-controls="coach-video-feed"
-                      onClick={() =>
-                        updateCoachVideoLayout({
-                          ...coachVideoLayout,
-                          minimized: !coachVideoLayout.minimized,
-                        })
-                      }
-                    >
-                      {coachVideoLayout.minimized ? (
-                        <Maximize2 size={17} />
-                      ) : (
-                        <Minimize2 size={17} />
-                      )}
-                    </button>
-                  </div>
-                  <div
-                    id="coach-video-feed"
-                    className="coach-primary-feed"
-                    hidden={coachVideoLayout.minimized}
-                    // Pointer shortcut only: the buttons stay keyboard reachable and
-                    // show themselves on focus.
-                    onClick={() => setCoachControls((open) => !open)}
+                  Enable room audio
+                </button>
+              </p>
+            )}
+            {!connected && !ended && disconnectNotice && (
+              <p className="inline-notice meeting-notice meeting-disconnect-notice" role="status">
+                <span>
+                  {disconnectNotice.message}
+                  {disconnectNotice.automatic && !connecting ? ' Reconnecting automatically…' : ''}
+                </span>
+                {disconnectNotice.offerRejoin && (
+                  <button
+                    className="meeting-rejoin"
+                    disabled={connecting || Boolean(participationReason) || item.status !== 'live'}
+                    onClick={rejoin}
                   >
-                    {coachParticipant ? (
-                      <ParticipantVideo participant={coachParticipant} />
-                    ) : (
-                      <div className="meeting-empty-video">
-                        <Avatar name={item.coachName} />
-                        <span>
-                          {connected ? 'Waiting for your coach' : 'Join to see and hear your coach'}
-                        </span>
-                      </div>
-                    )}
-                    <div className="meeting-tile-name">
-                      <span>
-                        {coachVideoLayout.size === 'small'
-                          ? item.coachName
-                          : coachParticipant?.isSpeaking
-                            ? 'Speaking'
-                            : 'Coach audio'}
-                      </span>
-                      {coachParticipant && <ConnectionBadge participant={coachParticipant} />}
-                      {coachParticipant?.isMicrophoneEnabled ? (
-                        <Mic size={15} />
-                      ) : (
-                        <MicOff size={15} />
-                      )}
-                    </div>
-                  </div>
-                </div>
+                    <RefreshCw size={15} aria-hidden="true" />
+                    {connecting ? 'Rejoining…' : 'Rejoin video'}
+                  </button>
+                )}
+              </p>
+            )}
+            {connected && connectionState !== 'connected' && (
+              <p className="inline-notice meeting-notice" role="status">
+                Reconnecting… wait for video and tracking to recover.
+              </p>
+            )}
+            {!ended && !coach && visibleCue && (
+              <div
+                className="human-cue meeting-human-cue"
+                role="status"
+                onPointerEnter={() => setHoveredCueId(visibleCue.id)}
+                onPointerLeave={() => setHoveredCueId(null)}
+                onFocus={() => setFocusedCueId(visibleCue.id)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                    setFocusedCueId(null);
+                }}
+              >
+                <strong>{item.coachName}</strong>
+                <p>{visibleCue.text}</p>
+                <button
+                  className="meeting-cue-keep"
+                  aria-pressed={keptCueId === visibleCue.id}
+                  aria-label="Keep coach message on screen"
+                  title={
+                    keptCueId === visibleCue.id
+                      ? 'Kept until you dismiss it'
+                      : 'Keep on screen (otherwise it hides after 20 seconds)'
+                  }
+                  onClick={() => setKeptCueId(keptCueId === visibleCue.id ? null : visibleCue.id)}
+                >
+                  <Pin size={16} />
+                </button>
+                <button
+                  className="meeting-cue-dismiss"
+                  aria-label="Dismiss coach message"
+                  title="Dismiss (the message stays in chat)"
+                  onClick={() => setDismissedCueId(visibleCue.id)}
+                >
+                  <X size={16} />
+                </button>
               </div>
             )}
           </div>
-          {!coach && visibleCue && (
-            <div
-              className="human-cue meeting-human-cue"
-              role="status"
-              onPointerEnter={() => setHoveredCueId(visibleCue.id)}
-              onPointerLeave={() => setHoveredCueId(null)}
-              onFocus={() => setFocusedCueId(visibleCue.id)}
-              onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                  setFocusedCueId(null);
-              }}
-            >
-              <strong>{item.coachName}</strong>
-              <p>{visibleCue.text}</p>
-              <button
-                className="meeting-cue-keep"
-                aria-pressed={keptCueId === visibleCue.id}
-                aria-label="Keep coach message on screen"
-                title={
-                  keptCueId === visibleCue.id
-                    ? 'Kept until you dismiss it'
-                    : 'Keep on screen (otherwise it hides after 20 seconds)'
-                }
-                onClick={() => setKeptCueId(keptCueId === visibleCue.id ? null : visibleCue.id)}
-              >
-                <Pin size={16} />
-              </button>
-              <button
-                className="meeting-cue-dismiss"
-                aria-label="Dismiss coach message"
-                title="Dismiss (the message stays in chat)"
-                onClick={() => setDismissedCueId(visibleCue.id)}
-              >
-                <X size={16} />
+          {item.status !== 'live' && sessionDetails}
+          {ended ? (
+            <div className="session-finished meeting-finished">
+              <CheckCircle2 size={42} />
+              <h2>{item.status === 'completed' ? 'Session complete' : 'Session cancelled'}</h2>
+              <p>
+                {item.status === 'completed'
+                  ? 'Review saved exercise records in Insights. Any pending saves can be retried there.'
+                  : 'This session was cancelled.'}
+              </p>
+              {!demo && item.status === 'completed' && (
+                <a className="button outline" href="/app?view=analytics">
+                  View exercise records
+                </a>
+              )}
+              {coach && item.status === 'completed' && !demo && (
+                <button
+                  className="button outline"
+                  disabled={busy}
+                  onClick={() => void control('end')}
+                >
+                  Retry video room cleanup
+                </button>
+              )}
+              <button className="button lime" onClick={onExit}>
+                Back to my studio <ArrowUpRight size={17} />
               </button>
             </div>
+          ) : (
+            <div className={`meeting-stage ${presenting ? 'with-presentation' : ''}`}>
+              <Presentation room={connected ? room.current : null} onActive={setPresenting} />
+              {coach ? (
+                <CoachMonitor
+                  item={item}
+                  remote={remote}
+                  demo={demo}
+                  focus={focus}
+                  onFocus={setFocus}
+                  onVisible={onVisibleCameras}
+                  renderVideo={(person) => <ParticipantVideo participant={person} />}
+                  renderConnection={(person) => <ConnectionBadge participant={person} />}
+                  onCue={(text, recipient) => send(text, 'cue', recipient)}
+                  onHelp={(id) => void help(false, id)}
+                  onMute={(id) => void muteParticipants(id)}
+                  connected={connected}
+                  busy={deviceBusy}
+                  selfVideo={
+                    connected && camera && room.current ? (
+                      <ParticipantVideo
+                        participant={room.current.localParticipant}
+                        mirror={mirror}
+                      />
+                    ) : (
+                      <div className="meeting-empty-video">
+                        <Avatar name={user.name} />
+                        <span>{demo ? 'Preview · no live devices' : 'Camera off'}</span>
+                      </div>
+                    )
+                  }
+                />
+              ) : (
+                <div
+                  className={`trainee-video-layout coach-video-${coachVideoLayout.size}${coachVideoLayout.minimized ? ' coach-video-minimized' : ''}`}
+                  data-coach-position={coachVideoLayout.position}
+                  style={
+                    {
+                      '--trainee-camera-height': `${cameraHeight}px`,
+                      '--trainee-camera-top': `${cameraTop}px`,
+                    } as React.CSSProperties
+                  }
+                >
+                  <div className="trainee-self-stage">
+                    <CameraAnalyzer
+                      customExercises={customExercises}
+                      features={roomFeatures}
+                      exercise={item.exercise}
+                      paused={item.paused || item.status !== 'live'}
+                      revision={item.revision}
+                      stream={stream}
+                      cameraId={preferences.cameraId}
+                      facingMode={facing}
+                      mirror={mirror}
+                      onCameraHeight={onCameraBounds}
+                      saveForUser={!demo && consent ? user.id : undefined}
+                      historyUserId={!demo ? user.id : undefined}
+                      classId={item.id}
+                      block={
+                        item.activeBlockId
+                          ? item.workout?.find((b) => b.id === item.activeBlockId)
+                          : item.activeBlockId === undefined
+                            ? item.workout?.find((b) => b.exercise === item.exercise)
+                            : undefined
+                      }
+                      // After consent, a dropped or failed room lets the trainee track with a
+                      // local camera; the room's camera replaces it once video rejoins.
+                      sessionCamera={
+                        !demo && services.video && (connected || connecting || !sharingSummaries)
+                      }
+                      onEnableCamera={
+                        item.status === 'live'
+                          ? connected
+                            ? () => void toggleCamera()
+                            : () => setShowConsent(true)
+                          : undefined
+                      }
+                      onAnalysis={sharingSummaries ? onAnalysis : undefined}
+                      initialReps={me?.metric?.revision === item.revision ? me.metric.reps : 0}
+                      initialHoldSeconds={
+                        me?.metric?.revision === item.revision ? me.metric.holdSeconds : 0
+                      }
+                      initialArms={
+                        me?.metric?.revision === item.revision
+                          ? (me.metric.arms ?? undefined)
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <div
+                    className={`coach-stage meeting-tile${coachControls ? ' coach-controls-open' : ''}`}
+                    role="group"
+                    aria-label="Coach video"
+                    data-dragging={coachDrag.dragging || undefined}
+                    {...coachDrag.handlers}
+                  >
+                    <div className="coach-video-toolbar">
+                      <strong title={item.coachName}>
+                        {item.coachName} <small>Coach</small>
+                      </strong>
+                      <select
+                        ref={coachVideoSizeRef}
+                        aria-label="Coach video size"
+                        value={coachVideoLayout.size}
+                        hidden={coachVideoLayout.minimized || coachVideoLayout.size === 'small'}
+                        onChange={(event) => {
+                          const size = event.target.value as CoachVideoLayout['size'];
+                          updateCoachVideoLayout({
+                            ...coachVideoLayout,
+                            size,
+                          });
+                          if (size === 'small')
+                            requestAnimationFrame(() => enlargeCoachVideoRef.current?.focus());
+                        }}
+                      >
+                        <option value="small">Picture in picture</option>
+                        <option value="medium">Balanced</option>
+                        <option value="large">Coach focus</option>
+                      </select>
+                      <button
+                        ref={enlargeCoachVideoRef}
+                        className="coach-video-toggle coach-video-enlarge"
+                        aria-label="Enlarge coach video"
+                        title="Enlarge coach video"
+                        hidden={coachVideoLayout.minimized || coachVideoLayout.size !== 'small'}
+                        onClick={() => {
+                          updateCoachVideoLayout({ ...coachVideoLayout, size: 'medium' });
+                          requestAnimationFrame(() => coachVideoSizeRef.current?.focus());
+                        }}
+                      >
+                        <Maximize2 size={17} />
+                      </button>
+                      <button
+                        className="coach-video-toggle"
+                        aria-label={
+                          coachVideoLayout.minimized
+                            ? 'Restore coach video'
+                            : 'Minimize coach video'
+                        }
+                        title={
+                          coachVideoLayout.minimized
+                            ? 'Restore coach video'
+                            : 'Minimize coach video'
+                        }
+                        aria-expanded={!coachVideoLayout.minimized}
+                        aria-controls="coach-video-feed"
+                        onClick={() =>
+                          updateCoachVideoLayout({
+                            ...coachVideoLayout,
+                            minimized: !coachVideoLayout.minimized,
+                          })
+                        }
+                      >
+                        {coachVideoLayout.minimized ? (
+                          <Maximize2 size={17} />
+                        ) : (
+                          <Minimize2 size={17} />
+                        )}
+                      </button>
+                    </div>
+                    <div
+                      id="coach-video-feed"
+                      className="coach-primary-feed"
+                      hidden={coachVideoLayout.minimized}
+                      // Pointer shortcut only: the buttons stay keyboard reachable and
+                      // show themselves on focus.
+                      onClick={() => setCoachControls((open) => !open)}
+                    >
+                      {coachParticipant ? (
+                        <ParticipantVideo participant={coachParticipant} />
+                      ) : (
+                        <div className="meeting-empty-video">
+                          <Avatar name={item.coachName} />
+                          <span>
+                            {connected
+                              ? 'Waiting for your coach'
+                              : 'Join to see and hear your coach'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="meeting-tile-name">
+                        <span>
+                          {coachVideoLayout.size === 'small'
+                            ? item.coachName
+                            : coachParticipant?.isSpeaking
+                              ? 'Speaking'
+                              : 'Coach audio'}
+                        </span>
+                        {coachParticipant && <ConnectionBadge participant={coachParticipant} />}
+                        {coachParticipant?.isMicrophoneEnabled ? (
+                          <Mic size={15} />
+                        ) : (
+                          <MicOff size={15} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
+        </div>
+        {panel.open && <RoomPanel state={panel} tabs={panelTabs} />}
+      </div>
+      {!ended && (
+        <>
           <footer className="meeting-dock" aria-label="Meeting controls">
-            <div className="meeting-call-buttons">
+            <div
+              className="meeting-call-buttons meeting-device-buttons"
+              role="group"
+              aria-label="Your devices"
+            >
               <button
                 className={`meeting-control ${!mic ? 'device-off' : ''}`}
                 aria-label={mic ? 'Mute microphone' : 'Enable microphone'}
@@ -1550,32 +1921,13 @@ export function Studio({
                 {camera ? <Video size={21} /> : <VideoOff size={21} />}
                 <span>Camera</span>
               </button>
-              <button
-                className="meeting-control"
-                aria-label="More options"
-                onClick={() => setDevicesOpen(true)}
-              >
-                <Settings2 size={21} />
-                <span>Options</span>
-              </button>
-              <button
-                className="meeting-control"
-                aria-label="Chat"
-                onClick={() => setChatOpen(true)}
-              >
-                <MessageSquare size={21} />
-                <span>Chat{messages.length ? ` (${messages.length})` : ''}</span>
-              </button>
-              {coach ? (
-                <button
-                  className={`meeting-control ${item.participants.some((p) => p.helpRequested) ? 'has-help' : ''}`}
-                  aria-label="Coach tools"
-                  onClick={() => setCoachToolsOpen(true)}
-                >
-                  <Users size={21} />
-                  <span>Coach tools</span>
-                </button>
-              ) : (
+            </div>
+            <div
+              className="meeting-call-buttons meeting-class-buttons"
+              role="group"
+              aria-label="Class"
+            >
+              {!coach && (
                 <button
                   className={`meeting-control ${me?.helpRequested ? 'has-help' : ''}`}
                   aria-label={me?.helpRequested ? 'Cancel help request' : 'Ask my coach for help'}
@@ -1587,8 +1939,6 @@ export function Studio({
                   <span>{me?.helpRequested ? 'Hand raised' : 'Raise hand'}</span>
                 </button>
               )}
-            </div>
-            <div className="meeting-session-buttons">
               {coach && item.status === 'scheduled' && (
                 <button
                   className="button lime"
@@ -1632,42 +1982,84 @@ export function Studio({
                   </span>
                 </button>
               )}
-              {connected && (
+            </div>
+            <div className={`meeting-dock-end ${panelStyles.dockEnd}`}>
+              <div
+                className="meeting-call-buttons meeting-panel-buttons"
+                role="group"
+                aria-label="Room tools"
+              >
                 <button
-                  className="button meeting-leave"
-                  aria-label="Leave video"
-                  title="Leave the video call. The class keeps running for everyone else."
-                  onClick={async () => {
-                    joinGeneration.current++;
-                    cancelRejoin.current?.();
-                    setDisconnectNotice(null);
-                    setSharingSummaries(false);
-                    await room.current?.disconnect();
-                    setConnected(false);
-                    setStream(null);
-                  }}
+                  className="meeting-control"
+                  aria-label="Chat"
+                  onClick={() => panel.toggle('chat')}
+                  aria-expanded={panel.open && panel.tab === 'chat'}
+                  aria-controls={panel.open && panel.tab === 'chat' ? 'room-panel' : undefined}
                 >
-                  <PhoneOff size={17} />
-                  <span className="meeting-full-label">Leave video</span>
-                  <span className="meeting-mobile-label" aria-hidden="true">
-                    Leave
-                  </span>
+                  <MessageSquare size={21} />
+                  <span>Chat{messages.length ? ` (${messages.length})` : ''}</span>
                 </button>
-              )}
-              {coach && item.status === 'live' && (
+                {coach && (
+                  <button
+                    className={`meeting-control ${item.participants.some((p) => p.helpRequested) ? 'has-help' : ''}`}
+                    aria-label="Coach tools"
+                    onClick={() => panel.toggle('coach')}
+                    aria-expanded={panel.open && panel.tab === 'coach'}
+                    aria-controls={panel.open && panel.tab === 'coach' ? 'room-panel' : undefined}
+                  >
+                    <Users size={21} />
+                    <span>Coach tools</span>
+                  </button>
+                )}
                 <button
-                  className="button danger meeting-end"
-                  aria-label="End session"
-                  title="End the class for every trainee"
-                  onClick={() => setEnding(true)}
+                  className="meeting-control"
+                  aria-label="More options"
+                  onClick={() => panel.toggle('options')}
+                  aria-expanded={panel.open && panel.tab === 'options'}
+                  aria-controls={panel.open && panel.tab === 'options' ? 'room-panel' : undefined}
                 >
-                  <CircleStop size={17} />
-                  <span className="meeting-full-label">End session</span>
-                  <span className="meeting-mobile-label" aria-hidden="true">
-                    End
-                  </span>
+                  <Settings2 size={21} />
+                  <span>Options</span>
                 </button>
-              )}
+              </div>
+              <div className="meeting-session-buttons">
+                {connected && (
+                  <button
+                    className="button meeting-leave"
+                    aria-label="Leave video"
+                    title="Leave the video call. The class keeps running for everyone else."
+                    onClick={async () => {
+                      joinGeneration.current++;
+                      cancelRejoin.current?.();
+                      setDisconnectNotice(null);
+                      setSharingSummaries(false);
+                      await room.current?.disconnect();
+                      setConnected(false);
+                      setStream(null);
+                    }}
+                  >
+                    <PhoneOff size={17} />
+                    <span className="meeting-full-label">Leave video</span>
+                    <span className="meeting-mobile-label" aria-hidden="true">
+                      Leave
+                    </span>
+                  </button>
+                )}
+                {coach && item.status === 'live' && (
+                  <button
+                    className="button danger meeting-end"
+                    aria-label="End session"
+                    title="End the class for every trainee"
+                    onClick={() => setEnding(true)}
+                  >
+                    <CircleStop size={17} />
+                    <span className="meeting-full-label">End session</span>
+                    <span className="meeting-mobile-label" aria-hidden="true">
+                      End
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
           </footer>
           {remote.map((p) => (
@@ -1678,380 +2070,6 @@ export function Studio({
             />
           ))}
         </>
-      )}
-      {coachToolsOpen && coach && (
-        <Modal title="Coach tools" onClose={() => setCoachToolsOpen(false)}>
-          <div className="form-stack">
-            <div className="coach-roster" aria-label="Trainee monitoring roster">
-              {item.participants.map((person) => {
-                const fresh =
-                  person.metric &&
-                  person.metric.revision === item.revision &&
-                  person.metric.exercise === item.exercise &&
-                  !item.paused &&
-                  Date.now() - Date.parse(person.metric.updatedAt) < 12000;
-                return (
-                  <button
-                    type="button"
-                    key={person.id}
-                    className={`coach-roster-row ${focus === person.id ? 'selected' : ''}`}
-                    onClick={() => setFocus(person.id)}
-                    aria-pressed={focus === person.id}
-                  >
-                    <strong>
-                      {person.name}
-                      {person.helpRequested ? ' · Help requested' : ''}
-                    </strong>
-                    <span>
-                      {fresh
-                        ? `${Math.round(person.metric!.confidence * 100)}% tracking · ${person.metric!.quality == null ? 'No completed rep' : `${Math.round(person.metric!.quality)} /100 last rep`}`
-                        : 'No recent tracking'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <label>
-              Send guidance to
-              <select
-                aria-label="Cue recipient"
-                value={focus || ''}
-                onChange={(e) => setFocus(e.target.value || null)}
-              >
-                <option value="">Everyone in class</option>
-                {item.participants.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.helpRequested ? ' · Help requested' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {focused?.metric && (
-              <div className="coach-observation">
-                <strong>{focused.name}</strong>
-                <p>{focused.metric.cue}</p>
-                <small>
-                  {new Date(focused.metric.updatedAt).toLocaleTimeString()} · last reported feedback
-                </small>
-                <p className="microcopy">
-                  {focused.metric.rangeDegrees == null
-                    ? 'Range unavailable'
-                    : `${Math.round(focused.metric.rangeDegrees)}° last range`}{' '}
-                  ·{' '}
-                  {focused.metric.repSeconds == null
-                    ? 'Tempo unavailable'
-                    : `${focused.metric.repSeconds.toFixed(1)}s last rep`}{' '}
-                  ·{' '}
-                  {focused.metric.trackingCoverage == null
-                    ? 'Coverage unavailable'
-                    : `${Math.round(focused.metric.trackingCoverage)}% set tracking`}
-                </p>
-              </div>
-            )}
-            <form
-              className="form-stack"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send(cue, 'cue', focus || undefined);
-              }}
-            >
-              <label htmlFor="coaching-cue">Coaching cue</label>
-              <textarea
-                id="coaching-cue"
-                value={cue}
-                onChange={(e) => setCue(e.target.value)}
-                placeholder="Give one clear correction…"
-                maxLength={600}
-                rows={3}
-              />
-              <button className="button lime full" disabled={!cue.trim() || item.status !== 'live'}>
-                <Send size={17} />
-                Send {focus ? 'personal' : 'class'} cue
-              </button>
-            </form>
-            {focused?.helpRequested && (
-              <button className="button outline full" onClick={() => void help(false, focused.id)}>
-                <Check size={17} />
-                Mark help request addressed
-              </button>
-            )}
-            {focused && connected && (
-              <button
-                className="button outline full"
-                disabled={deviceBusy}
-                onClick={() => void muteParticipants(focused.id)}
-              >
-                <MicOff size={17} />
-                Mute {focused.name.split(' ')[0]}’s microphone
-              </button>
-            )}
-            <button
-              className="button outline full"
-              disabled={!connected || deviceBusy}
-              onClick={() => void muteParticipants()}
-            >
-              <MicOff size={17} />
-              Mute trainee microphones
-            </button>
-            <p className="microcopy">
-              Speak through your microphone to coach the whole class. Select a trainee to send a
-              private text cue. Microphones can be muted; each trainee decides when to unmute.
-            </p>
-          </div>
-        </Modal>
-      )}
-      {chatOpen && (
-        <Modal title="Session conversation" onClose={() => setChatOpen(false)}>
-          <section className="chat-panel meeting-chat">
-            <div className="chat-messages" aria-live="polite">
-              {!messages.length ? (
-                <p className="microcopy">Send a message to the class.</p>
-              ) : (
-                messages.map((m) => (
-                  <div
-                    className={`message ${m.senderId === user.id ? 'mine' : ''} ${m.kind === 'cue' ? 'cue-message' : ''}`}
-                    key={m.id}
-                  >
-                    <span>
-                      {m.senderName}
-                      {m.recipientId ? ' · Private' : ''}
-                      {m.kind === 'cue' ? ' · Coach cue' : ''}
-                    </span>
-                    <p>{m.text}</p>
-                    <time>
-                      {new Date(m.createdAt).toLocaleTimeString(undefined, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </time>
-                  </div>
-                ))
-              )}
-            </div>
-            <form
-              className="chat-input"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void send(draft);
-              }}
-            >
-              <input
-                aria-label="Session message"
-                placeholder="Message your class…"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                maxLength={600}
-              />
-              <button
-                aria-label="Send session message"
-                className="icon-button"
-                disabled={!draft.trim() || item.status !== 'live'}
-              >
-                <Send size={18} />
-              </button>
-            </form>
-          </section>
-        </Modal>
-      )}
-      {devicesOpen && (
-        <Modal title="Meeting options" onClose={() => setDevicesOpen(false)}>
-          {item.status === 'live' && sessionDetails}
-          <div className="form-stack">
-            <details
-              className="meeting-diagnostics"
-              onToggle={(event) => setDiagnostics(event.currentTarget.open)}
-            >
-              <summary>Connection diagnostics</summary>
-              {diagnostics && (
-                <div>
-                  <p>
-                    Connection: {connectionState} · Camera: {camera ? 'on' : 'off'} · Microphone:{' '}
-                    {mic ? 'on' : 'off'}
-                  </p>
-                  <button
-                    className="text-link"
-                    onClick={async () => {
-                      const report = JSON.stringify(
-                        {
-                          connection: connectionState,
-                          camera,
-                          microphone: mic,
-                          audioBlocked,
-                          sessionSync: Boolean(syncWarning),
-                          summarySharing: Boolean(analysisWarning),
-                          timestamp: new Date().toISOString(),
-                        },
-                        null,
-                        2,
-                      );
-                      try {
-                        await navigator.clipboard.writeText(report);
-                        setDiagnosticsNotice('Diagnostics copied.');
-                      } catch {
-                        setDiagnosticsNotice('Copy is unavailable in this browser.');
-                      }
-                    }}
-                  >
-                    Copy diagnostics
-                  </button>
-                  <p role="status">{diagnosticsNotice}</p>
-                </div>
-              )}
-            </details>
-            {connected && (
-              <fieldset disabled={deviceBusy}>
-                <VideoDevices
-                  preferences={preferences}
-                  onChange={(next) => void changeDevices(next)}
-                />
-              </fieldset>
-            )}
-            <button
-              className="button outline full"
-              disabled={!connected || !camera || deviceBusy}
-              onClick={() => void flipCamera()}
-            >
-              <SwitchCamera size={17} />
-              Flip camera
-            </button>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={mirror}
-                onChange={(event) => setMirror(event.target.checked)}
-              />
-              Mirror my camera preview
-            </label>
-            {!coach && (
-              <>
-                <label>
-                  Floating coach position
-                  <select
-                    aria-label="Floating coach position"
-                    value={coachVideoLayout.position}
-                    onChange={(event) =>
-                      updateCoachVideoLayout({
-                        ...coachVideoLayout,
-                        position: event.target.value as CoachVideoLayout['position'],
-                      })
-                    }
-                  >
-                    <option value="top-right">Top right</option>
-                    <option value="top-left">Top left</option>
-                    <option value="bottom-right">Bottom right</option>
-                    <option value="bottom-left">Bottom left</option>
-                  </select>
-                </label>
-                <label>
-                  Coach audio volume: {Math.round(coachVolume * 100)}%
-                  <input
-                    aria-label="Coach audio volume"
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={coachVolume}
-                    onChange={(event) => setCoachVolume(Number(event.target.value))}
-                  />
-                </label>
-                <p className="microcopy">
-                  Position applies to the small or minimized coach view. Volume changes only what
-                  you hear.
-                </p>
-              </>
-            )}
-            <button
-              className="button outline full"
-              disabled={!connected}
-              onClick={async () => {
-                try {
-                  await room.current?.startAudio();
-                  setAudioBlocked(false);
-                } catch {
-                  setAudioBlocked(true);
-                }
-              }}
-            >
-              <Volume2 size={17} />
-              Enable room audio
-            </button>
-            {coach && (
-              <ScreenShareButton
-                room={connected ? room.current : null}
-                connected={connected}
-                onError={setError}
-              />
-            )}
-            <button
-              className="button outline full"
-              onClick={async () => {
-                try {
-                  if (!document.fullscreenElement) await meetingRef.current?.requestFullscreen();
-                  else await document.exitFullscreen();
-                } catch {
-                  setError('Fullscreen is unavailable in this browser.');
-                }
-              }}
-            >
-              <Maximize size={17} />
-              Fullscreen
-            </button>
-            {!coach && (
-              <button
-                className="button outline full"
-                onClick={() => {
-                  setDevicesOpen(false);
-                  setShowClassmates(true);
-                }}
-              >
-                <Users size={17} />
-                Show classmates
-              </button>
-            )}
-            <p className="microcopy">
-              {demo
-                ? 'Sample mode has no live participants. Try Camera practice to analyze your own movement.'
-                : !services.video
-                  ? 'Live video is unavailable. Your coach can enable it in studio configuration.'
-                  : `Video connection: ${connectionState}. Camera analysis stays on your device. No class recording.`}
-            </p>
-          </div>
-        </Modal>
-      )}
-      {showClassmates && !coach && (
-        <Modal title="Classmates" onClose={() => setShowClassmates(false)}>
-          <div className="monitor-pagination">
-            <span>
-              {classmates.length} classmates · Page {safeClassmatePage + 1}/{lastClassmatePage + 1}
-            </span>
-            <button
-              disabled={safeClassmatePage === 0}
-              onClick={() => setClassmatePage(safeClassmatePage - 1)}
-            >
-              Previous
-            </button>
-            <button
-              disabled={safeClassmatePage === lastClassmatePage}
-              onClick={() => setClassmatePage(safeClassmatePage + 1)}
-            >
-              Next
-            </button>
-          </div>
-          <div className="classmate-gallery">
-            {visibleClassmates.map((p) => (
-              <div key={p.identity} className="classmate-feed">
-                <ParticipantVideo participant={p} />
-                <span>
-                  {p.name || 'Classmate'} · {p.isMicrophoneEnabled ? 'Mic on' : 'Muted'}
-                </span>
-              </div>
-            ))}
-            {!remote.some((p) => p.identity !== item.coachId) && (
-              <p>No classmates have joined video yet.</p>
-            )}
-          </div>
-        </Modal>
       )}
       {showConsent && (
         <Modal title="A shared space to move together." onClose={() => setShowConsent(false)}>

@@ -177,6 +177,26 @@ export function classPermissionsFromGrants(
     ],
   );
 }
+/**
+ * The users who can manage (and so read every trainee's summary in) this class, by the
+ * same rule as `classPermissionsFromGrants`. `grants` must hold the studio's active
+ * admin and coach grants. A closed studio has no managers.
+ */
+export function classManagerIds(
+  item: {
+    studioId: string;
+    hostId: string | null;
+    studio: { ownerId: string; status?: string };
+  },
+  grants: ClassAccessGrant[],
+) {
+  const candidates = new Set([
+    item.hostId ?? item.studio.ownerId,
+    item.studio.ownerId,
+    ...grants.filter((g) => g.role === 'admin').map((g) => g.userId),
+  ]);
+  return [...candidates].filter((id) => classPermissionsFromGrants(item, id, grants).canManage);
+}
 export async function classPermissions(
   item: { studioId: string; hostId: string | null; studio: { ownerId: string } },
   userId: string,

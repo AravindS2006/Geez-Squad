@@ -45,7 +45,13 @@ import {
   rejoinAttemptAfterDrop,
   rejoinDelayMs,
 } from '@/lib/room-disconnect';
-import { summaryChanged, summaryDue } from '@/lib/summary-sharing';
+import {
+  nextSummaryDelay,
+  summaryChanged,
+  summaryUrgentKey,
+  summaryWait,
+} from '@/lib/summary-sharing';
+import { createRefreshLoop } from '@/lib/live-refresh';
 import { cueHideDelay } from '@/lib/live-room-a11y';
 import { DEFAULT_TILE_ASPECT, tileAspect } from '@/lib/room-layout';
 import { Avatar, EmptyState, Modal } from './ui';
@@ -156,7 +162,8 @@ export function Studio({
   // Coach or trainee: a sleeping screen drops the class even with the camera off.
   useScreenAwake(connected);
   const [syncWarning, setSyncWarning] = useState('');
-  const [refreshSignal, setRefreshSignal] = useState(0);
+  /** Ask the snapshot loop for an early refetch (coalesced; set while the loop runs). */
+  const requestRefresh = useRef<(() => void) | null>(null);
   const [roomFeatures] = useState(() => features ?? coachingFeatures());
   const lastNotification = useRef({ sequence: -1, nonces: [] as string[] });
   const [participationReason, setParticipationReason] = useState('');
@@ -227,6 +234,9 @@ export function Studio({
   const room = useRef<Room | null>(null),
     current = useRef(item),
     latestAnalysis = useRef<{ value: Analysis; at: number } | null>(null),
+    /** Count/hold/tracking key of the last summary sent (see summaryUrgentKey). */
+    sentSummaryKey = useRef(''),
+    shareNow = useRef<((urgent: boolean) => Promise<void>) | null>(null),
     lastShared = useRef(0),
     lastSharedBody = useRef(''),
     metricBusy = useRef(false),
@@ -302,18 +312,15 @@ export function Studio({
   useEffect(() => {
     if (demo || !item?.id) return;
     let active = true;
-    let timer: ReturnType<typeof setTimeout>;
     let failures = 0;
-    async function poll() {
+    /** One snapshot fetch; resolves the delay until the next regular one. */
+    async function poll(): Promise<number> {
       const version = controlVersion.current;
       try {
         const state = await fetchJson<LiveState>(`/api/classes/${initialClass!.id}`);
-        if (!active) return;
+        if (!active) return 0;
         failures = 0;
-        if (controlPending.current || version !== controlVersion.current) {
-          timer = setTimeout(poll, 3000);
-          return;
-        }
+        if (controlPending.current || version !== controlVersion.current) return 3000;
         setItem((p) => (p ? { ...p, ...state } : p));
         setMessages(state.messages);
         setParticipationReason(state.participationAllowed ? '' : state.participationReason);
@@ -359,25 +366,24 @@ export function Studio({
           );
         }
       }
-      if (active)
-        timer = setTimeout(
-          poll,
-          document.hidden ? HIDDEN_POLL_MS : Math.min(15000, 3000 * (failures + 1)),
-        );
+      return document.hidden ? HIDDEN_POLL_MS : Math.min(15000, 3000 * (failures + 1));
     }
+    // LiveKit nudges and a returning tab ask for an early fetch; the loop coalesces
+    // them and never drops a fetch already in flight.
+    const loop = createRefreshLoop(poll);
     const resume = () => {
-      if (!active || document.hidden) return;
-      clearTimeout(timer);
-      void poll();
+      if (active && !document.hidden) loop.request();
     };
-    void poll();
+    requestRefresh.current = loop.request;
+    loop.start();
     document.addEventListener('visibilitychange', resume);
     return () => {
       active = false;
-      clearTimeout(timer);
+      loop.stop();
+      requestRefresh.current = null;
       document.removeEventListener('visibilitychange', resume);
     };
-  }, [demo, initialClass?.id, refreshSignal]);
+  }, [demo, initialClass?.id]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -386,29 +392,41 @@ export function Studio({
     latestAnalysis.current = null;
     lastShared.current = 0;
     lastSharedBody.current = '';
+    sentSummaryKey.current = '';
   }, [item?.revision, item?.exercise]);
   useEffect(() => {
     if (demo || coach) return;
-    const timer = setInterval(async () => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    /** One urgent send at the earliest moment the spacing allows. */
+    function shareSoon(delay: number) {
+      if (pending) return;
+      pending = setTimeout(() => {
+        pending = null;
+        void share(true);
+      }, delay);
+    }
+    // A changed count, hold or tracking state is sent right away (onAnalysis) within the
+    // minimum spacing; the 3 s interval carries score/cue changes and the heartbeat.
+    async function share(urgent: boolean) {
       const snapshot = latestAnalysis.current,
         c = current.current,
         now = Date.now();
+      if (!snapshot || !c) return;
       // Video is not required: local counting keeps feeding the coach over HTTP
       // while the room is reconnecting, dropped or unavailable.
-      if (
-        !snapshot ||
-        !c ||
-        !summaryDue({
-          consentRecorded: sharingSummaries,
-          classLive: c.status === 'live',
-          classPaused: c.paused,
-          hasSnapshot: true,
-          requestInFlight: metricBusy.current,
-          now,
-          lastSentAt: lastShared.current,
-        })
-      )
+      const wait = summaryWait({
+        consentRecorded: sharingSummaries,
+        classLive: c.status === 'live',
+        classPaused: c.paused,
+        hasSnapshot: true,
+        requestInFlight: metricBusy.current,
+        now,
+        lastSentAt: lastShared.current,
+      });
+      if (wait !== 0) {
+        if (urgent && wait !== null) shareSoon(wait);
         return;
+      }
       const a =
         now - snapshot.at < 2000
           ? snapshot.value
@@ -450,6 +468,7 @@ export function Studio({
       if (!summaryChanged(body, lastSharedBody.current, now, lastShared.current)) return;
       metricBusy.current = true;
       lastShared.current = now;
+      sentSummaryKey.current = summaryUrgentKey(a);
       try {
         await fetchJson('/api/metrics', {
           method: 'POST',
@@ -465,8 +484,18 @@ export function Studio({
       } finally {
         metricBusy.current = false;
       }
-    }, 3000);
-    return () => clearInterval(timer);
+      // The count moved while this request was in flight: follow up as soon as allowed.
+      const latest = latestAnalysis.current;
+      if (latest && summaryUrgentKey(latest.value) !== sentSummaryKey.current)
+        shareSoon(nextSummaryDelay(Date.now(), lastShared.current));
+    }
+    shareNow.current = share;
+    const timer = setInterval(() => void share(false), 3000);
+    return () => {
+      clearInterval(timer);
+      if (pending) clearTimeout(pending);
+      shareNow.current = null;
+    };
   }, [demo, coach, sharingSummaries]);
   async function control(control: string, exercise?: string, blockId?: string) {
     if (!item || controlPending.current) return;
@@ -654,7 +683,7 @@ export function Studio({
             sequence: event.sequence,
             nonces: [...last.nonces.slice(-63), event.nonce],
           };
-          setRefreshSignal((n) => n + 1);
+          requestRefresh.current?.();
         } catch {
           /* Ignore malformed notifications; authenticated snapshots reconcile state. */
         }
@@ -925,6 +954,7 @@ export function Studio({
   }
   function onAnalysis(a: Analysis) {
     latestAnalysis.current = { value: a, at: Date.now() };
+    if (summaryUrgentKey(a) !== sentSummaryKey.current) void shareNow.current?.(true);
   }
   function updateCoachVideoLayout(next: CoachVideoLayout) {
     setCoachVideoLayout(next);

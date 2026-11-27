@@ -22,6 +22,7 @@ import {
   requireStudio,
   requireTraineeAccess,
   classPermissions,
+  classManagerIds,
   coachTraineeWhere,
 } from '../src/lib/studio-access';
 beforeEach(() => {
@@ -141,5 +142,34 @@ describe('coachTraineeWhere', () => {
         studioRoles: { some: { studioId: 's1', role: 'trainee', status: { not: 'active' } } },
       },
     });
+  });
+});
+
+describe('class manager ids (summary nudge recipients)', () => {
+  const item = {
+    studioId: 'studio',
+    hostId: 'coach',
+    studio: { ownerId: 'owner', status: 'active' },
+  };
+  const grant = (userId: string, role: string) => ({ userId, role, status: 'active' });
+  it('matches the canManage rule: owner, active admins and the host with an active coach grant', () => {
+    expect(
+      classManagerIds(item, [
+        grant('coach', 'coach'),
+        grant('admin', 'admin'),
+        grant('other', 'coach'),
+      ]).sort(),
+    ).toEqual(['admin', 'coach', 'owner']);
+  });
+  it('drops a host whose coach grant was revoked', () => {
+    expect(classManagerIds(item, [grant('admin', 'admin')]).sort()).toEqual(['admin', 'owner']);
+  });
+  it('gives a closed studio no managers', () => {
+    expect(
+      classManagerIds({ ...item, studio: { ...item.studio, status: 'closed' } }, [
+        grant('coach', 'coach'),
+        grant('admin', 'admin'),
+      ]),
+    ).toEqual([]);
   });
 });

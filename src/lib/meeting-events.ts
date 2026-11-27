@@ -8,6 +8,8 @@ export async function notifyMeeting(
   item: { id: string; videoRoomName: string | null; controlSequence: number },
   recipients?: string[],
 ) {
+  // An empty destination list would broadcast to the whole room.
+  if (recipients && recipients.length === 0) return;
   const { LIVEKIT_URL: url, LIVEKIT_API_KEY: key, LIVEKIT_API_SECRET: secret } = process.env;
   if (!url || !key || !secret) return;
   try {

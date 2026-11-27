@@ -246,11 +246,11 @@ test('a trainee follows an invitation through signup, onboarding, enrollment, an
     await coach.getByRole('button', { name: /Journey Trainee/ }).click();
     await coach.getByRole('button', { name: 'Coach tools', exact: true }).click();
     await coach
-      .getByRole('dialog')
+      .getByRole('complementary', { name: 'Coach tools panel' })
       .getByLabel('Coaching cue', { exact: true })
       .fill('Let’s keep the movement controlled.');
     await coach.getByRole('button', { name: 'Send personal cue' }).click();
-    await coach.getByRole('button', { name: 'Close dialog' }).click();
+    await coach.getByRole('button', { name: 'Close panel' }).click();
     await expect(trainee.locator('.human-cue')).toContainText(
       'Let’s keep the movement controlled.',
     );

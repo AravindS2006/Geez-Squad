@@ -119,13 +119,14 @@ test('shared session survives login, rescheduling reaches an open room, and endi
     });
     await expect(page.getByLabel('Session elapsed time')).toContainText('02:');
     await page.getByRole('button', { name: 'More options', exact: true }).click();
-    await expect(page.getByRole('dialog').locator('.meeting-schedule-bar')).toContainText(
+    const options = page.getByRole('complementary', { name: 'Options panel' });
+    await expect(options.locator('.meeting-schedule-bar')).toContainText(
       'Meeting time includes pauses.',
     );
-    expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual(
+    expect((await new AxeBuilder({ page }).include('#room-panel').analyze()).violations).toEqual(
       [],
     );
-    await page.getByRole('button', { name: 'Close dialog', exact: true }).click();
+    await page.getByRole('button', { name: 'Close panel', exact: true }).click();
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('button', { name: 'End session for everyone' }).click();
     await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible();

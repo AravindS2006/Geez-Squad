@@ -1,0 +1,445 @@
+/* Live room shell and side panel geometry. The stage keeps its own geometry in
+ * meeting-workspace.module.css; this file decides where the stage ends and the panel
+ * begins. The panel is a light paper surface (the app is light only), like the dialogs
+ * it replaces, so its forms keep their tested contrast. */
+
+/* ---------- Shell ---------- */
+.shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.shell[data-panel='docked'] {
+  grid-template-columns: minmax(0, 1fr) var(--room-panel-width, 360px);
+}
+.main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Notices stay in the flow above the stage, so a persistent one (reconnecting, audio
+ * blocked) never covers the camera's top bar or the coach tile controls. The trainee's
+ * coach cue is also in this container but positions itself as a banner over the header. */
+.overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 12px;
+}
+.overlay:empty {
+  display: none;
+}
+.shell .main > .overlay > :global(.meeting-notice) {
+  margin: 6px 0 0;
+}
+.shell .main > .overlay > :global(.meeting-notice:last-child) {
+  margin-bottom: 6px;
+}
+
+/* The dock's right zone: room tools, then Leave and End. */
+.dockEnd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- Panel frame ---------- */
+.panel {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+}
+.panel[data-presentation='docked'] {
+  grid-column: 2;
+  grid-row: 1;
+  height: 100%;
+  margin: 0 12px 0 4px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+.panel[data-presentation='floating'] {
+  position: absolute;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 45%);
+  overflow: hidden;
+}
+.panel[data-presentation='side-sheet'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 88vw);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-left: 1px solid var(--border-2);
+  box-shadow: -16px 0 48px rgb(0 0 0 / 40%);
+}
+.panel[data-presentation='sheet'] {
+  position: fixed;
+  z-index: 60;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(72dvh, 640px);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -16px 48px rgb(0 0 0 / 45%);
+}
+.grabber {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+  background: var(--border-2);
+  flex-shrink: 0;
+}
+
+/* Left-edge resize handle: 24px hit area, 2px line on hover and focus. */
+.separator {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  bottom: 12px;
+  left: -16px;
+  width: 24px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.separator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 4px;
+  height: 48px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-full);
+  background: var(--text-3);
+  opacity: 0.7;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    height var(--dur-fast) var(--ease);
+}
+.separator:hover::after,
+.separator:focus-visible::after {
+  opacity: 1;
+  height: 96px;
+  background: var(--accent);
+}
+.separator:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Header and tabs ---------- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 0 16px;
+  flex-shrink: 0;
+}
+.header[data-movable] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+:global(html[data-room-dragging='move']) .header[data-movable] {
+  cursor: grabbing;
+}
+:global(html[data-room-dragging]) {
+  user-select: none;
+}
+:global(html[data-room-dragging='col']) {
+  cursor: col-resize;
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--fs-base);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Tabs: one segmented row under the title; scrolls sideways if it ever runs out of room. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin: 8px 12px 0;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  flex: 1 0 auto;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tab:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+.tab[aria-selected='true'] {
+  background: var(--surface-1);
+  color: var(--text-1);
+  box-shadow: var(--shadow-1);
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.iconButton,
+.resize {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.iconButton:hover,
+.resize:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+.iconButton[data-drag-handle] {
+  cursor: grab;
+}
+.resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  cursor: nwse-resize;
+  touch-action: none;
+  color: var(--text-3);
+  background: var(--surface-1);
+  border-radius: var(--radius-md) 0 var(--radius-lg) 0;
+}
+/* Beats the room's lime ring: on paper the focus ring is ink. */
+.panel[data-presentation]
+  :is(button, a, select, input, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.panel[data-presentation] .tab:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ---------- Body ---------- */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: 8px;
+  border-top: 1px solid var(--border-1);
+  padding: 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.panel[data-presentation='floating'] .body {
+  padding-bottom: 48px;
+}
+
+/* Content that used to live in dialogs keeps the dialog look on this paper surface. */
+.panel[data-presentation] .body :is(label, p, h2, h3, small, summary, legend) {
+  color: var(--text-1);
+}
+.panel[data-presentation] .body :global(.microcopy) {
+  color: var(--text-2);
+}
+.panel[data-presentation] .body :global(.button.outline) {
+  color: var(--text-1);
+  background: var(--surface-1);
+  border-color: var(--border-2);
+}
+.panel[data-presentation] .body :global(.button.outline:hover:not(:disabled)) {
+  background: var(--surface-2);
+}
+.panel[data-presentation] .body :global(.icon-button) {
+  color: var(--text-1);
+  background: var(--surface-2);
+  border-color: var(--border-2);
+}
+.panel[data-presentation] .body :is(input, select, textarea) {
+  font-size: var(--fs-md);
+}
+.panel[data-presentation] .body :global(.meeting-schedule-bar span) {
+  color: var(--text-2);
+}
+.panel[data-presentation] .body :global(.meeting-schedule-bar) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.panel[data-presentation] .body :global(.meeting-schedule-bar p) {
+  margin: 0;
+}
+.panel[data-presentation] .body :global(.meeting-diagnostics) {
+  padding: 10px 12px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: var(--fs-xs);
+}
+.panel[data-presentation] .body :global(.meeting-diagnostics summary) {
+  min-height: 24px;
+  font-weight: 600;
+}
+.panel[data-presentation] .body :global(.meeting-diagnostics button) {
+  color: var(--success);
+}
+.panel[data-presentation] .body :global(fieldset) {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Chat fills the panel: messages scroll, the composer stays at the bottom. */
+.panel[data-presentation] .body:has(:global(.meeting-chat)) {
+  padding-bottom: 12px;
+}
+.panel[data-presentation] .body :global(.meeting-chat) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.panel[data-presentation] .body :global(.meeting-chat .chat-messages) {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
+  overflow-y: auto;
+}
+
+/* Workout sequence */
+.panel[data-presentation] .body :global(.room-workout-list) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel[data-presentation] .body :global(.room-workout-list > p) {
+  margin: 0;
+  color: var(--text-2);
+}
+.panel[data-presentation] .body :global(.room-workout-list label) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.panel[data-presentation] .body :global(.room-workout-list select) {
+  width: 100%;
+  min-height: 44px;
+}
+.panel[data-presentation] .body :global(.room-workout-list button) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  text-align: left;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  color: var(--text-1);
+  cursor: pointer;
+}
+.panel[data-presentation] .body :global(.room-workout-list button:hover:not(:disabled)) {
+  border-color: var(--border-2);
+  background: var(--surface-2);
+}
+.panel[data-presentation] .body :global(.room-workout-list button:disabled) {
+  cursor: default;
+}
+.panel[data-presentation] .body :global(.room-workout-list button[aria-current='step']) {
+  border-color: var(--success);
+  background: var(--accent-soft);
+}
+.panel[data-presentation] .body :global(.room-workout-list button > small) {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.panel[data-presentation] .body :global(.room-workout-list button > span) {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+.panel[data-presentation] .body :global(.room-workout-list button > span > small) {
+  color: var(--text-2);
+  font-weight: 400;
+}
+
+/* Classmates */
+.panel[data-presentation] .body :global(.classmate-gallery) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .separator::after {
+    transition: none;
+  }
+}

@@ -192,6 +192,15 @@ mode links and capability badge share the camera's top bar instead of a row abov
 `trainee-mobile-layout.spec.ts` pins the phone camera share (75% at 390x844). Picture in picture and Coach focus
 options. Saved user preferences remain respected.
 
+Secondary room tools (Chat, Coach tools, Workout, Classmates, Options) live in one side
+panel (`room-panel.tsx`, state in `use-room-panel.ts`, geometry math in `src/lib/room-layout.ts`):
+docked beside the stage and resizable (300–560px, at most 45% of the room) on screens at
+least 1024px wide and taller than 550px, floating (movable, resizable, kept inside the room)
+on request, a side sheet on tablets and short landscape, and a bottom sheet on phones. Only
+Join consent and End session stay modal. The dock is one full-width bar with three zones
+(devices · class actions · room tools and Leave/End). Notices stay in flow above the stage.
+The trainee's floating coach tile and the coach's My preview drag to the nearest corner.
+See the `live-room-ui` skill; `live-room-panel.spec.ts` pins it.
 Layout changes must preserve the analyzer DOM node, tracks, playback and counters.
 Use `contain` for full-body camera/presentation media, keep video/canvas bounds
 aligned, avoid covering important overlays, honor safe areas, provide 44px primary

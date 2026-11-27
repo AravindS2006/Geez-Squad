@@ -439,6 +439,10 @@ input[type='radio'] {
   border-top: 1px solid var(--border-1);
   background: var(--surface-1);
 }
+/* The row's border-top above is the divider; drop the button's own, which sat above the name. */
+.sidebar-account .profile-button {
+  border-top: 0;
+}
 .sidebar-account .profile-button strong {
   color: var(--text-1);
   font-size: var(--fs-md);

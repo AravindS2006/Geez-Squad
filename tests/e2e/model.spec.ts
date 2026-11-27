@@ -50,12 +50,27 @@ for (const failure of [
                 )
                 // Isolate initialization recovery from host CPU speed; the other cases test slow inference.
                 .replace('inferenceMs: performance.now() - started,', 'inferenceMs: 1,')
-            : source.replace(
-                'inferenceMs: performance.now() - started,',
-                failure === 'slow Full inference'
-                  ? "inferenceMs: variant !== 'lite' ? 150 : performance.now() - started,"
-                  : `inferenceMs: variant === 'heavy' ? ${failure === 'borderline Heavy inference' ? 150 : 250} : performance.now() - started,`,
-              ),
+            : source
+                .replace(
+                  'const { FilesetResolver, PoseLandmarker } = self.exports;',
+                  // Real Heavy inference on a slow host can exceed the 5 s stall watchdog and move
+                  // tracking to the main-thread runtime, which this Worker spy cannot observe.
+                  // Load the real model but stub its inference; the reported time drives step-down.
+                  `const { FilesetResolver, PoseLandmarker } = self.exports;
+                const nativeCreate = PoseLandmarker.createFromOptions.bind(PoseLandmarker);
+                PoseLandmarker.createFromOptions = async (files, options) => {
+                  const model = await nativeCreate(files, options);
+                  if (options.baseOptions.modelAssetPath.includes('_heavy.'))
+                    model.detectForVideo = () => ({ landmarks: [], worldLandmarks: [] });
+                  return model;
+                };`,
+                )
+                .replace(
+                  'inferenceMs: performance.now() - started,',
+                  failure === 'slow Full inference'
+                    ? "inferenceMs: variant !== 'lite' ? 150 : performance.now() - started,"
+                    : `inferenceMs: variant === 'heavy' ? ${failure === 'borderline Heavy inference' ? 150 : 250} : performance.now() - started,`,
+                ),
       });
     });
     try {

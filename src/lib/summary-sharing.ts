@@ -25,14 +25,38 @@ export type SummaryGate = {
 };
 
 export function summaryDue(gate: SummaryGate) {
-  return (
-    gate.consentRecorded &&
-    gate.classLive &&
-    !gate.classPaused &&
-    gate.hasSnapshot &&
-    !gate.requestInFlight &&
-    gate.now - gate.lastSentAt >= SUMMARY_MIN_INTERVAL_MS
-  );
+  return summaryWait(gate) === 0;
+}
+
+/**
+ * Milliseconds until a summary may be sent (0 = now), or null when it cannot be sent
+ * yet for a reason that waiting alone does not fix (consent, class state, no snapshot,
+ * a request already in flight).
+ */
+export function summaryWait(gate: SummaryGate): number | null {
+  if (
+    !gate.consentRecorded ||
+    !gate.classLive ||
+    gate.classPaused ||
+    !gate.hasSnapshot ||
+    gate.requestInFlight
+  )
+    return null;
+  return nextSummaryDelay(gate.now, gate.lastSentAt);
+}
+
+/**
+ * The part of a summary the coach must see without waiting for the next periodic send:
+ * the count, whole hold seconds and whether tracking is available. Score, cue and
+ * movement phase change on almost every frame and ride along with the periodic send.
+ */
+export function summaryUrgentKey(a: { reps: number; holdSeconds: number; phase: string }) {
+  return `${a.reps}|${Math.floor(a.holdSeconds)}|${a.phase === 'tracking unavailable' ? 0 : 1}`;
+}
+
+/** How long an urgent summary must wait to keep the minimum spacing (0 = send now). */
+export function nextSummaryDelay(now: number, lastSentAt: number) {
+  return Math.max(0, lastSentAt + SUMMARY_MIN_INTERVAL_MS - now);
 }
 
 /** An unchanged body is skipped until the heartbeat interval has passed. */

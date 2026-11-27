@@ -1,6 +1,6 @@
 import { loggedRoute } from '@/lib/request-log';
 import { requireParticipation } from '@/lib/member-access';
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { db, isSqliteDatabase } from '@/lib/db';
 import {
   ApiError,
@@ -19,16 +19,22 @@ import { requireExercise } from '@/lib/exercise-access';
 import type { Prisma } from '@prisma/client';
 import { planBlocks } from '@/lib/workout-run';
 import type { Block } from '@/lib/types';
+import { classManagerIds } from '@/lib/studio-access';
+import { notifyMeeting } from '@/lib/meeting-events';
+import { logEvent } from '@/lib/logger';
 async function handlePOST(request: Request) {
   try {
     // Heartbeat cadence: accept the session cookie cache (see requireUser).
     const user = await requireUser({ freshSession: false });
     const data = metricSchema.parse(await readJson(request));
-    await writeMetrics(
-      async () => {
-        await db.$transaction(
+    const stored = await writeMetrics(
+      () =>
+        db.$transaction(
           async (tx) => {
-            const item = await tx.classSession.findUnique({ where: { id: data.classId } });
+            const item = await tx.classSession.findUnique({
+              where: { id: data.classId },
+              include: { studio: { select: { ownerId: true, status: true } } },
+            });
             const enrollment = await tx.enrollment.findUnique({
               where: { classId_userId: { classId: data.classId, userId: user.id } },
               include: { metric: true },
@@ -144,15 +150,33 @@ async function handlePOST(request: Request) {
                 scoreTotal: { increment: validScore ?? 0 },
               },
             });
+            return item;
           },
           { isolationLevel: 'Serializable' },
-        );
-      },
+        ),
       isSqliteDatabase(),
       // Per-instance first filter with no write; the shared limit is applied in the
       // transaction to summaries faster than the steady cadence.
       async () => localRateLimit(user.id, 'metrics', 30),
     );
+    // After commit only: nudge the class managers to refetch the authorized snapshot now
+    // instead of on their next poll. The packet carries no metrics (see notifyMeeting).
+    after(async () => {
+      try {
+        // Exactly the users who pass the GET snapshot's canManage check, never the sender.
+        const grants = await db.studioRoleGrant.findMany({
+          where: { studioId: stored.studioId, status: 'active', role: { in: ['admin', 'coach'] } },
+          select: { userId: true, role: true, status: true },
+        });
+        const recipients = classManagerIds(stored, grants).filter((id) => id !== user.id);
+        if (recipients.length) await notifyMeeting(stored, recipients);
+      } catch {
+        logEvent('warn', 'meeting_notification_delayed', {
+          targetId: stored.id,
+          provider: 'livekit',
+        });
+      }
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return safeError(error);

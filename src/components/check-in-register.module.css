@@ -3,6 +3,10 @@
   gap: 16px;
   min-width: 0;
 }
+/* The date and Refresh controls drop below the title when the row is too narrow. */
+.register > :global(.section-title) {
+  flex-wrap: wrap;
+}
 .controls {
   display: flex;
   align-items: center;

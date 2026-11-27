@@ -1,5 +1,13 @@
 'use client';
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import { Hand, Search, X, ChevronLeft, ChevronRight, Send, MicOff, Move } from 'lucide-react';
 import type { Participant } from 'livekit-client';
 import type { ClassView } from '@/lib/types';
@@ -7,11 +15,20 @@ import { COACH_PAGE_SIZE } from '@/lib/meeting-policy';
 import { isHoldExercise } from '@/lib/exercise-profiles';
 import { limbModeLabel } from '@/lib/exercise-library';
 import { galleryTileDescription, galleryTileName } from '@/lib/live-room-a11y';
-import { CORNERS, isCorner, type Corner } from '@/lib/room-layout';
+import {
+  CORNERS,
+  DEFAULT_TILE_ASPECT,
+  isCorner,
+  packGallery,
+  type Corner,
+  type Size,
+} from '@/lib/room-layout';
 import { Avatar } from './ui';
 import { useCornerDrag } from './use-corner-drag';
 
 const selfPreviewKey = 'geez-squad:coach-preview-corner:v1';
+/** Matches the scrolling grid's smallest row on short screens. */
+const MIN_PACKED_TILE_HEIGHT = 120;
 
 export function freshMetric(person: ClassView['participants'][number], item: ClassView) {
   return person.metric &&
@@ -45,7 +62,8 @@ export function CoachMonitor({
   focus: string | null;
   onFocus: (id: string | null) => void;
   onVisible: (ids: string[]) => void;
-  renderVideo: (person: Participant) => ReactNode;
+  /** `onAspect` receives the video's width / height so the gallery can fit its shape. */
+  renderVideo: (person: Participant, onAspect?: (aspect: number) => void) => ReactNode;
   renderConnection: (person: Participant) => ReactNode;
   onCue: (text: string, recipient?: string) => Promise<boolean>;
   onHelp: (id: string) => void;
@@ -64,6 +82,33 @@ export function CoachMonitor({
   const [compact, setCompact] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [selfCorner, setSelfCorner] = useState<Corner>('top-right');
+  // Each trainee's video shape (width / height), reported by the video element.
+  const [aspects, setAspects] = useState<Record<string, number>>({});
+  const reportAspect = useCallback((id: string, aspect: number) => {
+    setAspects((current) =>
+      Math.abs((current[id] ?? 0) - aspect) < 0.01 ? current : { ...current, [id]: aspect },
+    );
+  }, []);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const [gallerySize, setGallerySize] = useState<(Size & { gap: number }) | null>(null);
+  useEffect(() => {
+    const element = galleryRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const width = element.clientWidth;
+      const height = element.clientHeight;
+      const gap = parseFloat(getComputedStyle(element).rowGap) || 0;
+      setGallerySize((current) =>
+        current && current.width === width && current.height === height && current.gap === gap
+          ? current
+          : { width, height, gap },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const moveSelf = (corner: Corner) => {
     setSelfCorner(corner);
     try {
@@ -132,6 +177,21 @@ export function CoachMonitor({
             : visible.length <= 25
               ? 5
               : 6;
+  // A phone held upright sends 9:16 video, which leaves wide empty bars in an equal-cell
+  // grid. When any visible camera is portrait (and the gallery is not the scrolling phone
+  // grid), tiles take their video's own shape in justified rows instead.
+  const tileAspects = visible.map((p) =>
+    people.has(p.id) ? (aspects[p.id] ?? DEFAULT_TILE_ASPECT) : DEFAULT_TILE_ASPECT,
+  );
+  const packed =
+    !compact && gallerySize && tileAspects.some((aspect) => aspect < 1)
+      ? packGallery(tileAspects, gallerySize, gallerySize.gap)
+      : [];
+  // Short windows keep the scrolling grid rather than shrinking tiles below a usable size.
+  const packedReady =
+    packed.length > 0 &&
+    packed.length === visible.length &&
+    Math.min(...packed.map((rect) => rect.height)) >= MIN_PACKED_TILE_HEIGHT;
   const helpCount = item.participants.filter((p) => p.helpRequested).length;
   const trackedCount = item.participants.filter(
     (p) => (freshMetric(p, item)?.confidence ?? 0) >= 0.65,
@@ -241,7 +301,8 @@ export function CoachMonitor({
       <div className="monitor-body">
         <div className="monitor-gallery-wrap">
           <div
-            className={`participant-grid meeting-gallery monitor-gallery ${comfortable ? 'comfortable-gallery' : ''}`}
+            ref={galleryRef}
+            className={`participant-grid meeting-gallery monitor-gallery ${comfortable ? 'comfortable-gallery' : ''}${packedReady ? ' packed-gallery' : ''}`}
             style={
               {
                 '--gallery-columns': columns,
@@ -268,6 +329,16 @@ export function CoachMonitor({
                   aria-describedby={descriptionId}
                   aria-pressed={focus === p.id}
                   onClick={() => onFocus(focus === p.id ? null : p.id)}
+                  style={
+                    packedReady
+                      ? ({
+                          '--tile-x': `${packed[i].x}px`,
+                          '--tile-y': `${packed[i].y}px`,
+                          '--tile-width': `${packed[i].width}px`,
+                          '--tile-height': `${packed[i].height}px`,
+                        } as CSSProperties)
+                      : undefined
+                  }
                 >
                   {/* The label replaces the visible stats, so they are repeated here. */}
                   <span id={descriptionId} hidden>
@@ -298,7 +369,7 @@ export function CoachMonitor({
                   </span>
                   <div className="participant-feed">
                     {person ? (
-                      renderVideo(person)
+                      renderVideo(person, (aspect) => reportAspect(p.id, aspect))
                     ) : (
                       <div className="meeting-empty-video">
                         <Avatar name={p.name} index={i} />

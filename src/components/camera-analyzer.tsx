@@ -26,6 +26,7 @@ import {
   Settings2,
   ChevronDown,
   ChevronUp,
+  RotateCcw,
 } from 'lucide-react';
 import type { Block, ExerciseId, WorkoutSetRecord } from '@/lib/types';
 import {
@@ -1804,6 +1805,21 @@ export function CameraAnalyzer({
         <div className={`cue-card analyzer-cue ${cueExpanded ? 'is-expanded' : ''}`}>
           <ScanLine size={16} aria-hidden="true" />
           <p role={completion ? undefined : 'status'}>{cue}</p>
+          {/* The retry sits beside the message that explains it, so the set controls
+              below keep their row when tracking pauses. */}
+          {status === 'ready' && analysis.phase === 'camera paused' && (
+            <button
+              className="button outline cue-retry"
+              aria-label="Retry tracking"
+              onClick={() => {
+                const shared = ownStream.current ? undefined : (currentStream.current ?? undefined);
+                void start(shared);
+              }}
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              Retry
+            </button>
+          )}
           <button
             className="icon-button cue-expand"
             aria-label={cueExpanded ? 'Collapse coaching cue' : 'Expand coaching cue'}
@@ -1908,19 +1924,6 @@ export function CameraAnalyzer({
                 onClick={startSet}
               >
                 <Play size={17} /> {mode === 'rest' ? 'Start next set' : 'Start set'}
-              </button>
-            )}
-            {status === 'ready' && analysis.phase === 'camera paused' && (
-              <button
-                className="button outline"
-                onClick={() => {
-                  const shared = ownStream.current
-                    ? undefined
-                    : (currentStream.current ?? undefined);
-                  void start(shared);
-                }}
-              >
-                Retry tracking
               </button>
             )}
             {armed && (

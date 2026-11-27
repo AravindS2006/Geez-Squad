@@ -97,6 +97,20 @@
   grid-template-rows: repeat(var(--gallery-rows), minmax(0, 1fr));
   overflow: hidden;
 }
+/* Portrait phone cameras: tiles take their video's shape, placed by packGallery()
+ * (room-layout.ts) through CSS variables, so no tile is re-created when the layout changes. */
+.room:global(.meeting-room.meeting-v2) :global(.monitor-gallery.packed-gallery.participant-grid) {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.room:global(.meeting-room.meeting-v2) :global(.monitor-gallery.packed-gallery > .meeting-tile) {
+  position: absolute;
+  left: var(--tile-x);
+  top: var(--tile-y);
+  width: var(--tile-width);
+  height: var(--tile-height);
+}
 .room:global(.meeting-room.meeting-v2) :global(.monitor-gallery .participant-feed) {
   position: absolute;
   inset: 0;
@@ -319,6 +333,19 @@
 .room:global(.meeting-room.meeting-v2) :global(.analyzer-progress) {
   padding: 8px 4px 0;
 }
+/* Retry tracking shares the cue row with the paused-camera message, so the set
+ * controls keep one row at every size. */
+.room:global(.meeting-room.meeting-v2) :global(.analyzer-cue .cue-retry) {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.room:global(.meeting-room.meeting-v2) :global(.analyzer-cue .cue-retry svg) {
+  color: inherit;
+}
 .room:global(.meeting-room.meeting-v2) :global(.workout-capability) {
   min-height: 30px;
   padding: 0 4px;
@@ -334,13 +361,165 @@
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: 10px;
 }
-.room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-large) {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
-  gap: 10px;
+/* The coach view picker shows its whole label; in Picture in picture it fits the tile. */
+.room:global(.meeting-room.meeting-v2) :global(.coach-video-toolbar > select) {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 8px 4px;
 }
-.room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-minimized) {
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-small .coach-video-toolbar > select) {
+  max-width: calc(100% - 8px);
+  margin: 4px;
+  font-size: 11px;
+}
+/* Full coach view: the coach fills the stage and the trainee's own camera floats in a
+ * corner as a compact card (camera, rep count and set controls). The analyzer keeps its
+ * place in the DOM; only CSS moves it. */
+.room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-large) {
+  --self-floating-width: clamp(280px, 28%, 400px);
+  --self-floating-inset: 12px;
+  /* Below the coach toolbar, so the view picker stays reachable. */
+  --self-floating-top: calc(44px + var(--self-floating-inset));
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large > .trainee-self-stage) {
+  position: absolute;
+  z-index: 3;
+  top: var(--self-floating-top);
+  right: var(--self-floating-inset);
+  width: var(--self-floating-width);
+  height: min(
+    calc(var(--self-floating-width) * 0.75 + 64px),
+    calc(100% - var(--self-floating-top) - var(--self-floating-inset))
+  );
+  border: 1px solid var(--meeting-line);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(
+    .trainee-video-layout.coach-video-large[data-coach-position$='left'] > .trainee-self-stage
+  ) {
+  right: auto;
+  left: var(--self-floating-inset);
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(
+    .trainee-video-layout.coach-video-large[data-coach-position^='bottom'] > .trainee-self-stage
+  ) {
+  top: auto;
+  bottom: var(--self-floating-inset);
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large > .trainee-self-stage[data-dragging]) {
+  z-index: 40;
+  cursor: grabbing;
+}
+/* The card keeps what a trainee needs mid-set; the rest returns in the other views. */
+.room:global(.meeting-room.meeting-v2)
+  :global(
+    .trainee-video-layout.coach-video-large
+      :is(
+        .workout-capability,
+        .analyzer-identity,
+        .camera-bottom,
+        .analyzer-hud > div:not(:first-child),
+        .analyzer-progress > div:not(.set-actions, .analyzer-tools, .arm-mode-setup),
+        .analyzer-progress > progress
+      )
+  ) {
+  display: none;
+}
+/* The cue stays in the accessibility tree (its status updates are still announced) but
+ * takes no space unless it carries Retry. */
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-cue:not(:has(.cue-retry))) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+/* In the card the footer's rows join the analyzer grid: a paused-camera notice (with
+ * Retry) overlays the camera's lower edge instead of pushing the set controls out. */
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .meeting-analyzer) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .meeting-analyzer > .camera-view) {
+  grid-area: 1 / 1;
+  min-height: 0;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-footer) {
+  display: contents;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-footer > *) {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 6px 8px 0;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-footer > .analyzer-cue) {
+  grid-row: 1;
+  align-self: end;
+  position: relative;
+  z-index: 2;
+  margin: 0 8px 8px;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-footer > .analyzer-progress) {
+  grid-row: 4;
+  margin: 6px 8px;
+}
+/* Save status (with Retry saving) gets its own row instead of sharing the completion row. */
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-footer > .workout-save-status) {
+  grid-row: 3;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-progress) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+}
+/* The workout mode picker (needed before an automatic curl set can start) keeps a row. */
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-progress > .arm-mode-setup) {
+  flex: 1 0 100%;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-progress .set-actions) {
+  max-width: none;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-hud) {
+  padding: 4px 9px;
+}
+.room:global(.meeting-room.meeting-v2)
+  :global(.trainee-video-layout.coach-video-large .analyzer-hud > div > strong) {
+  font-size: 22px;
 }
 .room:global(.meeting-room.meeting-v2) :global(.meeting-notice) {
   margin: 0;
@@ -592,15 +771,11 @@
     gap: 8px;
   }
   .room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-large) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(200px, 45%);
-    gap: 8px;
+    --self-floating-width: min(62%, 240px);
+    --self-floating-inset: 8px;
   }
   .room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-small) {
     --coach-floating-size: 132px;
-  }
-  .room:global(.meeting-room.meeting-v2) :global(.trainee-video-layout.coach-video-minimized) {
-    grid-template-rows: minmax(0, 1fr);
   }
   .room:global(.meeting-room.meeting-v2) :global(.analyzer-footer) {
     max-height: 46%;
@@ -654,6 +829,10 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-fast);
+  }
+  .room:global(.meeting-room.meeting-v2)
+    :global(.trainee-video-layout.coach-video-small .coach-video-toolbar > select) {
+    min-height: 44px;
   }
   .room:global(.meeting-room.meeting-v2)
     :global(.trainee-video-layout.coach-video-small:not(.coach-video-minimized))
@@ -740,7 +919,8 @@
   }
   /* Set and sound controls are used mid-workout from a distance: keep 44px targets. */
   .room:global(.meeting-room.meeting-v2) :global(.analyzer-tools .icon-button),
-  .room:global(.meeting-room.meeting-v2) :global(.set-actions .button) {
+  .room:global(.meeting-room.meeting-v2) :global(.set-actions .button),
+  .room:global(.meeting-room.meeting-v2) :global(.analyzer-cue .cue-retry) {
     min-width: 44px;
     min-height: 44px;
   }

@@ -180,23 +180,24 @@ test('a trainee on a phone sees their own camera as the main view during a live 
     // Dismissing the cue returns the whole camera; a new cue would show again.
     await page.getByRole('button', { name: 'Dismiss coach message' }).click();
     await expect(cue).toBeHidden();
-    // At rest the coach tile is video and name only. A tap shows its two controls at
-    // full size, and they hide again on their own.
+    // At rest the coach tile is video and name only. A tap shows its one control, the
+    // coach view picker, at full size, and it hides again on its own.
     const coachControls = page.locator('.coach-video-toolbar');
-    const enlarge = page.getByRole('button', { name: 'Enlarge coach video' });
+    const coachView = page.getByLabel('Coach view');
     await expect(coachControls).toHaveCSS('opacity', '0');
     await page.locator('#coach-video-feed').click();
     await expect(coachControls).toHaveCSS('opacity', '1');
-    for (const control of [enlarge, page.getByRole('button', { name: 'Minimize coach video' })]) {
-      const b = (await control.boundingBox())!;
-      expect(Math.min(b.width, b.height)).toBeGreaterThanOrEqual(44);
-    }
+    const pickerBox = (await coachView.boundingBox())!;
+    expect(pickerBox.height).toBeGreaterThanOrEqual(44);
+    const tileBox = (await page.locator('.coach-stage').boundingBox())!;
+    expect(pickerBox.x).toBeGreaterThanOrEqual(tileBox.x);
+    expect(pickerBox.x + pickerBox.width).toBeLessThanOrEqual(tileBox.x + tileBox.width);
     await expect(coachControls).toHaveCSS('opacity', '0', { timeout: 8000 });
-    // Keyboard focus shows them without a tap.
-    await enlarge.focus();
+    // Keyboard focus shows it without a tap.
+    await coachView.focus();
     await expect(coachControls).toHaveCSS('opacity', '1');
-    // A saved larger coach layout is still respected on a phone.
-    await page.keyboard.press('Enter');
+    // A larger coach view chosen on a phone is respected.
+    await coachView.selectOption('medium');
     await expect(page.locator('.trainee-video-layout')).toHaveClass(/coach-video-medium/);
     const a11y = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])

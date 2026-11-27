@@ -13,7 +13,7 @@ test.use({
 
 process.loadEnvFile('.env');
 
-test('a trainee can resize, minimize, and restore the coach without replacing workout tracking', async ({
+test('a trainee can switch between the three coach views without replacing workout tracking', async ({
   page,
   browser,
 }) => {
@@ -85,13 +85,21 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     await page.getByRole('button', { name: 'Enable camera', exact: true }).click();
     await expect(page.getByText('Pose detected', { exact: true })).toBeVisible();
 
-    const size = page.locator('select[aria-label="Coach video size"]');
+    const size = page.locator('select[aria-label="Coach view"]');
     const coachTile = page.locator('.coach-stage');
     const feed = page.locator('#coach-video-feed');
     const analyzer = page.locator('.camera-analyzer');
     await expect(size).toHaveValue('medium');
     await expect(size).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Enlarge coach video' })).toBeHidden();
+    // Only the three coach views are offered; there are no separate enlarge or minimize controls.
+    expect(await size.locator('option').allTextContents()).toEqual([
+      'Picture in picture',
+      'Coach and me',
+      'Full coach view',
+    ]);
+    await expect(
+      page.getByRole('button', { name: /(Enlarge|Minimize|Restore) coach video/ }),
+    ).toHaveCount(0);
     await expect(analyzer).toBeVisible();
     // Layout changes must preserve the same camera and feed nodes, rather than remounting them.
     await analyzer.evaluate((node, id) => node.setAttribute('data-layout-fixture', id), fixtureId);
@@ -106,14 +114,9 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     }
     async function changeSize(value: string) {
       if ((await size.inputValue()) === value) return;
-      if ((await size.inputValue()) === 'small') {
-        await showCoachControls();
-        await page.getByRole('button', { name: 'Enlarge coach video' }).click();
-        await expect(size).toBeFocused();
-      }
-      if ((await size.inputValue()) !== value) await size.selectOption(value);
-      if (value === 'small')
-        await expect(page.getByRole('button', { name: 'Enlarge coach video' })).toBeFocused();
+      if ((await size.inputValue()) === 'small') await showCoachControls();
+      await size.selectOption(value);
+      await expect(size).toHaveValue(value);
     }
 
     async function expectInsideCamera() {
@@ -132,14 +135,16 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
       const video = (await page.locator('.camera-video').boundingBox())!;
       const canvas = (await page.locator('.pose-canvas').boundingBox())!;
       expect(video).toEqual(canvas);
-      const progress = (await page.locator('.analyzer-progress').boundingBox())!;
-      const label = (await page
-        .locator('.analyzer-progress > div:first-child > strong')
-        .boundingBox())!;
-      const inset = await page
-        .locator('.analyzer-progress')
-        .evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
-      expect(Math.abs(progress.x + inset - label.x)).toBeLessThanOrEqual(1);
+      // Full coach view hides the set label in its compact card.
+      const label = page.locator('.analyzer-progress > div:first-child > strong');
+      if (await label.isVisible()) {
+        const progress = (await page.locator('.analyzer-progress').boundingBox())!;
+        const labelBox = (await label.boundingBox())!;
+        const inset = await page
+          .locator('.analyzer-progress')
+          .evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
+        expect(Math.abs(progress.x + inset - labelBox.x)).toBeLessThanOrEqual(1);
+      }
       const overlays = [
         '.tracking-badge',
         '.analyzer-hud',
@@ -235,7 +240,7 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
           await expectInsideCamera();
           for (const position of ['top-left', 'bottom-left', 'bottom-right', 'top-right']) {
             await page.getByRole('button', { name: 'More options', exact: true }).click();
-            await page.getByLabel('Floating coach position').selectOption(position);
+            await page.getByLabel('Floating video position').selectOption(position);
             await page.getByRole('button', { name: 'Close panel' }).click();
             await expect(page.locator('.trainee-video-layout')).toHaveAttribute(
               'data-coach-position',
@@ -267,22 +272,30 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
           ),
         ).toBe(true);
       }
-      const cameraBefore = await page.locator('.camera-view').boundingBox();
-      await page.getByRole('button', { name: 'Minimize coach video' }).click();
-      const restore = page.getByRole('button', { name: 'Restore coach video' });
-      await expect(restore).toBeFocused();
-      await expect(restore).toHaveAttribute('aria-expanded', 'false');
-      await expect(feed).toBeHidden();
-      await expect(feed).toHaveAttribute('data-layout-fixture', fixtureId);
-      const minimized = await coachTile.boundingBox();
-      expect(minimized!.height).toBeLessThanOrEqual(viewport.width >= 2000 ? 64 : 50);
-      await expectInsideCamera();
-      const cameraAfter = await page.locator('.camera-view').boundingBox();
-      if (viewport.width <= 600) expect(cameraAfter!.height).toBeGreaterThan(cameraBefore!.height);
-      else expect(cameraAfter!.width).toBeGreaterThan(cameraBefore!.width);
-      await restore.press('Enter');
-      await expect(page.getByRole('button', { name: 'Minimize coach video' })).toBeFocused();
+      // Full coach view: the coach fills the stage and the trainee's own camera floats in a
+      // corner of it, below the coach toolbar, without covering the view picker.
       await expect(size).toHaveValue('large');
+      const layoutBox = (await page.locator('.trainee-video-layout').boundingBox())!;
+      const selfStage = page.locator('.trainee-self-stage');
+      for (const position of ['top-left', 'bottom-left', 'bottom-right', 'top-right']) {
+        await page.getByRole('button', { name: 'More options', exact: true }).click();
+        await page.getByLabel('Floating video position').selectOption(position);
+        await page.getByRole('button', { name: 'Close panel' }).click();
+        const card = (await selfStage.boundingBox())!;
+        const picker = (await size.boundingBox())!;
+        expect(card.x).toBeGreaterThanOrEqual(layoutBox.x);
+        expect(card.y).toBeGreaterThanOrEqual(layoutBox.y);
+        expect(card.x + card.width).toBeLessThanOrEqual(layoutBox.x + layoutBox.width + 1);
+        expect(card.y + card.height).toBeLessThanOrEqual(layoutBox.y + layoutBox.height + 1);
+        expect(card.width * card.height).toBeLessThan(layoutBox.width * layoutBox.height * 0.5);
+        const coversPicker =
+          Math.min(card.x + card.width, picker.x + picker.width) > Math.max(card.x, picker.x) &&
+          Math.min(card.y + card.height, picker.y + picker.height) > Math.max(card.y, picker.y);
+        expect(coversPicker, `${position} at ${viewport.width}`).toBe(false);
+        // The set controls stay usable in the card.
+        await expect(page.getByRole('button', { name: 'Start set' })).toBeInViewport();
+        await expect(analyzer).toHaveAttribute('data-layout-fixture', fixtureId);
+      }
       await expect(feed).toBeVisible();
     }
 
@@ -297,16 +310,11 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
           .evaluate((element) => getComputedStyle(element).backgroundImage),
       ).toBe('none');
     }
-    const cameraBeforeSmallMinimize = await page.locator('.camera-view').boundingBox();
-    await showCoachControls();
-    await page.getByRole('button', { name: 'Minimize coach video' }).click();
+    // The chosen view survives a reload.
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Restore coach video' })).toBeVisible();
-    await expect(feed).toBeHidden();
+    await expect(size).toHaveValue('small');
+    await expect(feed).toBeVisible();
     await expectInsideCamera();
-    const cameraAfterSmallMinimize = await page.locator('.camera-view').boundingBox();
-    expect(cameraAfterSmallMinimize!.height).toBe(cameraBeforeSmallMinimize!.height);
-    expect(cameraAfterSmallMinimize!.width).toBe(cameraBeforeSmallMinimize!.width);
     const cue = page.locator('.analyzer-cue');
     const cueText = cue.locator('p');
     const fullCue = await cueText.textContent();
@@ -326,16 +334,6 @@ test('a trainee can resize, minimize, and restore the coach without replacing wo
     expect((await cue.boundingBox())!.height).toBeLessThanOrEqual(40);
     await mkdir('docs/screenshots', { recursive: true });
     await page.screenshot({ path: 'docs/screenshots/compact-trainee-mobile.png' });
-    const minimizedAccessibility = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(minimizedAccessibility.violations.map((violation) => violation.id)).toEqual([]);
-    await page.getByRole('button', { name: 'Restore coach video' }).click();
-    await expect(size).toHaveValue('small');
-    await expect(size).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Enlarge coach video' })).toBeVisible();
-    await expect(feed).toBeVisible();
-    await expectInsideCamera();
     await page.screenshot({ path: 'docs/screenshots/floating-coach-mobile.png' });
     const expandedAccessibility = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])

@@ -148,6 +148,94 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
+/** Shape (width / height) of a gallery tile whose video has not reported a size yet. */
+export const DEFAULT_TILE_ASPECT = 16 / 9;
+/** Aspect ratios outside this range are treated as the nearest bound (9:16 is 0.5625). */
+const MIN_TILE_ASPECT = 0.4;
+const MAX_TILE_ASPECT = 2.5;
+
+export function tileAspect(width: number, height: number): number | null {
+  return finite(width) && finite(height) && width > 0 && height > 0 ? width / height : null;
+}
+
+/** Splits tiles, in order, into at most `rows` non-empty rows of similar total width. */
+function splitRows(ratios: number[], rows: number): [number, number][] {
+  const total = ratios.reduce((sum, ratio) => sum + ratio, 0);
+  const result: [number, number][] = [];
+  let start = 0;
+  let acc = 0;
+  for (let i = 0; i < ratios.length; i++) {
+    const rowsAfter = rows - result.length - 1;
+    const boundary = (total * (result.length + 1)) / rows;
+    // Start a new row before the tile whose middle crosses this row's share, or when
+    // each remaining tile is needed to fill a remaining row.
+    if (
+      i > start &&
+      rowsAfter > 0 &&
+      (ratios.length - i === rowsAfter || acc + ratios[i] / 2 > boundary)
+    ) {
+      result.push([start, i]);
+      start = i;
+    }
+    acc += ratios[i];
+  }
+  result.push([start, ratios.length]);
+  return result;
+}
+
+/**
+ * Coach gallery layout that keeps each video's own shape: a phone held upright (9:16)
+ * gets a narrow tall tile instead of a wide cell with empty bars beside it. Tiles keep
+ * their order in justified rows; every row count is tried and the one that shows the
+ * most video wins (ties keep fewer rows). Rows and the whole block are centred in `box`.
+ * Returns one rect per aspect, relative to the box, in whole pixels.
+ */
+export function packGallery(aspects: number[], box: Size, gap: number): Rect[] {
+  const count = aspects.length;
+  if (!count || !(box.width > 0) || !(box.height > 0)) return [];
+  const space = finite(gap) && gap > 0 ? gap : 0;
+  const ratios = aspects.map((aspect) =>
+    finite(aspect) && aspect > 0
+      ? clamp(aspect, MIN_TILE_ASPECT, MAX_TILE_ASPECT)
+      : DEFAULT_TILE_ASPECT,
+  );
+  let best: { area: number; rows: { start: number; end: number; height: number }[] } | null = null;
+  for (let rowCount = 1; rowCount <= count; rowCount++) {
+    const rowHeight = (box.height - space * (rowCount - 1)) / rowCount;
+    if (rowHeight <= 0) break;
+    let area = 0;
+    const rows = splitRows(ratios, rowCount).map(([start, end]) => {
+      const sum = ratios.slice(start, end).reduce((total, ratio) => total + ratio, 0);
+      const height = Math.min(rowHeight, (box.width - space * (end - start - 1)) / sum);
+      area += height * height * sum;
+      return { start, end, height: Math.max(0, height) };
+    });
+    if (!best || area > best.area + 0.5) best = { area, rows };
+  }
+  const rows = best!.rows;
+  const blockHeight =
+    rows.reduce((total, row) => total + row.height, 0) + space * (rows.length - 1);
+  const rects: Rect[] = [];
+  let y = Math.max(0, (box.height - blockHeight) / 2);
+  for (const row of rows) {
+    const widths = ratios.slice(row.start, row.end).map((ratio) => ratio * row.height);
+    const rowWidth =
+      widths.reduce((total, width) => total + width, 0) + space * (widths.length - 1);
+    let x = Math.max(0, (box.width - rowWidth) / 2);
+    for (const width of widths) {
+      rects.push({
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.floor(width),
+        height: Math.floor(row.height),
+      });
+      x += width + space;
+    }
+    y += row.height + space;
+  }
+  return rects;
+}
+
 /** Reads a saved panel preference. Anything malformed falls back to the defaults. */
 export function parsePanelPreference(raw: string | null): PanelPreference {
   if (!raw) return DEFAULT_PANEL_PREFERENCE;
